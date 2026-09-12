@@ -125,6 +125,41 @@ function Login() {
   );
 }
 
+function SetPassword({ onDone }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError("");
+    if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
+    if (password !== confirm) { setError("Passwords don't match."); return; }
+    setLoading(true);
+    const { error } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+    if (error) { setError(error.message); return; }
+    onDone();
+  };
+
+  return (
+    <div className="mb-body" style={{ minHeight: "100vh", background: C.paper, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <style>{FONT}</style>
+      <form onSubmit={submit} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 32, width: 360 }}>
+        <div className="mb-display" style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}>Welcome to The Motherbase</div>
+        <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 20 }}>Set a password to finish creating your account.</div>
+        <FormRow label="New password"><input type="password" required value={password} onChange={e=>setPassword(e.target.value)} style={inputStyle} /></FormRow>
+        <FormRow label="Confirm password"><input type="password" required value={confirm} onChange={e=>setConfirm(e.target.value)} style={inputStyle} /></FormRow>
+        {error && <div style={{ color: C.coral, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
+        <button type="submit" disabled={loading} style={{ width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+          {loading ? "Saving…" : "Set password & continue"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 function NotLinked({ email }) {
   return (
     <div className="mb-body" style={{ minHeight: "100vh", background: C.paper, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 20 }}>
@@ -145,8 +180,18 @@ function NotLinked({ email }) {
 /* ---------------------------------------------------------------
    MAIN APP
 ----------------------------------------------------------------*/
+// Reads Supabase's #access_token=...&type=invite (or recovery) hash params.
+function getAuthHashParams() {
+  const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+  return Object.fromEntries(new URLSearchParams(hash));
+}
+
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = loading, null = logged out
+  const [authFlow, setAuthFlow] = useState(() => {
+    const { type } = getAuthHashParams();
+    return type === "invite" || type === "recovery" ? type : null;
+  });
   const [employees, setEmployees] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -195,6 +240,16 @@ export default function App() {
   const directReports = (id) => employees.filter(e => e.sup === id);
 
   if (session === undefined) return <FullScreenMsg text="Loading…" />;
+  if (authFlow && session) {
+    return (
+      <SetPassword
+        onDone={() => {
+          setAuthFlow(null);
+          window.history.replaceState(null, "", window.location.pathname);
+        }}
+      />
+    );
+  }
   if (session === null) return <Login />;
 
   const me = employees.find(e => e.email === session.user.email);
