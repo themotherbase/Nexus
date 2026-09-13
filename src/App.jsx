@@ -3,7 +3,7 @@ import {
   LayoutGrid, Users, ClipboardList, Bell, Settings, Network,
   Search, Plus, X, CircleAlert, Clock, CheckCircle2,
   Table2, CalendarDays, KanbanSquare, ShieldCheck, Pencil, Trash2,
-  Repeat, TriangleAlert, ListTree, LogOut
+  Repeat, TriangleAlert, ListTree, LogOut, Undo2
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 
@@ -78,7 +78,7 @@ const mapTask = (row) => ({
   id: row.id, title: row.title, description: row.description, dept: row.dept_id,
   assignee: row.assignee_id, supervisor: row.supervisor_id, backup: row.backup_id,
   priority: row.priority, status: row.status, progress: row.progress, category: row.category,
-  recurring: row.recurring, due: row.due_date, needsSignoff: row.needs_signoff, createdBy: row.created_by,
+  recurring: row.recurring, recurringCustomDays: row.recurring_custom_days, due: row.due_date, needsSignoff: row.needs_signoff, createdBy: row.created_by,
   subtasks: (row.subtasks || []).map(s => ({ id: s.id, title: s.title, done: s.done })),
   comments: (row.task_comments || [])
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
@@ -282,7 +282,7 @@ export default function App() {
     await supabase.from("tasks").insert({
       title: t.title, dept_id: t.dept, assignee_id: t.assignee, supervisor_id: t.supervisor,
       priority: t.priority, status: t.status, due_date: t.due, progress: t.progress,
-      category: t.category, recurring: t.recurring, created_by: t.createdBy, needs_signoff: t.needsSignoff,
+      category: t.category, recurring: t.recurring, recurring_custom_days: t.recurringCustomDays ?? null, created_by: t.createdBy, needs_signoff: t.needsSignoff,
     });
     await refetchTasks();
   };
@@ -400,7 +400,7 @@ export default function App() {
         )}
         {taskDetail && (
           <TaskDetailModal task={tasks.find(t=>t.id===taskDetail)} onClose={() => setTaskDetail(null)}
-            addComment={addComment} viewerEmp={viewerEmp} />
+            addComment={addComment} viewerEmp={viewerEmp} setTaskStatus={setTaskStatus} />
         )}
       </div>
     </EmpContext.Provider>
@@ -985,14 +985,34 @@ function CalendarView({ tasks, setTaskDetail }) {
   );
 }
 
-function TaskDetailModal({ task, onClose, addComment, viewerEmp }) {
+function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus }) {
   const { byId } = useEmp();
   const [draft, setDraft] = useState("");
+  const [signoffNote, setSignoffNote] = useState("");
   if (!task) return null;
   const emp = byId[task.assignee] || { name: "Unassigned" };
   const sup = byId[task.supervisor] || { name: "—" };
   const comments = task.comments || [];
   const submitComment = () => { if (!draft.trim()) return; addComment(task.id, draft.trim()); setDraft(""); };
+
+  // The approver is whoever isn't the assignee and isn't a plain employee — i.e. the
+  // supervisor, a manager up the chain, or an exec/admin reviewing someone else's work.
+  const isApprover = task.status === "For Review" && viewerEmp.id !== task.assignee && viewerEmp.role !== "employee";
+  const approve = () => {
+    if (signoffNote.trim()) addComment(task.id, `Approved by ${viewerEmp.name}: ${signoffNote.trim()}`);
+    setTaskStatus(task.id, "Completed");
+    onClose();
+  };
+  const sendBack = () => {
+    if (!signoffNote.trim()) { alert("Add a short note explaining what still needs to be done before sending it back."); return; }
+    addComment(task.id, `Sent back by ${viewerEmp.name}: ${signoffNote.trim()}`);
+    setTaskStatus(task.id, "In Progress");
+    onClose();
+  };
+
+  const recurrenceLabel = !task.recurring ? "One-time"
+    : task.recurring === "Custom" ? `Custom — every ${task.recurringCustomDays || "?"} day(s)`
+    : task.recurring;
 
   return (
     <ModalShell onClose={onClose} width={560}>
@@ -1003,7 +1023,7 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, margin: "16px 0" }}>
         <Field label="Assigned to" value={emp.name} /><Field label="Supervisor" value={sup.name} />
         <Field label="Due date" value={task.due} /><Field label="Status" value={task.status} />
-        <Field label="Category" value={task.category} /><Field label="Recurrence" value={task.recurring || "One-time"} />
+        <Field label="Category" value={task.category} /><Field label="Recurrence" value={recurrenceLabel} />
         {task.backup && <Field label="Backup assignee" value={byId[task.backup]?.name || "—"} />}
         <Field label="Created by" value={byId[task.createdBy]?.name || "—"} />
       </div>
@@ -1015,8 +1035,24 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp }) {
           <div style={{ margin: "8px 0 18px" }}>{task.subtasks.map(s => <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, padding: "4px 0" }}><input type="checkbox" checked={s.done} readOnly /><span style={{ textDecoration: s.done ? "line-through" : "none", color: s.done ? C.slate : C.ink }}>{s.title}</span></div>)}</div>
         </>
       )}
-      {task.needsSignoff && task.status !== "Completed" && (
+      {task.needsSignoff && task.status !== "Completed" && !isApprover && (
         <div style={{ marginBottom: 14, fontSize: 12, color: C.slate, background: C.paper, borderRadius: 8, padding: 10 }}><ShieldCheck size={13} style={{ verticalAlign: -2, marginRight: 5 }} /> This task requires sign-off from {sup.name} before it counts as complete.</div>
+      )}
+      {isApprover && (
+        <div style={{ marginBottom: 16, background: C.paper, borderRadius: 10, padding: 12 }}>
+          <SectionLabel>Sign-off decision</SectionLabel>
+          <div style={{ fontSize: 12, color: C.slate, margin: "6px 0 10px" }}>{emp.name} submitted this for your review. Approve it if it's genuinely done, or send it back if it isn't — a note is required when sending back.</div>
+          <textarea placeholder="Note for the assignee (required if sending back)" value={signoffNote} onChange={e=>setSignoffNote(e.target.value)}
+            style={{ ...inputStyle, minHeight: 60, marginBottom: 10, resize: "vertical" }} />
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={approve} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: C.sage, color: "#fff", border: "none", borderRadius: 8, padding: "9px 0", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+              <CheckCircle2 size={14} /> Approve
+            </button>
+            <button onClick={sendBack} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: C.coral, color: "#fff", border: "none", borderRadius: 8, padding: "9px 0", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+              <Undo2 size={14} /> Send back — not complete
+            </button>
+          </div>
+        </div>
       )}
       <SectionLabel>Comments &amp; questions — {comments.length}</SectionLabel>
       <div style={{ margin: "10px 0 14px", display: "flex", flexDirection: "column", gap: 10, maxHeight: 220, overflowY: "auto" }}>
@@ -1054,11 +1090,12 @@ function AddTaskModal({ onClose, onCreate, createdBy }) {
   const [due, setDue] = useState(today());
   const [category, setCategory] = useState("General");
   const [recurring, setRecurring] = useState("");
+  const [customDays, setCustomDays] = useState(7);
 
   const submit = () => {
     if (!title.trim() || !assignee) return;
     const assigneeEmp = byId[assignee];
-    onCreate({ title, assignee, dept: assigneeEmp.dept, supervisor: assigneeEmp.sup || createdBy, priority, status: "Backlog", due, progress: 0, category, recurring: recurring || null, createdBy, needsSignoff: true });
+    onCreate({ title, assignee, dept: assigneeEmp.dept, supervisor: assigneeEmp.sup || createdBy, priority, status: "Backlog", due, progress: 0, category, recurring: recurring || null, recurringCustomDays: recurring === "Custom" ? Number(customDays) || 7 : null, createdBy, needsSignoff: true });
     onClose();
   };
 
@@ -1077,8 +1114,17 @@ function AddTaskModal({ onClose, onCreate, createdBy }) {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <FormRow label="Category"><input value={category} onChange={e=>setCategory(e.target.value)} style={inputStyle} /></FormRow>
-        <FormRow label="Recurring?"><select value={recurring} onChange={e=>setRecurring(e.target.value)} style={inputStyle}><option value="">One-time</option><option>Daily</option><option>Weekly</option><option>Monthly</option><option>Quarterly</option></select></FormRow>
+        <FormRow label="Recurring?">
+          <select value={recurring} onChange={e=>setRecurring(e.target.value)} style={inputStyle}>
+            <option value="">One-time</option><option>Daily</option><option>Weekly</option><option>Biweekly</option><option>Monthly</option><option>Quarterly</option><option>Custom</option>
+          </select>
+        </FormRow>
       </div>
+      {recurring === "Custom" && (
+        <FormRow label="Repeat every N days">
+          <input type="number" min={1} value={customDays} onChange={e=>setCustomDays(e.target.value)} style={inputStyle} />
+        </FormRow>
+      )}
       <button onClick={submit} style={{ marginTop: 14, width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Create Task</button>
     </ModalShell>
   );
