@@ -14,6 +14,14 @@ const C = {
   navy: "#1B2340", navySoft: "#2B3660", ink: "#20263D", paper: "#F1F0EC",
   card: "#FFFFFF", line: "#E4E2DC", amber: "#DD9A34", amberSoft: "#F6E6C7",
   coral: "#D8574C", coralSoft: "#F8E1DE", sage: "#4C8F6B", sageSoft: "#DEEBE3", slate: "#6B7280",
+  blue: "#3B7DD8", blueSoft: "#E1EBFA", yellow: "#C99A11", yellowSoft: "#FBF0CB",
+};
+const LIGHT_THEME = { ...C };
+const DARK_THEME = {
+  navy: "#12162A", navySoft: "#1E2440", ink: "#E7E8EE", paper: "#14161F", card: "#1C1F2C",
+  line: "#2B2F42", amber: "#E5A94A", amberSoft: "#3D2E12", coral: "#E3766B", coralSoft: "#3B1D1B",
+  sage: "#63B085", sageSoft: "#1C3226", slate: "#9AA0B4", blue: "#6FA8E0", blueSoft: "#182B41",
+  yellow: "#E3CB55", yellowSoft: "#332D10",
 };
 const FONT = `
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap');
@@ -82,7 +90,10 @@ const mapTask = (row) => ({
   subtasks: (row.subtasks || []).map(s => ({ id: s.id, title: s.title, done: s.done })),
   comments: (row.task_comments || [])
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-    .map(c => ({ author: c.author_id, text: c.body, time: new Date(c.created_at).toLocaleString() })),
+    .map(c => ({ id: c.id, parent: c.parent_comment_id, author: c.author_id, text: c.body, time: new Date(c.created_at).toLocaleString() })),
+  attachments: (row.task_attachments || [])
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    .map(a => ({ id: a.id, name: a.file_name, path: a.file_path, uploadedBy: a.uploaded_by, time: new Date(a.created_at).toLocaleString() })),
 });
 
 const EmpContext = createContext(null);
@@ -92,10 +103,12 @@ const useEmp = () => useContext(EmpContext);
    AUTH GATE
 ----------------------------------------------------------------*/
 function Login() {
+  const [mode, setMode] = useState("signin"); // "signin" | "forgot"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -104,6 +117,35 @@ function Login() {
     setLoading(false);
     if (error) setError(error.message);
   };
+
+  const sendReset = async (e) => {
+    e.preventDefault();
+    setError(""); setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+    setLoading(false);
+    if (error) setError(error.message); else setResetSent(true);
+  };
+
+  if (mode === "forgot") {
+    return (
+      <div className="mb-body" style={{ minHeight: "100vh", background: C.paper, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <style>{FONT}</style>
+        <form onSubmit={sendReset} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 32, width: 360 }}>
+          <div className="mb-display" style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}>Reset your password</div>
+          <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 20 }}>Enter your email and we'll send you a reset link.</div>
+          <FormRow label="Email"><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} style={inputStyle} /></FormRow>
+          {resetSent && <div style={{ color: C.sage, fontSize: 12.5, marginBottom: 10 }}>Check your email for a reset link.</div>}
+          {error && <div style={{ color: C.coral, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
+          <button type="submit" disabled={loading} style={{ width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+            {loading ? "Sending…" : "Send reset link"}
+          </button>
+          <button type="button" onClick={() => { setMode("signin"); setError(""); setResetSent(false); }} style={{ width: "100%", background: "none", border: "none", color: C.slate, fontSize: 12, marginTop: 12, cursor: "pointer" }}>
+            ← Back to sign in
+          </button>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div className="mb-body" style={{ minHeight: "100vh", background: C.paper, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -116,6 +158,9 @@ function Login() {
         {error && <div style={{ color: C.coral, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
         <button type="submit" disabled={loading} style={{ width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
           {loading ? "Signing in…" : "Sign in"}
+        </button>
+        <button type="button" onClick={() => setMode("forgot")} style={{ background: "none", border: "none", color: C.navy, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0, marginTop: 12 }}>
+          Forgot password?
         </button>
         <div style={{ fontSize: 11.5, color: C.slate, marginTop: 14, lineHeight: 1.5 }}>
           First time? Check your email for the invite link to set your password. If you don't have an account yet, ask Jose Paulo, Andrea, Maria, or Julian to invite you.
@@ -208,6 +253,15 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [showAddTask, setShowAddTask] = useState(false);
   const [taskDetail, setTaskDetail] = useState(null);
+  const [dark, setDark] = useState(() => {
+    try { return localStorage.getItem("mb-dark") === "1"; } catch { return false; }
+  });
+  const [onlineIds, setOnlineIds] = useState(new Set());
+
+  // Mutate the shared color-token object in place so every component (which reads
+  // C.xxx live at render time) picks up the theme without threading it through props.
+  Object.assign(C, dark ? DARK_THEME : LIGHT_THEME);
+  useEffect(() => { try { localStorage.setItem("mb-dark", dark ? "1" : "0"); } catch {} }, [dark]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -222,7 +276,7 @@ export default function App() {
   const refetchTasks = async () => {
     const { data, error } = await supabase
       .from("tasks")
-      .select("*, subtasks(*), task_comments(*)")
+      .select("*, subtasks(*), task_comments(*), task_attachments(*)")
       .order("due_date");
     if (!error) setTasks((data || []).map(mapTask));
   };
@@ -243,6 +297,20 @@ export default function App() {
 
   const byId = useMemo(() => Object.fromEntries(employees.map(e => [e.id, e])), [employees]);
   const directReports = (id) => employees.filter(e => e.sup === id);
+  const me = useMemo(() => employees.find(e => e.email === session?.user?.email), [employees, session]);
+
+  // Presence: lets everyone see who else is currently signed into the app.
+  useEffect(() => {
+    if (!me) return;
+    const channel = supabase.channel("presence-online", { config: { presence: { key: me.id } } });
+    channel.on("presence", { event: "sync" }, () => {
+      setOnlineIds(new Set(Object.keys(channel.presenceState())));
+    });
+    channel.subscribe(async (status) => {
+      if (status === "SUBSCRIBED") await channel.track({ at: new Date().toISOString() });
+    });
+    return () => { supabase.removeChannel(channel); };
+  }, [me?.id]);
 
   if (session === undefined) return <FullScreenMsg text="Loading…" />;
   if (authFlow && session) {
@@ -257,7 +325,6 @@ export default function App() {
   }
   if (session === null) return <Login />;
 
-  const me = employees.find(e => e.email === session.user.email);
   if (!loadingData && !me) return <NotLinked email={session.user.email} />;
   if (loadingData || !me) return <FullScreenMsg text="Loading your workspace…" />;
 
@@ -272,15 +339,18 @@ export default function App() {
       ? tasks.filter(t => new Set([viewerEmp.id, ...directReports(viewerEmp.id).map(e=>e.id)]).has(t.assignee) || t.supervisor === viewerEmp.id)
       : tasks.filter(t => t.assignee === viewerEmp.id);
 
-  const setTaskStatus = async (id, status) => {
-    const patch = { status };
-    if (status === "Completed") patch.progress = 100;
+  const updateTask = async (id, patch) => {
     const { error } = await supabase.from("tasks").update(patch).eq("id", id);
     if (error) alert(error.message);
     await refetchTasks();
   };
-  const addComment = async (id, text) => {
-    await supabase.from("task_comments").insert({ task_id: id, author_id: viewerEmp.id, body: text });
+  const setTaskStatus = (id, status) => {
+    const patch = { status };
+    if (status === "Completed") patch.progress = 100;
+    return updateTask(id, patch);
+  };
+  const addComment = async (id, text, parentId = null) => {
+    await supabase.from("task_comments").insert({ task_id: id, author_id: viewerEmp.id, body: text, parent_comment_id: parentId });
     await refetchTasks();
   };
   const createTask = async (t) => {
@@ -334,7 +404,7 @@ export default function App() {
   ];
 
   return (
-    <EmpContext.Provider value={{ employees, byId, directReports, addEmployee, updateEmployee, deleteEmployee, canEditOrg }}>
+    <EmpContext.Provider value={{ employees, byId, directReports, addEmployee, updateEmployee, deleteEmployee, canEditOrg, onlineIds }}>
       <div className="mb-body" style={{ background: C.paper, minHeight: "100vh", color: C.ink, display: "flex" }}>
         <style>{FONT}</style>
 
@@ -378,7 +448,7 @@ export default function App() {
         </aside>
 
         <main style={{ flex: 1, minWidth: 0, padding: "26px 34px 60px" }}>
-          {page === "dashboard" && <Dashboard tasks={tasks} viewerEmp={viewerEmp} isManager={isManager} isExec={isExec} setPage={setPage} />}
+          {page === "dashboard" && <Dashboard tasks={tasks} viewerEmp={viewerEmp} isManager={isManager} isExec={isExec} setPage={setPage} setTaskDetail={setTaskDetail} />}
           {page === "organization" && (
             <Organization orgView={orgView} setOrgView={setOrgView} setSelectedEmp={setSelectedEmp}
               search={search} setSearch={setSearch} onAdd={() => setEditingEmp(null)} onEdit={setEditingEmp} />
@@ -392,7 +462,7 @@ export default function App() {
               canCreate={isManager} setShowAddTask={setShowAddTask} setTaskDetail={setTaskDetail} />
           )}
           {page === "notifications" && <Notifications tasks={visibleTasks} />}
-          {page === "settings" && <SettingsPage isAdmin={isAdmin} />}
+          {page === "settings" && <SettingsPage isAdmin={isAdmin} dark={dark} setDark={setDark} />}
         </main>
 
         {selectedEmp && (
@@ -405,7 +475,8 @@ export default function App() {
         )}
         {taskDetail && (
           <TaskDetailModal task={tasks.find(t=>t.id===taskDetail)} onClose={() => setTaskDetail(null)}
-            addComment={addComment} viewerEmp={viewerEmp} setTaskStatus={setTaskStatus} />
+            addComment={addComment} viewerEmp={viewerEmp} setTaskStatus={setTaskStatus}
+            updateTask={updateTask} refetchTasks={refetchTasks} />
         )}
       </div>
     </EmpContext.Provider>
@@ -424,8 +495,9 @@ function FullScreenMsg({ text }) {
 /* ---------------------------------------------------------------
    DASHBOARD
 ----------------------------------------------------------------*/
-function Dashboard({ tasks, viewerEmp, isManager, isExec, setPage }) {
-  const { employees, directReports } = useEmp();
+function Dashboard({ tasks, viewerEmp, isManager, isExec, setPage, setTaskDetail }) {
+  const { employees, directReports, onlineIds } = useEmp();
+  const goToTask = (id) => { setTaskDetail(id); setPage("tasks"); };
   const scoped = isExec ? tasks : isManager
     ? tasks.filter(t => [viewerEmp.id, ...directReports(viewerEmp.id).map(e=>e.id)].includes(t.assignee))
     : tasks.filter(t => t.assignee === viewerEmp.id);
@@ -462,9 +534,9 @@ function Dashboard({ tasks, viewerEmp, isManager, isExec, setPage }) {
 
       <div style={{ display: "grid", gridTemplateColumns: isExec ? "1.3fr 1fr" : "1fr", gap: 18 }}>
         <Panel title="Management alerts">
-          <AlertRow icon={CircleAlert} color={C.coral} label="Overdue" items={overdue} />
-          <AlertRow icon={Clock} color={C.amber} label="Due today" items={dueToday} />
-          <AlertRow icon={CheckCircle2} color={C.sage} label="Recently completed" items={completed.slice(-3)} />
+          <AlertRow icon={CircleAlert} color={C.coral} label="Overdue" items={overdue} onOpen={goToTask} />
+          <AlertRow icon={Clock} color={C.amber} label="Due today" items={dueToday} onOpen={goToTask} />
+          <AlertRow icon={CheckCircle2} color={C.sage} label="Recently completed" items={completed.slice(-3)} onOpen={goToTask} />
         </Panel>
 
         {isExec && (
@@ -481,11 +553,23 @@ function Dashboard({ tasks, viewerEmp, isManager, isExec, setPage }) {
         )}
       </div>
 
+      <Panel title={`Online now (${employees.filter(e => onlineIds.has(e.id)).length})`} style={{ marginTop: 18 }}>
+        {employees.filter(e => onlineIds.has(e.id)).length === 0 && <Empty text="No one else is online right now." />}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
+          {employees.filter(e => onlineIds.has(e.id)).map(e => (
+            <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <Avatar name={e.name} size={26} online />
+              <span style={{ fontSize: 12.5 }}>{e.name}</span>
+            </div>
+          ))}
+        </div>
+      </Panel>
+
       {isManager && (
         <Panel title={isExec ? "Workload by employee" : "My team's workload"} style={{ marginTop: 18 }}>
           {workload.filter(w => isExec || [viewerEmp.id, ...directReports(viewerEmp.id).map(e=>e.id)].includes(w.emp.id)).map(w => (
             <div key={w.emp.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 0", borderBottom: `1px solid ${C.line}` }}>
-              <Avatar name={w.emp.name} />
+              <Avatar name={w.emp.name} online={onlineIds.has(w.emp.id)} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 600 }}>{w.emp.name}</div>
                 <div style={{ fontSize: 11.5, color: C.slate }}>{deptById[w.emp.dept]?.name}</div>
@@ -504,14 +588,14 @@ function Dashboard({ tasks, viewerEmp, isManager, isExec, setPage }) {
       {!isManager && (
         <Panel title="My tasks" style={{ marginTop: 18 }}>
           {scoped.length === 0 && <Empty text="Nothing assigned yet." />}
-          {scoped.map(t => <MiniTaskRow key={t.id} t={t} onClick={() => setPage("tasks")} />)}
+          {scoped.map(t => <MiniTaskRow key={t.id} t={t} onClick={() => goToTask(t.id)} />)}
         </Panel>
       )}
     </div>
   );
 }
 
-function AlertRow({ icon: Icon, color, label, items }) {
+function AlertRow({ icon: Icon, color, label, items, onOpen }) {
   const { byId } = useEmp();
   return (
     <div style={{ marginBottom: 14 }}>
@@ -523,7 +607,7 @@ function AlertRow({ icon: Icon, color, label, items }) {
       {items.length === 0 ? (
         <div style={{ fontSize: 12.5, color: C.slate, paddingLeft: 21 }}>None right now.</div>
       ) : items.slice(0,4).map(t => (
-        <div key={t.id} style={{ fontSize: 13, padding: "3px 0 3px 21px", color: C.ink }}>
+        <div key={t.id} onClick={() => onOpen?.(t.id)} style={{ fontSize: 13, padding: "3px 0 3px 21px", color: C.ink, cursor: onOpen ? "pointer" : "default" }}>
           {t.title} <span style={{ color: C.slate }}>— {byId[t.assignee]?.name || "Unassigned"}</span>
         </div>
       ))}
@@ -785,7 +869,7 @@ function StatusPill({ status }) {
 }
 
 function EmployeesList({ setSelectedEmp, search, setSearch, tasks, onAdd }) {
-  const { employees, canEditOrg } = useEmp();
+  const { employees, canEditOrg, onlineIds } = useEmp();
   const filtered = employees.filter(e => e.name.toLowerCase().includes(search.toLowerCase()));
   return (
     <div>
@@ -799,7 +883,7 @@ function EmployeesList({ setSelectedEmp, search, setSearch, tasks, onAdd }) {
           return (
             <div key={e.id} onClick={() => setSelectedEmp(e.id)} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16, cursor: "pointer" }}>
               <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
-                <Avatar name={e.name} size={38} />
+                <Avatar name={e.name} size={38} online={onlineIds.has(e.id)} />
                 <div><div style={{ fontWeight: 600, fontSize: 14 }}>{e.name}</div><div style={{ fontSize: 12, color: C.slate }}>{e.position}</div></div>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -862,7 +946,33 @@ function MiniStat({ label, value }) {
 /* ---------------------------------------------------------------
    TASKS
 ----------------------------------------------------------------*/
+function exportTaskReport(employees, tasks) {
+  const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const rows = [["Employee", "Department", "Completed Tasks", "Total Tasks", "Completion %"]];
+  employees.forEach(e => {
+    const empTasks = tasks.filter(t => t.assignee === e.id);
+    const completed = empTasks.filter(t => t.status === "Completed").length;
+    const pct = empTasks.length ? Math.round((completed / empTasks.length) * 100) : 0;
+    rows.push([e.name, deptById[e.dept]?.name || e.dept, completed, empTasks.length, `${pct}%`]);
+  });
+  rows.push([]);
+  rows.push(["Completed Task Log"]);
+  rows.push(["Employee", "Task", "Department", "Due Date"]);
+  const byId = Object.fromEntries(employees.map(e => [e.id, e]));
+  tasks.filter(t => t.status === "Completed").forEach(t => {
+    rows.push([byId[t.assignee]?.name || t.assignee || "Unassigned", t.title, deptById[t.dept]?.name || t.dept, t.due]);
+  });
+  const csv = rows.map(r => r.map(esc).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `motherbase-task-report-${today()}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function Tasks({ tasks, taskView, setTaskView, setTaskStatus, viewerEmp, canCreate, setShowAddTask, setTaskDetail }) {
+  const { employees } = useEmp();
   return (
     <div>
       <PageHeader eyebrow="Task Management" title="Tasks" actions={
@@ -870,7 +980,12 @@ function Tasks({ tasks, taskView, setTaskView, setTaskStatus, viewerEmp, canCrea
           <ToggleBtn active={taskView==="kanban"} onClick={()=>setTaskView("kanban")} icon={KanbanSquare} label="Kanban" />
           <ToggleBtn active={taskView==="list"} onClick={()=>setTaskView("list")} icon={Table2} label="List" />
           <ToggleBtn active={taskView==="calendar"} onClick={()=>setTaskView("calendar")} icon={CalendarDays} label="Calendar" />
-          {canCreate && <button onClick={() => setShowAddTask(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", marginLeft: 6 }}><Plus size={15} /> Add Task</button>}
+          {canCreate && (
+            <button onClick={() => exportTaskReport(employees, tasks)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.card, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 8, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", marginLeft: 6 }}>
+              Export Report
+            </button>
+          )}
+          {canCreate && <button onClick={() => setShowAddTask(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}><Plus size={15} /> Add Task</button>}
         </div>
       } />
       {!canCreate && <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 14 }}>Viewing as {viewerEmp.name} ({ROLE_LABEL[viewerEmp.role]}) — you can update status and progress on your own tasks. Completion needs your supervisor's sign-off.</div>}
@@ -913,13 +1028,21 @@ function KanbanView({ tasks, setTaskStatus, viewerEmp, setTaskDetail }) {
   );
 }
 
+function priorityCardColors(t) {
+  if (t.status === "Completed") return { bg: C.sageSoft, border: C.sage };
+  if (t.priority === "High") return { bg: C.coralSoft, border: C.coral };
+  if (t.priority === "Medium") return { bg: C.blueSoft, border: C.blue };
+  return { bg: C.yellowSoft, border: C.yellow }; // Low
+}
+
 function TaskCard({ t, children, onOpen }) {
-  const { byId } = useEmp();
+  const { byId, onlineIds } = useEmp();
   const meta = statusMeta(t);
   const emp = byId[t.assignee] || { name: "Unassigned" };
   const subtaskProgress = t.subtasks?.length ? `${t.subtasks.filter(s=>s.done).length}/${t.subtasks.length}` : null;
+  const pc = priorityCardColors(t);
   return (
-    <div onClick={onOpen} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: 12, cursor: "pointer" }}>
+    <div onClick={onOpen} style={{ background: pc.bg, border: `1.5px solid ${pc.border}`, borderRadius: 10, padding: 12, cursor: "pointer" }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
         <span style={{ fontSize: 10, fontWeight: 700, color: priColor(t.priority) }}>{t.priority}</span>
         {t.recurring && <span title="Recurring"><Repeat size={12} color={C.slate} /></span>}
@@ -927,7 +1050,7 @@ function TaskCard({ t, children, onOpen }) {
       <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6, lineHeight: 1.3 }}>{t.title}</div>
       <div style={{ fontSize: 11, color: C.slate, marginBottom: 8 }}>{deptById[t.dept]?.name}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-        <Avatar name={emp.name} size={20} /><span style={{ fontSize: 11.5 }}>{emp.name}</span>
+        <Avatar name={emp.name} size={20} online={onlineIds?.has(t.assignee)} /><span style={{ fontSize: 11.5 }}>{emp.name}</span>
       </div>
       <div style={{ height: 4, background: C.paper, borderRadius: 4, overflow: "hidden", marginBottom: 8 }}>
         <div style={{ height: "100%", width: `${t.progress}%`, background: C.amber }} />
@@ -990,19 +1113,44 @@ function CalendarView({ tasks, setTaskDetail }) {
   );
 }
 
-function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus }) {
-  const { byId } = useEmp();
+function CommentBubble({ c, byId, small }) {
+  return (
+    <div style={{ display: "flex", gap: 9 }}>
+      <Avatar name={byId[c.author]?.name || c.author} size={small ? 22 : 26} />
+      <div style={{ flex: 1, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: "7px 10px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+          <span style={{ fontSize: small ? 11 : 12, fontWeight: 700 }}>{byId[c.author]?.name || c.author}</span>
+          <span style={{ fontSize: 10.5, color: C.slate }}>{c.time}</span>
+        </div>
+        <div style={{ fontSize: small ? 12 : 13 }}>{c.text}</div>
+      </div>
+    </div>
+  );
+}
+
+function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, updateTask, refetchTasks }) {
+  const { byId, employees } = useEmp();
   const [draft, setDraft] = useState("");
   const [signoffNote, setSignoffNote] = useState("");
+  const [showEdit, setShowEdit] = useState(false);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [replyDraft, setReplyDraft] = useState("");
+  const [uploading, setUploading] = useState(false);
   if (!task) return null;
   const emp = byId[task.assignee] || { name: "Unassigned" };
   const sup = byId[task.supervisor] || { name: "—" };
   const comments = task.comments || [];
+  const topLevel = comments.filter(c => !c.parent);
+  const repliesOf = (id) => comments.filter(c => c.parent === id);
   const submitComment = () => { if (!draft.trim()) return; addComment(task.id, draft.trim()); setDraft(""); };
+  const submitReply = (parentId) => { if (!replyDraft.trim()) return; addComment(task.id, replyDraft.trim(), parentId); setReplyDraft(""); setReplyingTo(null); };
+
+  const canEditTask = viewerEmp.role !== "employee";
 
   // The approver is whoever isn't the assignee and isn't a plain employee — i.e. the
   // supervisor, a manager up the chain, or an exec/admin reviewing someone else's work.
   const isApprover = task.status === "For Review" && viewerEmp.id !== task.assignee && viewerEmp.role !== "employee";
+  const [reassignTo, setReassignTo] = useState(task.assignee);
   const approve = () => {
     if (signoffNote.trim()) addComment(task.id, `Approved by ${viewerEmp.name}: ${signoffNote.trim()}`);
     setTaskStatus(task.id, "Completed");
@@ -1010,9 +1158,22 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus }
   };
   const sendBack = () => {
     if (!signoffNote.trim()) { alert("Add a short note explaining what still needs to be done before sending it back."); return; }
-    addComment(task.id, `Sent back by ${viewerEmp.name}: ${signoffNote.trim()}`);
-    setTaskStatus(task.id, "In Progress");
+    addComment(task.id, reassignTo !== task.assignee
+      ? `Sent back and reassigned to ${byId[reassignTo]?.name || reassignTo} by ${viewerEmp.name}: ${signoffNote.trim()}`
+      : `Sent back by ${viewerEmp.name}: ${signoffNote.trim()}`);
+    updateTask(task.id, { status: "In Progress", assignee_id: reassignTo });
     onClose();
+  };
+
+  const uploadFile = async (file) => {
+    setUploading(true);
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const path = `${task.id}/${Date.now()}-${safeName}`;
+    const { error: upErr } = await supabase.storage.from("task-attachments").upload(path, file);
+    if (upErr) { alert(upErr.message); setUploading(false); return; }
+    await supabase.from("task_attachments").insert({ task_id: task.id, file_name: file.name, file_path: path, uploaded_by: viewerEmp.id });
+    await refetchTasks();
+    setUploading(false);
   };
 
   const recurrenceLabel = !task.recurring ? "One-time"
@@ -1023,7 +1184,10 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus }
     <ModalShell onClose={onClose} width={560}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
         <div><div style={{ fontSize: 11, fontWeight: 700, color: priColor(task.priority), marginBottom: 4 }}>{task.priority} PRIORITY</div><div className="mb-display" style={{ fontSize: 19, fontWeight: 600 }}>{task.title}</div></div>
-        <DeptTag id={task.dept} />
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <DeptTag id={task.dept} />
+          {canEditTask && <button onClick={() => setShowEdit(true)} title="Edit task" style={{ background: "none", border: "none", cursor: "pointer", color: C.slate }}><Pencil size={16} /></button>}
+        </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, margin: "16px 0" }}>
         <Field label="Assigned to" value={emp.name} /><Field label="Supervisor" value={sup.name} />
@@ -1049,6 +1213,11 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus }
           <div style={{ fontSize: 12, color: C.slate, margin: "6px 0 10px" }}>{emp.name} submitted this for your review. Approve it if it's genuinely done, or send it back if it isn't — a note is required when sending back.</div>
           <textarea placeholder="Note for the assignee (required if sending back)" value={signoffNote} onChange={e=>setSignoffNote(e.target.value)}
             style={{ ...inputStyle, minHeight: 60, marginBottom: 10, resize: "vertical" }} />
+          <FormRow label="Reassign to (only needed if sending back to someone else)">
+            <select value={reassignTo} onChange={e=>setReassignTo(e.target.value)} style={inputStyle}>
+              {employees.map(e => <option key={e.id} value={e.id}>{e.name}{e.id === task.assignee ? " (current)" : ""}</option>)}
+            </select>
+          </FormRow>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={approve} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: C.sage, color: "#fff", border: "none", borderRadius: 8, padding: "9px 0", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
               <CheckCircle2 size={14} /> Approve
@@ -1059,16 +1228,44 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus }
           </div>
         </div>
       )}
+
+      <SectionLabel>Files — {task.attachments?.length || 0}</SectionLabel>
+      <div style={{ margin: "8px 0 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+        {(task.attachments || []).length === 0 && <div style={{ fontSize: 12.5, color: C.slate }}>No files attached yet.</div>}
+        {(task.attachments || []).map(a => {
+          const { data } = supabase.storage.from("task-attachments").getPublicUrl(a.path);
+          return (
+            <a key={a.id} href={data?.publicUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: C.navy, display: "flex", justifyContent: "space-between", background: C.card, border: `1px solid ${C.line}`, borderRadius: 8, padding: "6px 10px", textDecoration: "none" }}>
+              <span>{a.name}</span><span style={{ color: C.slate, fontSize: 11 }}>{byId[a.uploadedBy]?.name || a.uploadedBy} · {a.time}</span>
+            </a>
+          );
+        })}
+      </div>
+      <label style={{ display: "inline-block", fontSize: 12.5, fontWeight: 600, color: C.navy, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", marginBottom: 18 }}>
+        {uploading ? "Uploading…" : "+ Attach a file"}
+        <input type="file" disabled={uploading} style={{ display: "none" }} onChange={async (e) => { const f = e.target.files?.[0]; if (f) await uploadFile(f); e.target.value = ""; }} />
+      </label>
+
       <SectionLabel>Comments &amp; questions — {comments.length}</SectionLabel>
-      <div style={{ margin: "10px 0 14px", display: "flex", flexDirection: "column", gap: 10, maxHeight: 220, overflowY: "auto" }}>
+      <div style={{ margin: "10px 0 14px", display: "flex", flexDirection: "column", gap: 10, maxHeight: 260, overflowY: "auto" }}>
         {comments.length === 0 && <div style={{ fontSize: 12.5, color: C.slate }}>No comments yet.</div>}
-        {comments.map((c, i) => (
-          <div key={i} style={{ display: "flex", gap: 9 }}>
-            <Avatar name={byId[c.author]?.name || c.author} size={26} />
-            <div style={{ flex: 1, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: "7px 10px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}><span style={{ fontSize: 12, fontWeight: 700 }}>{byId[c.author]?.name || c.author}</span><span style={{ fontSize: 10.5, color: C.slate }}>{c.time}</span></div>
-              <div style={{ fontSize: 13 }}>{c.text}</div>
-            </div>
+        {topLevel.map((c) => (
+          <div key={c.id ?? c.time}>
+            <CommentBubble c={c} byId={byId} />
+            {c.id && (
+              <button onClick={() => setReplyingTo(replyingTo === c.id ? null : c.id)} style={{ fontSize: 11, color: C.slate, background: "none", border: "none", cursor: "pointer", marginLeft: 35, marginTop: 3, padding: 0 }}>
+                Reply
+              </button>
+            )}
+            {repliesOf(c.id).map(r => (
+              <div key={r.id} style={{ marginLeft: 35, marginTop: 6 }}><CommentBubble c={r} byId={byId} small /></div>
+            ))}
+            {replyingTo === c.id && (
+              <div style={{ marginLeft: 35, marginTop: 6, display: "flex", gap: 6 }}>
+                <input value={replyDraft} onChange={e=>setReplyDraft(e.target.value)} placeholder="Write a reply…" style={{ ...inputStyle, flex: 1 }} />
+                <button onClick={() => submitReply(c.id)} style={{ background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "0 12px", fontSize: 12, cursor: "pointer" }}>Send</button>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -1079,6 +1276,58 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus }
           <button onClick={submitComment} style={{ marginTop: 6, background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Add Comment</button>
         </div>
       </div>
+      {showEdit && (
+        <EditTaskModal task={task} onClose={() => setShowEdit(false)} onSave={(patch) => { updateTask(task.id, patch); setShowEdit(false); }} />
+      )}
+    </ModalShell>
+  );
+}
+
+function EditTaskModal({ task, onClose, onSave }) {
+  const { employees, byId } = useEmp();
+  const [title, setTitle] = useState(task.title);
+  const [assignee, setAssignee] = useState(task.assignee);
+  const [priority, setPriority] = useState(task.priority);
+  const [due, setDue] = useState(task.due || today());
+  const [category, setCategory] = useState(task.category || "");
+  const [recurring, setRecurring] = useState(task.recurring || "");
+  const [customDays, setCustomDays] = useState(task.recurringCustomDays || 7);
+
+  const submit = () => {
+    if (!title.trim() || !assignee) return;
+    const assigneeEmp = byId[assignee];
+    onSave({
+      title: title.trim(), assignee_id: assignee, dept_id: assigneeEmp.dept,
+      supervisor_id: assigneeEmp.sup || task.supervisor, priority, due_date: due, category,
+      recurring: recurring || null, recurring_custom_days: recurring === "Custom" ? (Number(customDays) || 7) : null,
+    });
+  };
+
+  return (
+    <ModalShell onClose={onClose} width={460}>
+      <div className="mb-display" style={{ fontSize: 19, fontWeight: 600, marginBottom: 16 }}>Edit Task</div>
+      <FormRow label="Task title"><input value={title} onChange={e=>setTitle(e.target.value)} style={inputStyle} /></FormRow>
+      <FormRow label="Assign to">
+        <select value={assignee} onChange={e=>setAssignee(e.target.value)} style={inputStyle}>
+          {employees.map(e => <option key={e.id} value={e.id}>{e.name} — {e.position}</option>)}
+        </select>
+      </FormRow>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <FormRow label="Priority"><select value={priority} onChange={e=>setPriority(e.target.value)} style={inputStyle}><option>High</option><option>Medium</option><option>Low</option></select></FormRow>
+        <FormRow label="Due date"><input type="date" value={due} onChange={e=>setDue(e.target.value)} style={inputStyle} /></FormRow>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <FormRow label="Category"><input value={category} onChange={e=>setCategory(e.target.value)} style={inputStyle} /></FormRow>
+        <FormRow label="Recurring?">
+          <select value={recurring} onChange={e=>setRecurring(e.target.value)} style={inputStyle}>
+            <option value="">One-time</option><option>Daily</option><option>Weekly</option><option>Biweekly</option><option>Monthly</option><option>Quarterly</option><option>Custom</option>
+          </select>
+        </FormRow>
+      </div>
+      {recurring === "Custom" && (
+        <FormRow label="Repeat every N days"><input type="number" min={1} value={customDays} onChange={e=>setCustomDays(e.target.value)} style={inputStyle} /></FormRow>
+      )}
+      <button onClick={submit} style={{ marginTop: 14, width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Save Changes</button>
     </ModalShell>
   );
 }
@@ -1164,7 +1413,38 @@ function Notifications({ tasks }) {
   );
 }
 
-function SettingsPage({ isAdmin }) {
+function ChangePasswordPanel() {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [ok, setOk] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const submit = async () => {
+    setError(""); setOk(false);
+    if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
+    if (password !== confirm) { setError("Passwords don't match."); return; }
+    setLoading(true);
+    const { error } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+    if (error) setError(error.message);
+    else { setOk(true); setPassword(""); setConfirm(""); }
+  };
+  return (
+    <Panel title="Change your password" style={{ marginTop: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, maxWidth: 420 }}>
+        <FormRow label="New password"><input type="password" value={password} onChange={e=>setPassword(e.target.value)} style={inputStyle} /></FormRow>
+        <FormRow label="Confirm password"><input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)} style={inputStyle} /></FormRow>
+      </div>
+      {error && <div style={{ color: C.coral, fontSize: 12.5, marginBottom: 8 }}>{error}</div>}
+      {ok && <div style={{ color: C.sage, fontSize: 12.5, marginBottom: 8 }}>Password updated.</div>}
+      <button onClick={submit} disabled={loading} style={{ background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+        {loading ? "Saving…" : "Update password"}
+      </button>
+    </Panel>
+  );
+}
+
+function SettingsPage({ isAdmin, dark, setDark }) {
   const perms = [
     ["View Organization", true, true, true, true],
     ["Edit Organization / Employees", true, true, true, false],
@@ -1179,8 +1459,23 @@ function SettingsPage({ isAdmin }) {
   return (
     <div>
       <PageHeader eyebrow="Administration" title="Settings" />
-      {!isAdmin && <div style={{ fontSize: 13, color: C.slate, marginBottom: 14 }}>Only Super Admin can modify these. You're viewing read-only.</div>}
-      <Panel title="Departments">
+      <Panel title="Appearance">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", maxWidth: 420 }}>
+          <div>
+            <div style={{ fontSize: 13.5, fontWeight: 600 }}>Dark mode</div>
+            <div style={{ fontSize: 11.5, color: C.slate }}>Switch the whole app to a dark color scheme.</div>
+          </div>
+          <button onClick={() => setDark(d => !d)} style={{
+            width: 46, height: 26, borderRadius: 20, border: "none", cursor: "pointer",
+            background: dark ? C.amber : C.line, position: "relative", flexShrink: 0,
+          }}>
+            <span style={{ position: "absolute", top: 3, left: dark ? 23 : 3, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.15s" }} />
+          </button>
+        </div>
+      </Panel>
+      <ChangePasswordPanel />
+      {!isAdmin && <div style={{ fontSize: 13, color: C.slate, margin: "16px 0 14px" }}>Only Super Admin can modify departments/permissions below. You're viewing read-only.</div>}
+      <Panel title="Departments" style={{ marginTop: 16 }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{DEPARTMENTS.map(dep => <span key={dep.id} style={{ fontSize: 12.5, fontWeight: 600, color: dep.color, background: dep.color+"18", padding: "5px 12px", borderRadius: 20 }}>{dep.name}</span>)}</div>
       </Panel>
       <Panel title="Permission matrix" style={{ marginTop: 16 }}>
@@ -1218,8 +1513,13 @@ function ToggleBtn({ active, onClick, icon: Icon, label }) {
 function SearchBar({ value, onChange, placeholder }) {
   return <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: "8px 12px", marginBottom: 16, maxWidth: 420 }}><Search size={15} color={C.slate} /><input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ border: "none", outline: "none", fontSize: 13.5, flex: 1, fontFamily: "inherit" }} /></div>;
 }
-function Avatar({ name, size = 32 }) {
-  return <div style={{ width: size, height: size, borderRadius: size, background: C.navySoft, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: size*0.36, fontWeight: 700, flexShrink: 0 }}>{initials(name)}</div>;
+function Avatar({ name, size = 32, online }) {
+  return (
+    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+      <div style={{ width: size, height: size, borderRadius: size, background: C.navySoft, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: size*0.36, fontWeight: 700 }}>{initials(name)}</div>
+      {online && <span title="Online" style={{ position: "absolute", bottom: -1, right: -1, width: Math.max(8, size*0.28), height: Math.max(8, size*0.28), borderRadius: "50%", background: C.sage, border: `2px solid ${C.card}` }} />}
+    </div>
+  );
 }
 function Empty({ text }) { return <div style={{ fontSize: 13, color: C.slate, padding: "10px 0" }}>{text}</div>; }
 function ModalShell({ children, onClose, width = 500 }) {
