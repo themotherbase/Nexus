@@ -276,7 +276,7 @@ export default function App() {
   const refetchTasks = async () => {
     const { data, error } = await supabase
       .from("tasks")
-      .select("*, subtasks(*), task_comments(*), task_attachments(*)")
+      .select("*, subtasks(*), task_comments(*)")
       .order("due_date");
     if (!error) setTasks((data || []).map(mapTask));
   };
