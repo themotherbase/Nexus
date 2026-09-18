@@ -350,15 +350,34 @@ export default function App() {
     return updateTask(id, patch);
   };
   const addComment = async (id, text, parentId = null) => {
-    await supabase.from("task_comments").insert({ task_id: id, author_id: viewerEmp.id, body: text, parent_comment_id: parentId });
+    const payload = { task_id: id, author_id: viewerEmp.id, body: text };
+    if (parentId) payload.parent_comment_id = parentId;
+    let { error } = await supabase.from("task_comments").insert(payload);
+    if (error && payload.parent_comment_id) {
+      // parent_comment_id column may not exist yet (reply migration not run) — retry as a plain comment
+      delete payload.parent_comment_id;
+      ({ error } = await supabase.from("task_comments").insert(payload));
+    }
+    if (error) alert("Comment didn't save: " + error.message);
     await refetchTasks();
   };
   const createTask = async (t) => {
-    await supabase.from("tasks").insert({
+    const { data, error } = await supabase.from("tasks").insert({
       title: t.title, dept_id: t.dept, assignee_id: t.assignee, supervisor_id: t.supervisor,
       priority: t.priority, status: t.status, due_date: t.due, progress: t.progress,
       category: t.category, recurring: t.recurring, recurring_custom_days: t.recurringCustomDays ?? null, created_by: t.createdBy, needs_signoff: t.needsSignoff,
-    });
+    }).select().single();
+    if (error) { alert(error.message); return null; }
+    await refetchTasks();
+    return data?.id ?? null;
+  };
+  const attachFile = async (taskId, file) => {
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const path = `${taskId}/${Date.now()}-${safeName}`;
+    const { error: upErr } = await supabase.storage.from("task-attachments").upload(path, file);
+    if (upErr) { alert("File didn't upload: " + upErr.message); return; }
+    const { error: rowErr } = await supabase.from("task_attachments").insert({ task_id: taskId, file_name: file.name, file_path: path, uploaded_by: viewerEmp.id });
+    if (rowErr) alert("File didn't upload: " + rowErr.message);
     await refetchTasks();
   };
 
@@ -471,7 +490,7 @@ export default function App() {
         )}
         {editingEmp !== undefined && <EmployeeFormModal employee={editingEmp} onClose={() => setEditingEmp(undefined)} />}
         {showAddTask && (
-          <AddTaskModal onClose={() => setShowAddTask(false)} onCreate={createTask} createdBy={viewerEmp.id} />
+          <AddTaskModal onClose={() => setShowAddTask(false)} onCreate={createTask} onAttach={attachFile} createdBy={viewerEmp.id} />
         )}
         {taskDetail && (
           <TaskDetailModal task={tasks.find(t=>t.id===taskDetail)} onClose={() => setTaskDetail(null)}
@@ -1328,7 +1347,7 @@ function Field({ label, value }) {
   return <div><div style={{ fontSize: 10.5, color: C.slate, marginBottom: 2 }}>{label}</div><div style={{ fontSize: 13.5, fontWeight: 600 }}>{value}</div></div>;
 }
 
-function AddTaskModal({ onClose, onCreate, createdBy }) {
+function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
   const { employees, byId } = useEmp();
   const [title, setTitle] = useState("");
   const [assignee, setAssignee] = useState(employees[0]?.id || "");
@@ -1337,11 +1356,16 @@ function AddTaskModal({ onClose, onCreate, createdBy }) {
   const [category, setCategory] = useState("General");
   const [recurring, setRecurring] = useState("");
   const [customDays, setCustomDays] = useState(7);
+  const [file, setFile] = useState(null);
+  const [saving, setSaving] = useState(false);
 
-  const submit = () => {
-    if (!title.trim() || !assignee) return;
+  const submit = async () => {
+    if (!title.trim() || !assignee || saving) return;
+    setSaving(true);
     const assigneeEmp = byId[assignee];
-    onCreate({ title, assignee, dept: assigneeEmp.dept, supervisor: assigneeEmp.sup || createdBy, priority, status: "Backlog", due, progress: 0, category, recurring: recurring || null, recurringCustomDays: recurring === "Custom" ? Number(customDays) || 7 : null, createdBy, needsSignoff: true });
+    const taskId = await onCreate({ title, assignee, dept: assigneeEmp.dept, supervisor: assigneeEmp.sup || createdBy, priority, status: "Backlog", due, progress: 0, category, recurring: recurring || null, recurringCustomDays: recurring === "Custom" ? Number(customDays) || 7 : null, createdBy, needsSignoff: true });
+    if (taskId && file) await onAttach(taskId, file);
+    setSaving(false);
     onClose();
   };
 
@@ -1371,7 +1395,12 @@ function AddTaskModal({ onClose, onCreate, createdBy }) {
           <input type="number" min={1} value={customDays} onChange={e=>setCustomDays(e.target.value)} style={inputStyle} />
         </FormRow>
       )}
-      <button onClick={submit} style={{ marginTop: 14, width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Create Task</button>
+      <FormRow label="Attach a file (optional)">
+        <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} style={{ fontSize: 12.5 }} />
+      </FormRow>
+      <button onClick={submit} disabled={saving} style={{ marginTop: 14, width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+        {saving ? "Creating…" : "Create Task"}
+      </button>
     </ModalShell>
   );
 }
