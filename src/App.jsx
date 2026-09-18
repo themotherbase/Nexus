@@ -1150,7 +1150,6 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
   // The approver is whoever isn't the assignee and isn't a plain employee — i.e. the
   // supervisor, a manager up the chain, or an exec/admin reviewing someone else's work.
   const isApprover = task.status === "For Review" && viewerEmp.id !== task.assignee && viewerEmp.role !== "employee";
-  const [reassignTo, setReassignTo] = useState(task.assignee);
   const approve = () => {
     if (signoffNote.trim()) addComment(task.id, `Approved by ${viewerEmp.name}: ${signoffNote.trim()}`);
     setTaskStatus(task.id, "Completed");
@@ -1158,10 +1157,8 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
   };
   const sendBack = () => {
     if (!signoffNote.trim()) { alert("Add a short note explaining what still needs to be done before sending it back."); return; }
-    addComment(task.id, reassignTo !== task.assignee
-      ? `Sent back and reassigned to ${byId[reassignTo]?.name || reassignTo} by ${viewerEmp.name}: ${signoffNote.trim()}`
-      : `Sent back by ${viewerEmp.name}: ${signoffNote.trim()}`);
-    updateTask(task.id, { status: "In Progress", assignee_id: reassignTo });
+    addComment(task.id, `Sent back by ${viewerEmp.name}: ${signoffNote.trim()}`);
+    setTaskStatus(task.id, "In Progress");
     onClose();
   };
 
@@ -1213,11 +1210,6 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
           <div style={{ fontSize: 12, color: C.slate, margin: "6px 0 10px" }}>{emp.name} submitted this for your review. Approve it if it's genuinely done, or send it back if it isn't — a note is required when sending back.</div>
           <textarea placeholder="Note for the assignee (required if sending back)" value={signoffNote} onChange={e=>setSignoffNote(e.target.value)}
             style={{ ...inputStyle, minHeight: 60, marginBottom: 10, resize: "vertical" }} />
-          <FormRow label="Reassign to (only needed if sending back to someone else)">
-            <select value={reassignTo} onChange={e=>setReassignTo(e.target.value)} style={inputStyle}>
-              {employees.map(e => <option key={e.id} value={e.id}>{e.name}{e.id === task.assignee ? " (current)" : ""}</option>)}
-            </select>
-          </FormRow>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={approve} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: C.sage, color: "#fff", border: "none", borderRadius: 8, padding: "9px 0", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
               <CheckCircle2 size={14} /> Approve
