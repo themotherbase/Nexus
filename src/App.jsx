@@ -395,7 +395,7 @@ export default function App() {
   const attachFile = async (taskId, file) => {
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const path = `${taskId}/${Date.now()}-${safeName}`;
-    const { error: upErr } = await supabase.storage.from("task-attachments").upload(path, file);
+    const { error: upErr } = await supabase.storage.from("app-task-attachment").upload(path, file);
     if (upErr) { alert("File didn't upload: " + upErr.message); return; }
     const { error: rowErr } = await supabase.from("task_attachments").insert({ task_id: taskId, file_name: file.name, file_path: path, uploaded_by: viewerEmp.id });
     if (rowErr) alert("File didn't upload: " + rowErr.message);
@@ -1220,7 +1220,7 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
     setUploading(true);
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const path = `${task.id}/${Date.now()}-${safeName}`;
-    const { error: upErr } = await supabase.storage.from("task-attachments").upload(path, file);
+    const { error: upErr } = await supabase.storage.from("app-task-attachment").upload(path, file);
     if (upErr) { alert(upErr.message); setUploading(false); return; }
     await supabase.from("task_attachments").insert({ task_id: task.id, file_name: file.name, file_path: path, uploaded_by: viewerEmp.id });
     await refetchTasks();
@@ -1279,7 +1279,7 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
       <div style={{ margin: "8px 0 10px", display: "flex", flexDirection: "column", gap: 6 }}>
         {(task.attachments || []).length === 0 && <div style={{ fontSize: 12.5, color: C.slate }}>No files attached yet.</div>}
         {(task.attachments || []).map(a => {
-          const { data } = supabase.storage.from("task-attachments").getPublicUrl(a.path);
+          const { data } = supabase.storage.from("app-task-attachment").getPublicUrl(a.path);
           return (
             <a key={a.id} href={data?.publicUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: C.navy, display: "flex", justifyContent: "space-between", background: C.card, border: `1px solid ${C.line}`, borderRadius: 8, padding: "6px 10px", textDecoration: "none" }}>
               <span>{a.name}</span><span style={{ color: C.slate, fontSize: 11 }}>{byId[a.uploadedBy]?.name || a.uploadedBy} · {a.time}</span>
