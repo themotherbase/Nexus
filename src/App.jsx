@@ -3,7 +3,7 @@ import {
   LayoutGrid, Users, ClipboardList, Bell, Settings, Network,
   Search, Plus, X, CircleAlert, Clock, CheckCircle2,
   Table2, CalendarDays, KanbanSquare, ShieldCheck, Pencil, Trash2,
-  Repeat, TriangleAlert, ListTree, LogOut, Undo2
+  Repeat, TriangleAlert, ListTree, LogOut, Undo2, Menu
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 
@@ -27,6 +27,26 @@ const FONT = `
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap');
   .mb-display { font-family: 'Fraunces', serif; font-optical-sizing: auto; }
   .mb-body { font-family: 'Inter', -apple-system, sans-serif; }
+`;
+const RESPONSIVE_CSS = `
+  .mb-topbar { display: none; }
+  .mb-backdrop { display: none; }
+  @media (max-width: 860px) {
+    .mb-topbar { display: flex !important; }
+    .mb-sidebar {
+      position: fixed !important; top: 0; left: -260px; height: 100vh;
+      z-index: 100; transition: left 0.2s ease; box-shadow: 2px 0 16px rgba(0,0,0,0.25);
+    }
+    .mb-sidebar--open { left: 0 !important; }
+    .mb-backdrop.mb-backdrop--open {
+      display: block; position: fixed; inset: 0; background: rgba(15,17,30,0.5); z-index: 90;
+    }
+    .mb-main { padding: 16px 14px 60px !important; }
+    .mb-grid-2, .mb-grid-3, .mb-grid-4 { grid-template-columns: 1fr !important; }
+    .mb-modal-overlay { padding: 16px 8px !important; }
+    .mb-modal-card { padding: 18px !important; width: 100% !important; }
+    .mb-hide-mobile { display: none !important; }
+  }
 `;
 
 // Departments are seeded in the DB; kept here too so colors render even
@@ -252,6 +272,7 @@ export default function App() {
   const [taskView, setTaskView] = useState("kanban");
   const [search, setSearch] = useState("");
   const [showAddTask, setShowAddTask] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [taskDetail, setTaskDetail] = useState(null);
   const [dark, setDark] = useState(() => {
     try { return localStorage.getItem("mb-dark") === "1"; } catch { return false; }
@@ -424,10 +445,19 @@ export default function App() {
 
   return (
     <EmpContext.Provider value={{ employees, byId, directReports, addEmployee, updateEmployee, deleteEmployee, canEditOrg, onlineIds }}>
-      <div className="mb-body" style={{ background: C.paper, minHeight: "100vh", color: C.ink, display: "flex" }}>
-        <style>{FONT}</style>
+      <div className="mb-body" style={{ background: C.paper, minHeight: "100vh", color: C.ink, display: "flex", flexDirection: "column" }}>
+        <style>{FONT}{RESPONSIVE_CSS}</style>
 
-        <aside style={{ width: 236, background: C.navy, color: "#fff", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+        <div className="mb-topbar" style={{ alignItems: "center", gap: 12, padding: "12px 16px", background: C.navy, color: "#fff", position: "sticky", top: 0, zIndex: 60 }}>
+          <button onClick={() => setMobileNavOpen(true)} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", padding: 4 }}>
+            <Menu size={22} />
+          </button>
+          <div className="mb-display" style={{ fontSize: 16, fontWeight: 600 }}>The Motherbase</div>
+        </div>
+        <div className={`mb-backdrop${mobileNavOpen ? " mb-backdrop--open" : ""}`} onClick={() => setMobileNavOpen(false)} />
+
+        <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+        <aside className={`mb-sidebar${mobileNavOpen ? " mb-sidebar--open" : ""}`} style={{ width: 236, background: C.navy, color: "#fff", display: "flex", flexDirection: "column", flexShrink: 0 }}>
           <div style={{ padding: "22px 20px 16px" }}>
             <div className="mb-display" style={{ fontSize: 19, fontWeight: 600, lineHeight: 1.15 }}>The Motherbase</div>
             <div style={{ fontSize: 11.5, color: "#9FA6C4", marginTop: 2 }}>Toys &amp; Collectibles · Ops System</div>
@@ -437,7 +467,7 @@ export default function App() {
               const Icon = n.icon;
               const active = page === n.id;
               return (
-                <button key={n.id} onClick={() => setPage(n.id)}
+                <button key={n.id} onClick={() => { setPage(n.id); setMobileNavOpen(false); }}
                   style={{
                     display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 8,
                     background: active ? "rgba(255,255,255,0.1)" : "transparent",
@@ -466,7 +496,7 @@ export default function App() {
           </div>
         </aside>
 
-        <main style={{ flex: 1, minWidth: 0, padding: "26px 34px 60px" }}>
+        <main className="mb-main" style={{ flex: 1, minWidth: 0, padding: "26px 34px 60px", overflowY: "auto" }}>
           {page === "dashboard" && <Dashboard tasks={tasks} viewerEmp={viewerEmp} isManager={isManager} isExec={isExec} setPage={setPage} setTaskDetail={setTaskDetail} />}
           {page === "organization" && (
             <Organization orgView={orgView} setOrgView={setOrgView} setSelectedEmp={setSelectedEmp}
@@ -483,6 +513,7 @@ export default function App() {
           {page === "notifications" && <Notifications tasks={visibleTasks} />}
           {page === "settings" && <SettingsPage isAdmin={isAdmin} dark={dark} setDark={setDark} />}
         </main>
+        </div>
 
         {selectedEmp && (
           <EmployeeModal empId={selectedEmp} tasks={tasks} onClose={() => setSelectedEmp(null)}
@@ -543,7 +574,7 @@ function Dashboard({ tasks, viewerEmp, isManager, isExec, setPage, setTaskDetail
       />
 
       {isExec && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 22 }}>
+        <div className="mb-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 22 }}>
           <StatCard label="Employees" value={employees.length} sub={`${employees.filter(e=>e.status==="Active").length} active`} />
           <StatCard label="Departments" value={DEPARTMENTS.length} sub="editable in Settings" />
           <StatCard label="Open tasks" value={tasks.filter(t=>t.status!=="Completed").length} sub={`${completed.length} completed`} />
@@ -551,7 +582,7 @@ function Dashboard({ tasks, viewerEmp, isManager, isExec, setPage, setTaskDetail
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: isExec ? "1.3fr 1fr" : "1fr", gap: 18 }}>
+      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: isExec ? "1.3fr 1fr" : "1fr", gap: 18 }}>
         <Panel title="Management alerts">
           <AlertRow icon={CircleAlert} color={C.coral} label="Overdue" items={overdue} onOpen={goToTask} />
           <AlertRow icon={Clock} color={C.amber} label="Due today" items={dueToday} onOpen={goToTask} />
@@ -673,6 +704,7 @@ function Organization({ orgView, setOrgView, setSelectedEmp, search, setSearch, 
         <OrgChartPyramid onSelect={setSelectedEmp} onEdit={onEdit} />
       ) : (
         <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, overflow: "hidden" }}>
+          <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
             <thead>
               <tr style={{ background: C.paper, textAlign: "left" }}>
@@ -685,6 +717,7 @@ function Organization({ orgView, setOrgView, setSelectedEmp, search, setSearch, 
               {filtered.map(e => <RowWithEdit key={e.id} e={e} onSelect={setSelectedEmp} onEdit={onEdit} canEditOrg={canEditOrg} />)}
             </tbody>
           </table>
+          </div>
         </div>
       )}
       {!canEditOrg && (
@@ -834,7 +867,7 @@ function EmployeeFormModal({ employee, onClose }) {
       <FormRow label="Full name"><input value={name} onChange={e=>setName(e.target.value)} style={inputStyle} /></FormRow>
       <FormRow label="Position / title"><input value={position} onChange={e=>setPosition(e.target.value)} style={inputStyle} /></FormRow>
       <FormRow label="Login email (used to link their account)"><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@themotherbase.com" style={inputStyle} /></FormRow>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <FormRow label="Department">
           <select value={dept} onChange={e=>setDept(e.target.value)} style={inputStyle}>
             {DEPARTMENTS.map(dp => <option key={dp.id} value={dp.id}>{dp.name}</option>)}
@@ -847,7 +880,7 @@ function EmployeeFormModal({ employee, onClose }) {
           </select>
         </FormRow>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <FormRow label="Permission role">
           <select value={role} onChange={e=>setRole(e.target.value)} style={inputStyle}>
             <option value="superadmin">Super Admin</option><option value="executive">Executive</option>
@@ -896,7 +929,7 @@ function EmployeesList({ setSelectedEmp, search, setSearch, tasks, onAdd }) {
         canEditOrg && <button onClick={onAdd} style={{ display: "flex", alignItems: "center", gap: 6, background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}><Plus size={15} /> Add Employee</button>
       } />
       <SearchBar value={search} onChange={setSearch} placeholder="Search employees…" />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+      <div className="mb-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
         {filtered.map(e => {
           const active = tasks.filter(t => t.assignee === e.id && t.status !== "Completed").length;
           return (
@@ -940,7 +973,7 @@ function EmployeeModal({ empId, tasks, onClose, setSelectedEmp, onEdit }) {
       <SectionLabel>Primary responsibilities</SectionLabel>
       <ul style={{ margin: "6px 0 18px", paddingLeft: 18, fontSize: 13.5, lineHeight: 1.7 }}>{emp.resp.map((r,i) => <li key={i}>{r}</li>)}</ul>
       <SectionLabel>Task statistics</SectionLabel>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, margin: "8px 0 18px" }}>
+      <div className="mb-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, margin: "8px 0 18px" }}>
         <MiniStat label="Total" value={stats.total} /><MiniStat label="Completed" value={stats.completed} /><MiniStat label="Completion" value={`${rate}%`} />
       </div>
       <SectionLabel>Reporting structure</SectionLabel>
@@ -1086,6 +1119,7 @@ function ListView({ tasks, setTaskDetail }) {
   const { byId } = useEmp();
   return (
     <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, overflow: "hidden" }}>
+      <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
         <thead><tr style={{ background: C.paper, textAlign: "left" }}>{["Task","Employee","Department","Priority","Due","Status"].map(h => <th key={h} style={{ padding: "10px 16px", fontSize: 11.5, color: C.slate, fontWeight: 600 }}>{h}</th>)}</tr></thead>
         <tbody>
@@ -1104,6 +1138,7 @@ function ListView({ tasks, setTaskDetail }) {
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
@@ -1205,7 +1240,7 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
           {canEditTask && <button onClick={() => setShowEdit(true)} title="Edit task" style={{ background: "none", border: "none", cursor: "pointer", color: C.slate }}><Pencil size={16} /></button>}
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, margin: "16px 0" }}>
+      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, margin: "16px 0" }}>
         <Field label="Assigned to" value={emp.name} /><Field label="Supervisor" value={sup.name} />
         <Field label="Due date" value={task.due} /><Field label="Status" value={task.status} />
         <Field label="Category" value={task.category} /><Field label="Recurrence" value={recurrenceLabel} />
@@ -1323,11 +1358,11 @@ function EditTaskModal({ task, onClose, onSave }) {
           {employees.map(e => <option key={e.id} value={e.id}>{e.name} — {e.position}</option>)}
         </select>
       </FormRow>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <FormRow label="Priority"><select value={priority} onChange={e=>setPriority(e.target.value)} style={inputStyle}><option>High</option><option>Medium</option><option>Low</option></select></FormRow>
         <FormRow label="Due date"><input type="date" value={due} onChange={e=>setDue(e.target.value)} style={inputStyle} /></FormRow>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <FormRow label="Category"><input value={category} onChange={e=>setCategory(e.target.value)} style={inputStyle} /></FormRow>
         <FormRow label="Recurring?">
           <select value={recurring} onChange={e=>setRecurring(e.target.value)} style={inputStyle}>
@@ -1378,11 +1413,11 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
           {employees.map(e => <option key={e.id} value={e.id}>{e.name} — {e.position}</option>)}
         </select>
       </FormRow>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <FormRow label="Priority"><select value={priority} onChange={e=>setPriority(e.target.value)} style={inputStyle}><option>High</option><option>Medium</option><option>Low</option></select></FormRow>
         <FormRow label="Due date"><input type="date" value={due} onChange={e=>setDue(e.target.value)} style={inputStyle} /></FormRow>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <FormRow label="Category"><input value={category} onChange={e=>setCategory(e.target.value)} style={inputStyle} /></FormRow>
         <FormRow label="Recurring?">
           <select value={recurring} onChange={e=>setRecurring(e.target.value)} style={inputStyle}>
@@ -1452,7 +1487,7 @@ function ChangePasswordPanel() {
   };
   return (
     <Panel title="Change your password" style={{ marginTop: 16 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, maxWidth: 420 }}>
+      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, maxWidth: 420 }}>
         <FormRow label="New password"><input type="password" value={password} onChange={e=>setPassword(e.target.value)} style={inputStyle} /></FormRow>
         <FormRow label="Confirm password"><input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)} style={inputStyle} /></FormRow>
       </div>
@@ -1501,6 +1536,7 @@ function SettingsPage({ isAdmin, dark, setDark }) {
       </Panel>
       <Panel title="Permission matrix" style={{ marginTop: 16 }}>
         <div style={{ fontSize: 12, color: C.slate, marginBottom: 10 }}>Note: editing org/employee records is restricted to Jose Paulo, Andrea, Maria, and Julian specifically (see Organization page).</div>
+        <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
           <thead><tr><th style={{ textAlign: "left", padding: "6px 8px", color: C.slate, fontSize: 11 }}>Capability</th>{["Super Admin","Executive","Manager","Employee"].map(h => <th key={h} style={{ padding: "6px 8px", color: C.slate, fontSize: 11 }}>{h}</th>)}</tr></thead>
           <tbody>{perms.map(([label, ...vals]) => (
@@ -1510,6 +1546,7 @@ function SettingsPage({ isAdmin, dark, setDark }) {
             </tr>
           ))}</tbody>
         </table>
+        </div>
       </Panel>
     </div>
   );
@@ -1545,8 +1582,8 @@ function Avatar({ name, size = 32, online }) {
 function Empty({ text }) { return <div style={{ fontSize: 13, color: C.slate, padding: "10px 0" }}>{text}</div>; }
 function ModalShell({ children, onClose, width = 500 }) {
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(20,22,35,0.45)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "60px 20px", zIndex: 50, overflowY: "auto" }}>
-      <div onClick={e => e.stopPropagation()} className="mb-body" style={{ background: C.paper, borderRadius: 16, padding: 26, width, maxWidth: "100%", position: "relative" }}>
+    <div onClick={onClose} className="mb-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(20,22,35,0.45)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "60px 20px", zIndex: 50, overflowY: "auto" }}>
+      <div onClick={e => e.stopPropagation()} className="mb-body mb-modal-card" style={{ background: C.paper, borderRadius: 16, padding: 26, width, maxWidth: "100%", position: "relative" }}>
         <button onClick={onClose} style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", cursor: "pointer", color: C.slate }}><X size={18} /></button>
         {children}
       </div>
