@@ -1582,7 +1582,7 @@ function Avatar({ name, size = 32, online }) {
 function Empty({ text }) { return <div style={{ fontSize: 13, color: C.slate, padding: "10px 0" }}>{text}</div>; }
 function ModalShell({ children, onClose, width = 500 }) {
   return (
-    <div onClick={onClose} className="mb-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(20,22,35,0.45)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "60px 20px", zIndex: 50, overflowY: "auto" }}>
+    <div onClick={onClose} className="mb-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(20,22,35,0.45)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "60px 20px", zIndex: 200, overflowY: "auto" }}>
       <div onClick={e => e.stopPropagation()} className="mb-body mb-modal-card" style={{ background: C.paper, borderRadius: 16, padding: 26, width, maxWidth: "100%", position: "relative" }}>
         <button onClick={onClose} style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", cursor: "pointer", color: C.slate }}><X size={18} /></button>
         {children}
