@@ -498,7 +498,7 @@ export default function App() {
             </div>
             {canEditOrg && <div style={{ fontSize: 10, color: "#8DE0B0", marginBottom: 8 }}>✓ Can edit org & employees</div>}
             <button onClick={() => supabase.auth.signOut()} style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", background: C.navySoft, color: "#fff", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "7px 8px", fontSize: 12, cursor: "pointer" }}>
-              <LogOut size={13} /> Sign out
+              <LogOut size={13} /> Sign out Ngani
             </button>
           </div>
         </aside>
