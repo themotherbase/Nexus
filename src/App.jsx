@@ -176,7 +176,7 @@ function Login() {
         <FormRow label="Email"><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} style={inputStyle} /></FormRow>
         <FormRow label="Password"><input type="password" required value={password} onChange={e=>setPassword(e.target.value)} style={inputStyle} /></FormRow>
         {error && <div style={{ color: C.coral, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
-        <button type="submit" disabled={loading} style={{ width: "100%", background: C.blue, color: "#fff", border: "none", borderRadius: 8, padding: "16px 0", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+        <button type="submit" disabled={loading} style={{ width: "100%", background: C.blue, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
           {loading ? "Signing in…" : "Sign in"}
         </button>
         <button type="button" onClick={() => setMode("forgot")} style={{ background: "none", border: "none", color: C.navy, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0, marginTop: 12 }}>
@@ -1451,7 +1451,7 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
 function FormRow({ label, children }) {
   return <div style={{ marginBottom: 12 }}><div style={{ fontSize: 11.5, color: C.slate, marginBottom: 4 }}>{label}</div>{children}</div>;
 }
-const inputStyle = { width: "100%", border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", fontSize: 13.5, fontFamily: "inherit" };
+const inputStyle = { width: "100%", border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 0px", fontSize: 13.5, fontFamily: "inherit" };
 
 function Notifications({ tasks }) {
   const items = [
