@@ -295,10 +295,17 @@ export default function App() {
     if (!error) setEmployees((data || []).map(mapEmployee));
   };
   const refetchTasks = async () => {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("tasks")
-      .select("*, subtasks(*), task_comments(*)")
+      .select("*, subtasks(*), task_comments(*), task_attachments(*)")
       .order("due_date");
+    if (error) {
+      // task_attachments table may not exist yet — fall back so the task list still loads
+      ({ data, error } = await supabase
+        .from("tasks")
+        .select("*, subtasks(*), task_comments(*)")
+        .order("due_date"));
+    }
     if (!error) setTasks((data || []).map(mapTask));
   };
 
@@ -1222,7 +1229,8 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
     const path = `${task.id}/${Date.now()}-${safeName}`;
     const { error: upErr } = await supabase.storage.from("app-task-attachment").upload(path, file);
     if (upErr) { alert(upErr.message); setUploading(false); return; }
-    await supabase.from("task_attachments").insert({ task_id: task.id, file_name: file.name, file_path: path, uploaded_by: viewerEmp.id });
+    const { error: rowErr } = await supabase.from("task_attachments").insert({ task_id: task.id, file_name: file.name, file_path: path, uploaded_by: viewerEmp.id });
+    if (rowErr) alert("File didn't upload: " + rowErr.message);
     await refetchTasks();
     setUploading(false);
   };
