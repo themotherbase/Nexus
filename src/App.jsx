@@ -480,7 +480,7 @@ export default function App() {
 
   return (
     <EmpContext.Provider value={{ employees, byId, directReports, addEmployee, updateEmployee, deleteEmployee, canEditOrg, onlineIds }}>
-      <div className="mb-body" style={{ background: C.paper, minHeight: "100vh", color: C.ink, display: "flex", flexDirection: "column" }}>
+      <div className="mb-body" style={{ background: C.paper, minHeight: "100vh", color: C.ink, display: "flex", flexDirection: "column", colorScheme: dark ? "dark" : "light", "--mb-control-bg": C.card, "--mb-control-fg": C.ink, "--mb-control-border": C.line }}>
         <style>{FONT}{RESPONSIVE_CSS}</style>
 
         <div className="mb-topbar" style={{ alignItems: "center", gap: 12, padding: "12px 16px", background: C.navy, color: "#fff", position: "sticky", top: 0, zIndex: 60 }}>
@@ -1739,7 +1739,7 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
 function FormRow({ label, children }) {
   return <div style={{ marginBottom: 12 }}><div style={{ fontSize: 11.5, color: C.slate, marginBottom: 4 }}>{label}</div>{children}</div>;
 }
-const inputStyle = { width: "100%", border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 0px", fontSize: 13.5, fontFamily: "inherit" };
+const inputStyle = { width: "100%", border: "1px solid var(--mb-control-border, #E4E2DC)", borderRadius: 8, padding: "8px 0px", fontSize: 13.5, fontFamily: "inherit", background: "var(--mb-control-bg, #FFFFFF)", color: "var(--mb-control-fg, #20263D)" };
 
 function Notifications({ tasks }) {
   const items = [
