@@ -1739,7 +1739,7 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
 function FormRow({ label, children }) {
   return <div style={{ marginBottom: 12 }}><div style={{ fontSize: 11.5, color: C.slate, marginBottom: 4 }}>{label}</div>{children}</div>;
 }
-const inputStyle = { width: "100%", border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px", fontSize: 13.5, fontFamily: "inherit" };
+const inputStyle = { width: "100%", border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 0px", fontSize: 13.5, fontFamily: "inherit" };
 
 function Notifications({ tasks }) {
   const items = [
