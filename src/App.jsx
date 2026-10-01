@@ -8,6 +8,7 @@ import {
   ArrowRightLeft, ChevronDown, ChevronLeft, ChevronRight, Check, Archive, ArchiveRestore
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
+import motherbaseBackground from "./The Motherbase (Transparent).png";
 
 /* ---------------------------------------------------------------
    DESIGN TOKENS
@@ -150,9 +151,10 @@ function Login() {
 
   if (mode === "forgot") {
     return (
-      <div className="mb-body" style={{ minHeight: "100vh", background: C.paper, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div className="mb-body" style={{ minHeight: "100vh", background: C.navy, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
         <style>{FONT}</style>
-        <form onSubmit={sendReset} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 32, width: 360 }}>
+        <AuthBackdrop />
+        <form onSubmit={sendReset} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 32, width: 360, maxWidth: "calc(100% - 32px)", position: "relative", zIndex: 1 }}>
           <div className="mb-display" style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}>Reset your password</div>
           <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 20 }}>Enter your email and we'll send you a reset link.</div>
           <FormRow label="Email"><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} style={inputStyle} /></FormRow>
@@ -170,9 +172,10 @@ function Login() {
   }
 
   return (
-    <div className="mb-body" style={{ minHeight: "100vh", background: C.paper, display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div className="mb-body" style={{ minHeight: "100vh", background: C.navy, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
       <style>{FONT}</style>
-      <form onSubmit={submit} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 32, width: 360 }}>
+      <AuthBackdrop />
+      <form onSubmit={submit} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 32, width: 360, maxWidth: "calc(100% - 32px)", position: "relative", zIndex: 1 }}>
         <div className="mb-display" style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}>The Motherbase</div>
         <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 20 }}>Sign in to the Ops System</div>
         <FormRow label="Email"><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} style={inputStyle} /></FormRow>
@@ -188,6 +191,15 @@ function Login() {
           First time? Check your email for the invite link to set your password. If you don't have an account yet, ask Jose Paulo, Andrea, Maria, or Julian to invite you.
         </div>
       </form>
+    </div>
+  );
+}
+
+function AuthBackdrop() {
+  return (
+    <div aria-hidden="true" style={{ position: "absolute", inset: -18, overflow: "hidden", pointerEvents: "none" }}>
+      <img src={motherbaseBackground} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "blur(14px)", transform: "scale(1.06)", opacity: 0.5 }} />
+      <div style={{ position: "absolute", inset: 0, background: "rgba(18,22,42,0.28)" }} />
     </div>
   );
 }
