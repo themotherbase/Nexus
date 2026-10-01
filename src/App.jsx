@@ -384,6 +384,8 @@ export default function App() {
 
   const boardTasks = visibleTasks.filter(t => !t.archived);
   const archivedTasks = visibleTasks.filter(t => t.archived);
+  const urgentTasks = boardTasks.filter(t => statusMeta(t).label === "Overdue" || t.status === "For Review");
+  const urgentCount = urgentTasks.length;
 
   const updateTask = async (id, patch) => {
     const { error } = await supabase.from("tasks").update(patch).eq("id", id);
@@ -496,8 +498,11 @@ export default function App() {
         <style>{FONT}{RESPONSIVE_CSS}</style>
 
         <div className="mb-topbar" style={{ alignItems: "center", gap: 12, padding: "12px 16px", background: C.navy, color: "#fff", position: "sticky", top: 0, zIndex: 60 }}>
-          <button onClick={() => setMobileNavOpen(true)} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", padding: 4 }}>
+          <button onClick={() => setMobileNavOpen(true)} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", padding: 4, position: "relative" }}>
             <Menu size={22} />
+            {urgentCount > 0 && (
+              <span style={{ position: "absolute", top: 0, right: 0, width: 8, height: 8, borderRadius: 8, background: C.coral, border: `1.5px solid ${C.navy}` }} />
+            )}
           </button>
           <div className="mb-display" style={{ fontSize: 16, fontWeight: 600 }}>The Motherbase</div>
         </div>
@@ -521,8 +526,14 @@ export default function App() {
                     border: "none", color: active ? "#fff" : "#B7BCD6", cursor: "pointer",
                     fontSize: 13.5, fontWeight: active ? 600 : 500, textAlign: "left", width: "100%",
                   }}>
-                  <Icon size={16} strokeWidth={2} />
-                  {n.label}
+                  <span style={{ position: "relative", display: "inline-flex" }}>
+                    <Icon size={16} strokeWidth={2} />
+                    {n.id === "notifications" && urgentCount > 0 && (
+                      <span style={{ position: "absolute", top: -3, right: -3, width: 7, height: 7, borderRadius: 7, background: C.coral, border: `1.5px solid ${C.navy}` }} />
+                    )}
+                  </span>
+                  <span style={{ flex: 1 }}>{n.label}</span>
+                  {n.id === "notifications" && <NavBadge count={urgentCount} />}
                 </button>
               );
             })}
@@ -559,7 +570,7 @@ export default function App() {
               canCreate={isManager} setShowAddTask={setShowAddTask} setTaskDetail={setTaskDetail}
               onRepeat={setRepeatTask} onArchive={archiveTask} />
           )}
-          {page === "notifications" && <Notifications tasks={boardTasks} />}
+          {page === "notifications" && <Notifications tasks={boardTasks} setPage={setPage} setTaskDetail={setTaskDetail} />}
           {page === "settings" && <SettingsPage isAdmin={isAdmin} dark={dark} setDark={setDark} />}
         </main>
         </div>
@@ -1753,7 +1764,7 @@ function FormRow({ label, children }) {
 }
 const inputStyle = { width: "100%", border: "1px solid var(--mb-control-border, #E4E2DC)", borderRadius: 8, padding: "8px 0px", fontSize: 13.5, fontFamily: "inherit", background: "var(--mb-control-bg, #FFFFFF)", color: "var(--mb-control-fg, #20263D)" };
 
-function Notifications({ tasks }) {
+function Notifications({ tasks, setPage, setTaskDetail }) {
   const items = [
     ...tasks.filter(t => statusMeta(t).label === "Overdue").map(t => ({ type: "overdue", t })),
     ...tasks.filter(t => statusMeta(t).label === "Due today").map(t => ({ type: "due", t })),
@@ -1762,14 +1773,23 @@ function Notifications({ tasks }) {
   const copy = { overdue: (t) => `"${t.title}" is overdue`, due: (t) => `"${t.title}" is due today`, review: (t) => `"${t.title}" is waiting on your sign-off` };
   const iconFor = { overdue: CircleAlert, due: Clock, review: ShieldCheck };
   const colorFor = { overdue: C.coral, due: C.amber, review: C.slate };
+  const urgent = { overdue: true, due: false, review: true };
+  const goToTask = (id) => { if (!setPage || !setTaskDetail) return; setTaskDetail(id); setPage("tasks"); };
   return (
     <div>
       <PageHeader eyebrow="In-app alerts" title="Notifications" />
       <Panel title={`${items.length} notification${items.length===1?"":"s"}`}>
         {items.length === 0 && <Empty text="You're all caught up." />}
-        {items.map((n, i) => { const Icon = iconFor[n.type]; return (
-          <div key={i} style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${C.line}` }}>
-            <Icon size={16} color={colorFor[n.type]} /><div style={{ fontSize: 13.5, flex: 1 }}>{copy[n.type](n.t)}</div><span style={{ fontSize: 11.5, color: C.slate }}>{n.t.due}</span>
+        {items.map((n, i) => { const Icon = iconFor[n.type]; const clickable = !!(setPage && setTaskDetail); return (
+          <div key={i} onClick={() => goToTask(n.t.id)}
+            style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${C.line}`, cursor: clickable ? "pointer" : "default" }}>
+            <span style={{ position: "relative", display: "inline-flex" }}>
+              <Icon size={16} color={colorFor[n.type]} />
+              {urgent[n.type] && <span style={{ position: "absolute", top: -3, right: -3, width: 6, height: 6, borderRadius: 6, background: C.coral, border: `1.5px solid ${C.card}` }} />}
+            </span>
+            <div style={{ fontSize: 13.5, flex: 1 }}>{copy[n.type](n.t)}</div>
+            <span style={{ fontSize: 11.5, color: C.slate }}>{n.t.due}</span>
+            {clickable && <ChevronRight size={14} color={C.slate} />}
           </div>
         ); })}
       </Panel>
@@ -1863,6 +1883,16 @@ function SettingsPage({ isAdmin, dark, setDark }) {
 /* ---------------------------------------------------------------
    SHARED UI PRIMITIVES
 ----------------------------------------------------------------*/
+function NavBadge({ count }) {
+  if (!count) return null;
+  return (
+    <span style={{
+      minWidth: 17, height: 17, padding: "0 4px", borderRadius: 10, background: C.coral, color: "#fff",
+      fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
+    }}>{count > 99 ? "99+" : count}</span>
+  );
+}
+
 function PageHeader({ eyebrow, title, actions }) {
   return <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 20 }}><div><div style={{ fontSize: 11.5, color: C.slate, fontWeight: 600, marginBottom: 3 }}>{eyebrow}</div><div className="mb-display" style={{ fontSize: 26, fontWeight: 600 }}>{title}</div></div>{actions}</div>;
 }
