@@ -1865,7 +1865,7 @@ function ToggleBtn({ active, onClick, icon: Icon, label }) {
   return <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 8, border: `1px solid ${active ? C.navy : C.line}`, background: active ? C.navy : C.card, color: active ? "#fff" : C.ink, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><Icon size={14} /> {label}</button>;
 }
 function SearchBar({ value, onChange, placeholder }) {
-  return <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: "8px 12px", marginBottom: 16, maxWidth: 420 }}><Search size={15} color={C.slate} /><input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ border: "none", outline: "none", fontSize: 13.5, flex: 1, fontFamily: "inherit" }} /></div>;
+  return <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: "8px 12px", marginBottom: 16, maxWidth: 420 }}><Search size={15} color={C.slate} /><input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ background: "transparent", color: C.ink, border: "none", outline: "none", fontSize: 13.5, flex: 1, fontFamily: "inherit" }} /></div>;
 }
 function Avatar({ name, size = 32, online }) {
   return (
@@ -1879,7 +1879,7 @@ function Empty({ text }) { return <div style={{ fontSize: 13, color: C.slate, pa
 function ModalShell({ children, onClose, width = 500 }) {
   return (
     <div onClick={onClose} className="mb-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(20,22,35,0.45)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "60px 20px", zIndex: 200, overflowY: "auto" }}>
-      <div onClick={e => e.stopPropagation()} className="mb-body mb-modal-card" style={{ background: C.paper, borderRadius: 16, padding: 26, width, maxWidth: "100%", position: "relative" }}>
+      <div onClick={e => e.stopPropagation()} className="mb-body mb-modal-card" style={{ background: C.card, border: `1.5px solid ${C.line}`, borderRadius: 10, padding: 26, width, maxWidth: "100%", position: "relative", boxShadow: `0 4px 0 -1px ${C.card}, 0 5px 0 -1px ${C.line}` }}>
         <button onClick={onClose} aria-label="Close" style={{ position: "absolute", top: 12, right: 12, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: C.slate }}><X size={18} /></button>
         {children}
       </div>
