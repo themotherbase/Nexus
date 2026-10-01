@@ -1342,8 +1342,8 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
 function priorityCardColors(t) {
   if (t.status === "Completed") return { bg: C.sageSoft, border: C.sage };
   if (t.priority === "High") return { bg: C.coralSoft, border: C.coral };
-  if (t.priority === "Medium") return { bg: C.blueSoft, border: C.blue };
-  return { bg: C.yellowSoft, border: C.yellow }; // Low
+  if (t.priority === "Medium") return { bg: C.yellowSoft, border: C.yellow };
+  return { bg: C.blueSoft, border: C.blue }; // Low
 }
 
 function TaskCard({ t, children, onOpen }) {
@@ -1865,7 +1865,11 @@ function ToggleBtn({ active, onClick, icon: Icon, label }) {
   return <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 8, border: `1px solid ${active ? C.navy : C.line}`, background: active ? C.navy : C.card, color: active ? "#fff" : C.ink, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><Icon size={14} /> {label}</button>;
 }
 function SearchBar({ value, onChange, placeholder }) {
+<<<<<<< HEAD
+  return <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: "8px 12px", marginBottom: 16, maxWidth: 420 }}><Search size={15} color={C.slate} /><input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ padding: 10, border: "none", outline: "none", fontSize: 13.5, flex: 1, fontFamily: "inherit" }} /></div>;
+=======
   return <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: "8px 12px", marginBottom: 16, maxWidth: 420 }}><Search size={15} color={C.slate} /><input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ background: "transparent", color: C.ink, border: "none", outline: "none", fontSize: 13.5, flex: 1, fontFamily: "inherit" }} /></div>;
+>>>>>>> cd139798b19e40ac811875be6e51c122cf761803
 }
 function Avatar({ name, size = 32, online }) {
   return (
