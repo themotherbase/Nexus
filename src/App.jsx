@@ -1,9 +1,11 @@
-import React, { useState, useMemo, useEffect, createContext, useContext } from "react";
+import React, { useState, useMemo, useEffect, useRef, createContext, useContext } from "react";
+import { createPortal } from "react-dom";
 import {
   LayoutGrid, Users, ClipboardList, Bell, Settings, Network,
   Search, Plus, X, CircleAlert, Clock, CheckCircle2,
   Table2, CalendarDays, KanbanSquare, ShieldCheck, Pencil, Trash2,
-  Repeat, TriangleAlert, ListTree, LogOut, Undo2, Menu
+  Repeat, TriangleAlert, ListTree, LogOut, Undo2, Menu,
+  ArrowRightLeft, ChevronDown, ChevronLeft, ChevronRight, Check, Archive, ArchiveRestore
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 
@@ -106,7 +108,7 @@ const mapTask = (row) => ({
   id: row.id, title: row.title, description: row.description, dept: row.dept_id,
   assignee: row.assignee_id, supervisor: row.supervisor_id, backup: row.backup_id,
   priority: row.priority, status: row.status, progress: row.progress, category: row.category,
-  recurring: row.recurring, recurringCustomDays: row.recurring_custom_days, due: row.due_date, needsSignoff: row.needs_signoff, createdBy: row.created_by,
+  recurring: row.recurring, recurringCustomDays: row.recurring_custom_days, due: row.due_date, needsSignoff: row.needs_signoff, createdBy: row.created_by, archived: !!row.archived,
   subtasks: (row.subtasks || []).map(s => ({ id: s.id, title: s.title, done: s.done })),
   comments: (row.task_comments || [])
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
@@ -176,7 +178,7 @@ function Login() {
         <FormRow label="Email"><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} style={inputStyle} /></FormRow>
         <FormRow label="Password"><input type="password" required value={password} onChange={e=>setPassword(e.target.value)} style={inputStyle} /></FormRow>
         {error && <div style={{ color: C.coral, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
-        <button type="submit" disabled={loading} style={{ width: "100%", background: C.blue, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+        <button type="submit" disabled={loading} style={{ width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
           {loading ? "Signing in…" : "Sign in"}
         </button>
         <button type="button" onClick={() => setMode("forgot")} style={{ background: "none", border: "none", color: C.navy, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0, marginTop: 12 }}>
@@ -272,6 +274,7 @@ export default function App() {
   const [taskView, setTaskView] = useState("kanban");
   const [search, setSearch] = useState("");
   const [showAddTask, setShowAddTask] = useState(false);
+  const [repeatTask, setRepeatTask] = useState(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [taskDetail, setTaskDetail] = useState(null);
   const [dark, setDark] = useState(() => {
@@ -367,6 +370,9 @@ export default function App() {
       ? tasks.filter(t => new Set([viewerEmp.id, ...directReports(viewerEmp.id).map(e=>e.id)]).has(t.assignee) || t.supervisor === viewerEmp.id)
       : tasks.filter(t => t.assignee === viewerEmp.id);
 
+  const boardTasks = visibleTasks.filter(t => !t.archived);
+  const archivedTasks = visibleTasks.filter(t => t.archived);
+
   const updateTask = async (id, patch) => {
     const { error } = await supabase.from("tasks").update(patch).eq("id", id);
     if (error) alert(error.message);
@@ -376,6 +382,28 @@ export default function App() {
     const patch = { status };
     if (status === "Completed") patch.progress = 100;
     return updateTask(id, patch);
+  };
+  // "Remove" only hides a task from the board (archived = true); the row stays in the database.
+  const archiveTask = async (task, archived = true) => {
+    const { error } = await supabase.from("tasks").update({ archived }).eq("id", task.id);
+    if (error) {
+      alert(`Couldn't ${archived ? "remove" : "restore"} that task. Has migration_archive_tasks.sql been run in Supabase?\n\n${error.message}`);
+      return false;
+    }
+    await refetchTasks();
+    return true;
+  };
+  // "Repeat" makes a fresh copy in To Do; optionally hides the finished card so the board stays tidy.
+  const createRepeat = async (task, due, archiveOriginal) => {
+    const { error } = await supabase.from("tasks").insert({
+      title: task.title, description: task.description ?? null, dept_id: task.dept,
+      assignee_id: task.assignee, supervisor_id: task.supervisor, backup_id: task.backup ?? null,
+      priority: task.priority, status: "To Do", progress: 0, category: task.category,
+      due_date: due, needs_signoff: task.needsSignoff, created_by: viewerEmp.id,
+    });
+    if (error) { alert("Couldn't repeat that task: " + error.message); return; }
+    if (archiveOriginal) await archiveTask(task, true);
+    else await refetchTasks();
   };
   const addComment = async (id, text, parentId = null) => {
     const payload = { task_id: id, author_id: viewerEmp.id, body: text };
@@ -498,7 +526,7 @@ export default function App() {
             </div>
             {canEditOrg && <div style={{ fontSize: 10, color: "#8DE0B0", marginBottom: 8 }}>✓ Can edit org & employees</div>}
             <button onClick={() => supabase.auth.signOut()} style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", background: C.navySoft, color: "#fff", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "7px 8px", fontSize: 12, cursor: "pointer" }}>
-              <LogOut size={13} /> Sign out Ngani
+              <LogOut size={13} /> Sign out
             </button>
           </div>
         </aside>
@@ -513,11 +541,13 @@ export default function App() {
             <EmployeesList setSelectedEmp={setSelectedEmp} search={search} setSearch={setSearch} tasks={tasks} onAdd={() => setEditingEmp(null)} />
           )}
           {page === "tasks" && (
-            <Tasks tasks={visibleTasks} taskView={taskView} setTaskView={setTaskView}
+            <Tasks tasks={boardTasks} archivedTasks={archivedTasks} reportTasks={visibleTasks}
+              taskView={taskView} setTaskView={setTaskView}
               setTaskStatus={setTaskStatus} viewerEmp={viewerEmp}
-              canCreate={isManager} setShowAddTask={setShowAddTask} setTaskDetail={setTaskDetail} />
+              canCreate={isManager} setShowAddTask={setShowAddTask} setTaskDetail={setTaskDetail}
+              onRepeat={setRepeatTask} onArchive={archiveTask} />
           )}
-          {page === "notifications" && <Notifications tasks={visibleTasks} />}
+          {page === "notifications" && <Notifications tasks={boardTasks} />}
           {page === "settings" && <SettingsPage isAdmin={isAdmin} dark={dark} setDark={setDark} />}
         </main>
         </div>
@@ -533,7 +563,12 @@ export default function App() {
         {taskDetail && (
           <TaskDetailModal task={tasks.find(t=>t.id===taskDetail)} onClose={() => setTaskDetail(null)}
             addComment={addComment} viewerEmp={viewerEmp} setTaskStatus={setTaskStatus}
-            updateTask={updateTask} refetchTasks={refetchTasks} />
+            updateTask={updateTask} refetchTasks={refetchTasks}
+            onRepeat={setRepeatTask} onArchive={archiveTask} />
+        )}
+        {repeatTask && (
+          <RepeatTaskModal task={repeatTask} onClose={() => setRepeatTask(null)}
+            onConfirm={async (due, archiveOriginal) => { const t = repeatTask; setRepeatTask(null); await createRepeat(t, due, archiveOriginal); }} />
         )}
       </div>
     </EmpContext.Provider>
@@ -1030,7 +1065,7 @@ function exportTaskReport(employees, tasks) {
   URL.revokeObjectURL(url);
 }
 
-function Tasks({ tasks, taskView, setTaskView, setTaskStatus, viewerEmp, canCreate, setShowAddTask, setTaskDetail }) {
+function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTaskStatus, viewerEmp, canCreate, setShowAddTask, setTaskDetail, onRepeat, onArchive }) {
   const { employees } = useEmp();
   return (
     <div>
@@ -1040,7 +1075,7 @@ function Tasks({ tasks, taskView, setTaskView, setTaskStatus, viewerEmp, canCrea
           <ToggleBtn active={taskView==="list"} onClick={()=>setTaskView("list")} icon={Table2} label="List" />
           <ToggleBtn active={taskView==="calendar"} onClick={()=>setTaskView("calendar")} icon={CalendarDays} label="Calendar" />
           {canCreate && (
-            <button onClick={() => exportTaskReport(employees, tasks)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.card, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 8, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", marginLeft: 6 }}>
+            <button onClick={() => exportTaskReport(employees, reportTasks || tasks)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.card, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 8, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", marginLeft: 6 }}>
               Export Report
             </button>
           )}
@@ -1048,42 +1083,259 @@ function Tasks({ tasks, taskView, setTaskView, setTaskStatus, viewerEmp, canCrea
         </div>
       } />
       {!canCreate && <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 14 }}>Viewing as {viewerEmp.name} ({ROLE_LABEL[viewerEmp.role]}) — you can update status and progress on your own tasks. Completion needs your supervisor's sign-off.</div>}
-      {taskView === "kanban" && <KanbanView tasks={tasks} setTaskStatus={setTaskStatus} viewerEmp={viewerEmp} setTaskDetail={setTaskDetail} />}
+      {taskView === "kanban" && <KanbanView tasks={tasks} archivedTasks={archivedTasks} setTaskStatus={setTaskStatus} viewerEmp={viewerEmp} setTaskDetail={setTaskDetail} onRepeat={onRepeat} onArchive={onArchive} />}
       {taskView === "list" && <ListView tasks={tasks} setTaskDetail={setTaskDetail} />}
       {taskView === "calendar" && <CalendarView tasks={tasks} setTaskDetail={setTaskDetail} />}
     </div>
   );
 }
 
-function KanbanView({ tasks, setTaskStatus, viewerEmp, setTaskDetail }) {
-  const canAdvance = (t) => viewerEmp.role !== "employee" || t.assignee === viewerEmp.id;
+const ellipsis = { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+const STAGE_HINT = { "For Review": "Submit for sign-off" };
+const stageColor = (s) => ({ Backlog: C.slate, "To Do": C.blue, "In Progress": C.amber, "For Review": "#7C6BD6", Completed: C.sage }[s] || C.slate);
+
+// One entry per person, alphabetical, "Unassigned" last.
+function groupByAssignee(items, byId) {
+  const map = new Map();
+  items.forEach(t => { const k = t.assignee || ""; if (!map.has(k)) map.set(k, []); map.get(k).push(t); });
+  return [...map.entries()]
+    .map(([assignee, cards]) => ({ assignee, name: byId[assignee]?.name || "Unassigned", cards }))
+    .sort((a, b) => (a.assignee === "") - (b.assignee === "") || a.name.localeCompare(b.name));
+}
+
+function IconBtn({ children, onClick, title, disabled }) {
   return (
-    <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 8 }}>
-      {COLUMNS.map(col => {
-        const items = tasks.filter(t => t.status === col);
-        return (
-          <div key={col} style={{ minWidth: 250, flex: "0 0 250px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: 0.2 }}>{col}</span>
-              <span style={{ fontSize: 11.5, color: C.slate, background: C.card, border: `1px solid ${C.line}`, borderRadius: 20, padding: "1px 8px" }}>{items.length}</span>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {items.map(t => (
-                <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)}>
-                  {canAdvance(t) && col !== "Completed" && (
-                    <select value={t.status} onChange={e => setTaskStatus(t.id, e.target.value)} onClick={e => e.stopPropagation()}
-                      style={{ fontSize: 10.5, marginTop: 8, border: `1px solid ${C.line}`, borderRadius: 6, padding: "3px 5px", width: "100%" }}>
-                      {COLUMNS.map(c => <option key={c} value={c}>{c === "Completed" ? "Submit for sign-off →" : `Move to ${c}`}</option>)}
-                    </select>
-                  )}
-                </TaskCard>
-              ))}
-              {items.length === 0 && <div style={{ fontSize: 12, color: C.slate, padding: "10px 4px" }}>No tasks.</div>}
-            </div>
+    <button type="button" onClick={onClick} title={title} aria-label={title} disabled={disabled}
+      style={{ width: 34, height: 34, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: C.card, border: `1px solid ${C.line}`, borderRadius: 9, color: C.ink, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.4 : 1 }}>
+      {children}
+    </button>
+  );
+}
+
+function MiniBtn({ children, onClick, icon: Icon, title }) {
+  return (
+    <button type="button" onClick={onClick} title={title}
+      style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 32, padding: "6px 10px", background: C.card, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
+      <Icon size={13} color={C.slate} /> {children}
+    </button>
+  );
+}
+
+// Pop-up list for moving a task between stages. Rendered in a portal so the board's
+// scrolling area can't clip it. variant "card" = full-width button, "icon" = square icon button.
+function StageMenu({ current, onSelect, canComplete, variant = "card" }) {
+  const [pos, setPos] = useState(null);
+  const anchorRef = useRef(null);
+  const open = !!pos;
+  const close = () => setPos(null);
+
+  useEffect(() => {
+    if (!open) return;
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => { window.removeEventListener("scroll", close, true); window.removeEventListener("resize", close); };
+  }, [open]);
+
+  const toggle = (e) => {
+    e.stopPropagation();
+    if (open) { close(); return; }
+    const r = anchorRef.current.getBoundingClientRect();
+    const width = 232, menuH = COLUMNS.length * 46 + 40;
+    const flip = window.innerHeight - r.bottom < menuH + 12 && r.top > menuH + 12;
+    const top = Math.max(8, Math.min(flip ? r.top - menuH - 6 : r.bottom + 6, window.innerHeight - menuH - 8));
+    const left = Math.max(8, Math.min(variant === "icon" ? r.right - width : r.left, window.innerWidth - width - 8));
+    setPos({ top, left, width });
+  };
+
+  return (
+    <div ref={anchorRef} style={variant === "icon" ? { display: "inline-flex" } : { width: "100%" }}>
+      {variant === "icon" ? (
+        <IconBtn onClick={toggle} title="Move to another stage"><ArrowRightLeft size={15} /></IconBtn>
+      ) : (
+        <button type="button" onClick={toggle} aria-haspopup="menu" aria-expanded={open}
+          style={{ display: "flex", alignItems: "center", gap: 7, width: "100%", minHeight: 32, padding: "6px 10px", background: C.card, color: C.ink, border: `1px solid ${open ? C.slate : C.line}`, borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", textAlign: "left" }}>
+          <ArrowRightLeft size={13} color={C.slate} />
+          <span style={{ flex: 1 }}>Move to…</span>
+          <ChevronDown size={14} color={C.slate} style={{ transform: open ? "rotate(180deg)" : "none" }} />
+        </button>
+      )}
+      {open && createPortal(
+        <>
+          <div onClick={(e) => { e.stopPropagation(); close(); }} style={{ position: "fixed", inset: 0, zIndex: 300 }} />
+          <div role="menu" onClick={(e) => e.stopPropagation()}
+            style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width, zIndex: 301, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 6, boxShadow: "0 10px 30px rgba(0,0,0,0.2)", color: C.ink }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: C.slate, textTransform: "uppercase", letterSpacing: 0.4, padding: "6px 10px 4px" }}>Move to stage</div>
+            {COLUMNS.map(stage => {
+              const blocked = stage === "Completed" && !canComplete;
+              const hint = blocked ? "Needs your supervisor's sign-off" : stage === "Completed" ? "Mark as done" : STAGE_HINT[stage];
+              return (
+                <button key={stage} type="button" role="menuitem" disabled={blocked}
+                  onClick={(e) => { e.stopPropagation(); close(); if (stage !== current) onSelect(stage); }}
+                  style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 10px", background: stage === current ? C.paper : "transparent", border: "none", borderRadius: 8, textAlign: "left", fontFamily: "inherit", color: C.ink, cursor: blocked ? "not-allowed" : "pointer", opacity: blocked ? 0.5 : 1 }}>
+                  <span style={{ width: 9, height: 9, borderRadius: 9, background: stageColor(stage), flexShrink: 0 }} />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: "block", fontSize: 13, fontWeight: 600 }}>{stage}</span>
+                    {hint && <span style={{ display: "block", fontSize: 11, color: C.slate }}>{hint}</span>}
+                  </span>
+                  {stage === current && <Check size={14} color={C.sage} />}
+                </button>
+              );
+            })}
           </div>
-        );
-      })}
+        </>, document.body)}
     </div>
+  );
+}
+
+// What sits at the bottom of a card: the move menu, or Repeat/Remove once it's completed.
+function TaskCardActions({ t, viewerEmp, setTaskStatus, onRepeat, onArchive }) {
+  const isEmployee = viewerEmp.role === "employee";
+  const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
+  if (t.archived) {
+    return isEmployee ? null : (
+      <div style={{ marginTop: 8 }}><MiniBtn icon={ArchiveRestore} onClick={stop(() => onArchive(t, false))}>Restore to board</MiniBtn></div>
+    );
+  }
+  if (t.status === "Completed") {
+    return isEmployee ? null : (
+      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+        <MiniBtn icon={Repeat} title="Make a fresh copy of this task" onClick={stop(() => onRepeat(t))}>Repeat</MiniBtn>
+        <MiniBtn icon={Archive} title="Remove from the board — it stays saved" onClick={stop(() => onArchive(t, true))}>Remove</MiniBtn>
+      </div>
+    );
+  }
+  if (isEmployee && t.assignee !== viewerEmp.id) return null;
+  return (
+    <div style={{ marginTop: 8 }}>
+      <StageMenu current={t.status} canComplete={!isEmployee} onSelect={(stage) => setTaskStatus(t.id, stage)} />
+    </div>
+  );
+}
+
+function Chip({ children, color, bg }) {
+  return <span style={{ fontSize: 10.5, fontWeight: 700, color, background: bg, borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>{children}</span>;
+}
+
+// A stack-of-cards tile that stands for everything one person has in a column.
+function GroupHolder({ group, onOpen }) {
+  const { byId, onlineIds } = useEmp();
+  const emp = byId[group.assignee];
+  const overdue = group.cards.filter(t => statusMeta(t).label === "Overdue").length;
+  const high = group.cards.filter(t => t.priority === "High" && t.status !== "Completed").length;
+  const shown = group.cards.slice(0, 2);
+  const more = group.cards.length - shown.length;
+  return (
+    <button type="button" onClick={onOpen} aria-label={`Open ${group.cards.length} tasks for ${group.name}`}
+      style={{ display: "block", width: "100%", textAlign: "left", fontFamily: "inherit", color: C.ink, cursor: "pointer", background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 12, marginBottom: 8,
+        boxShadow: `0 4px 0 -1px ${C.card}, 0 5px 0 -1px ${C.line}, 0 9px 0 -3px ${C.card}, 0 10px 0 -3px ${C.line}` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <Avatar name={group.name} size={34} online={onlineIds?.has(group.assignee)} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700, ...ellipsis }}>{group.name}</div>
+          <div style={{ fontSize: 11, color: C.slate, ...ellipsis }}>{emp?.position || "No assignee"}</div>
+        </div>
+        <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", background: C.navySoft, borderRadius: 20, padding: "2px 9px" }}>{group.cards.length}</span>
+      </div>
+      <div style={{ marginTop: 10, borderTop: `1px solid ${C.line}`, paddingTop: 8 }}>
+        {shown.map(t => <div key={t.id} style={{ fontSize: 12, color: C.slate, padding: "1px 0", ...ellipsis }}>• {t.title}</div>)}
+        {more > 0 && <div style={{ fontSize: 11.5, color: C.slate, fontWeight: 600, paddingTop: 2 }}>+ {more} more</div>}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8, gap: 6 }}>
+        <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {overdue > 0 && <Chip color={C.coral} bg={C.coralSoft}>{overdue} overdue</Chip>}
+          {high > 0 && <Chip color={C.coral} bg={C.coralSoft}>{high} high</Chip>}
+        </span>
+        <span style={{ display: "flex", alignItems: "center", fontSize: 11.5, fontWeight: 600, color: C.ink, whiteSpace: "nowrap" }}>View all <ChevronRight size={14} /></span>
+      </div>
+    </button>
+  );
+}
+
+// Everything one person has in one column, as a responsive grid, with arrows to hop to the next person.
+function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, renderActions }) {
+  const { byId, onlineIds } = useEmp();
+  const people = groupByAssignee(source.filter(t => t.status === col), byId);
+  const idx = people.findIndex(p => p.assignee === assignee);
+  const group = people[idx];
+  useEffect(() => { if (!group) onClose(); }, [!group]);
+  if (!group) return null;
+  const go = (d) => onSwitch(people[(idx + d + people.length) % people.length].assignee);
+  const n = group.cards.length;
+  return (
+    <ModalShell onClose={onClose} width={780}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, paddingRight: 44, marginBottom: 14, flexWrap: "wrap" }}>
+        <Avatar name={group.name} size={42} online={onlineIds?.has(assignee)} />
+        <div style={{ flex: 1, minWidth: 150 }}>
+          <div className="mb-display" style={{ fontSize: 19, fontWeight: 600 }}>{group.name}</div>
+          <div style={{ fontSize: 12, color: C.slate }}>
+            {byId[assignee]?.position ? `${byId[assignee].position} · ` : ""}{n} task{n === 1 ? "" : "s"} in <b style={{ color: stageColor(col) }}>{col}</b>
+          </div>
+        </div>
+        {people.length > 1 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <IconBtn onClick={() => go(-1)} title="Previous person"><ChevronLeft size={16} /></IconBtn>
+            <span style={{ fontSize: 12, color: C.slate, minWidth: 40, textAlign: "center" }}>{idx + 1} / {people.length}</span>
+            <IconBtn onClick={() => go(1)} title="Next person"><ChevronRight size={16} /></IconBtn>
+          </div>
+        )}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12, maxHeight: "62vh", overflowY: "auto", padding: 2 }}>
+        {group.cards.map(t => (
+          <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)}>{renderActions(t)}</TaskCard>
+        ))}
+      </div>
+    </ModalShell>
+  );
+}
+
+function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTaskDetail, onRepeat, onArchive }) {
+  const { byId } = useEmp();
+  const [openGroup, setOpenGroup] = useState(null); // { col, assignee }
+  const [showArchived, setShowArchived] = useState(false);
+  const canManage = viewerEmp.role !== "employee";
+  const sourceFor = (col) => (col === "Completed" && showArchived ? archivedTasks : tasks);
+  const actions = (t) => <TaskCardActions t={t} viewerEmp={viewerEmp} setTaskStatus={setTaskStatus} onRepeat={onRepeat} onArchive={onArchive} />;
+
+  return (
+    <>
+      <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 8 }}>
+        {COLUMNS.map(col => {
+          const items = sourceFor(col).filter(t => t.status === col);
+          const groups = groupByAssignee(items, byId);
+          const archivedView = col === "Completed" && showArchived;
+          return (
+            <div key={col} style={{ minWidth: 250, flex: "0 0 250px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, fontWeight: 700, letterSpacing: 0.2 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 8, background: stageColor(col) }} />
+                  {archivedView ? "Removed" : col}
+                </span>
+                <span style={{ fontSize: 11.5, color: C.slate, background: C.card, border: `1px solid ${C.line}`, borderRadius: 20, padding: "1px 8px" }}>{items.length}</span>
+              </div>
+              {col === "Completed" && canManage && (archivedTasks.length > 0 || showArchived) && (
+                <button type="button" onClick={() => setShowArchived(v => !v)}
+                  style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", padding: "0 0 10px", fontSize: 11.5, fontWeight: 600, color: C.slate, cursor: "pointer", fontFamily: "inherit" }}>
+                  {showArchived ? <><ChevronLeft size={13} /> Back to completed</> : <><Archive size={12} /> Removed from board ({archivedTasks.length})</>}
+                </button>
+              )}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {groups.map(g => g.cards.length > 1 ? (
+                  <GroupHolder key={`g-${col}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} />
+                ) : (
+                  <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)}>{actions(g.cards[0])}</TaskCard>
+                ))}
+                {items.length === 0 && <div style={{ fontSize: 12, color: C.slate, padding: "10px 4px" }}>{archivedView ? "Nothing removed." : "No tasks."}</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {openGroup && (
+        <GroupModal col={openGroup.col} assignee={openGroup.assignee} source={sourceFor(openGroup.col)}
+          onClose={() => setOpenGroup(null)} onSwitch={(a) => setOpenGroup({ col: openGroup.col, assignee: a })}
+          setTaskDetail={setTaskDetail} renderActions={actions} />
+      )}
+    </>
   );
 }
 
@@ -1101,7 +1353,7 @@ function TaskCard({ t, children, onOpen }) {
   const subtaskProgress = t.subtasks?.length ? `${t.subtasks.filter(s=>s.done).length}/${t.subtasks.length}` : null;
   const pc = priorityCardColors(t);
   return (
-    <div onClick={onOpen} style={{ background: pc.bg, border: `1.5px solid ${pc.border}`, borderRadius: 10, padding: 12, cursor: "pointer" }}>
+    <div onClick={onOpen} style={{ background: pc.bg, border: `1.5px solid ${pc.border}`, borderRadius: 10, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
         <span style={{ fontSize: 10, fontWeight: 700, color: priColor(t.priority) }}>{t.priority}</span>
         {t.recurring && <span title="Recurring"><Repeat size={12} color={C.slate} /></span>}
@@ -1189,7 +1441,7 @@ function CommentBubble({ c, byId, small }) {
   );
 }
 
-function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, updateTask, refetchTasks }) {
+function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, updateTask, refetchTasks, onRepeat, onArchive }) {
   const { byId, employees } = useEmp();
   const [draft, setDraft] = useState("");
   const [signoffNote, setSignoffNote] = useState("");
@@ -1207,6 +1459,10 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
   const submitReply = (parentId) => { if (!replyDraft.trim()) return; addComment(task.id, replyDraft.trim(), parentId); setReplyDraft(""); setReplyingTo(null); };
 
   const canEditTask = viewerEmp.role !== "employee";
+  // Same rule as the board: managers/execs can move anything, an employee only their own open tasks.
+  const canMove = !task.archived && (viewerEmp.role !== "employee" || (task.assignee === viewerEmp.id && task.status !== "Completed"));
+  const removeTask = async () => { if (await onArchive(task, true)) onClose(); };
+  const restoreTask = async () => { await onArchive(task, false); };
 
   // The approver is whoever isn't the assignee and isn't a plain employee — i.e. the
   // supervisor, a manager up the chain, or an exec/admin reviewing someone else's work.
@@ -1241,11 +1497,19 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
 
   return (
     <ModalShell onClose={onClose} width={560}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-        <div><div style={{ fontSize: 11, fontWeight: 700, color: priColor(task.priority), marginBottom: 4 }}>{task.priority} PRIORITY</div><div className="mb-display" style={{ fontSize: 19, fontWeight: 600 }}>{task.title}</div></div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <DeptTag id={task.dept} />
-          {canEditTask && <button onClick={() => setShowEdit(true)} title="Edit task" style={{ background: "none", border: "none", cursor: "pointer", color: C.slate }}><Pencil size={16} /></button>}
+      {/* right padding keeps the title clear of the close (X) button */}
+      <div style={{ paddingRight: 40, marginBottom: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: priColor(task.priority), marginBottom: 4 }}>{task.priority} PRIORITY</div>
+        <div className="mb-display" style={{ fontSize: 19, fontWeight: 600 }}>{task.title}</div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+        <DeptTag id={task.dept} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {canMove && <StageMenu variant="icon" current={task.status} canComplete={viewerEmp.role !== "employee"} onSelect={(stage) => setTaskStatus(task.id, stage)} />}
+          {canEditTask && <IconBtn onClick={() => setShowEdit(true)} title="Edit task"><Pencil size={15} /></IconBtn>}
+          {canEditTask && task.status === "Completed" && !task.archived && <IconBtn onClick={() => onRepeat(task)} title="Repeat this task"><Repeat size={15} /></IconBtn>}
+          {canEditTask && task.status === "Completed" && !task.archived && <IconBtn onClick={removeTask} title="Remove from board (stays saved)"><Archive size={15} /></IconBtn>}
+          {canEditTask && task.archived && <IconBtn onClick={restoreTask} title="Restore to board"><ArchiveRestore size={15} /></IconBtn>}
         </div>
       </div>
       <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, margin: "16px 0" }}>
@@ -1333,6 +1597,30 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
       {showEdit && (
         <EditTaskModal task={task} onClose={() => setShowEdit(false)} onSave={(patch) => { updateTask(task.id, patch); setShowEdit(false); }} />
       )}
+    </ModalShell>
+  );
+}
+
+function RepeatTaskModal({ task, onClose, onConfirm }) {
+  const { byId } = useEmp();
+  const [due, setDue] = useState(today());
+  const [archiveOriginal, setArchiveOriginal] = useState(true);
+  const [busy, setBusy] = useState(false);
+  return (
+    <ModalShell onClose={onClose} width={420}>
+      <div className="mb-display" style={{ fontSize: 19, fontWeight: 600, marginBottom: 4, paddingRight: 36 }}>Repeat task</div>
+      <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 14 }}>Creates a fresh copy in To Do for {byId[task.assignee]?.name || "the same person"}. Comments and files aren't copied.</div>
+      <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 12px", marginBottom: 14, fontSize: 13.5, fontWeight: 600 }}>{task.title}</div>
+      <FormRow label="New due date"><input type="date" value={due} onChange={e => setDue(e.target.value)} style={inputStyle} /></FormRow>
+      <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12.5, marginBottom: 14, cursor: "pointer" }}>
+        <input type="checkbox" checked={archiveOriginal} onChange={e => setArchiveOriginal(e.target.checked)} style={{ marginTop: 2 }} />
+        <span>Also remove the finished card from the board<br /><span style={{ color: C.slate }}>It stays saved and still counts in completion reports.</span></span>
+      </label>
+      {task.recurring && <div style={{ fontSize: 12, color: C.slate, background: C.paper, borderRadius: 8, padding: 10, marginBottom: 14 }}>This task already repeats automatically, so the copy will be a one-time task.</div>}
+      <button disabled={busy || !due} onClick={async () => { setBusy(true); await onConfirm(due, archiveOriginal); }}
+        style={{ width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: "pointer", opacity: busy || !due ? 0.6 : 1 }}>
+        {busy ? "Creating…" : "Create copy"}
+      </button>
     </ModalShell>
   );
 }
@@ -1451,7 +1739,7 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
 function FormRow({ label, children }) {
   return <div style={{ marginBottom: 12 }}><div style={{ fontSize: 11.5, color: C.slate, marginBottom: 4 }}>{label}</div>{children}</div>;
 }
-const inputStyle = { width: "100%", border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 0px", fontSize: 13.5, fontFamily: "inherit" };
+const inputStyle = { width: "100%", border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", fontSize: 13.5, fontFamily: "inherit" };
 
 function Notifications({ tasks }) {
   const items = [
@@ -1592,7 +1880,7 @@ function ModalShell({ children, onClose, width = 500 }) {
   return (
     <div onClick={onClose} className="mb-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(20,22,35,0.45)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "60px 20px", zIndex: 200, overflowY: "auto" }}>
       <div onClick={e => e.stopPropagation()} className="mb-body mb-modal-card" style={{ background: C.paper, borderRadius: 16, padding: 26, width, maxWidth: "100%", position: "relative" }}>
-        <button onClick={onClose} style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", cursor: "pointer", color: C.slate }}><X size={18} /></button>
+        <button onClick={onClose} aria-label="Close" style={{ position: "absolute", top: 12, right: 12, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: C.slate }}><X size={18} /></button>
         {children}
       </div>
     </div>
