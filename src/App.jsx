@@ -607,7 +607,7 @@ export default function App() {
               canCreate={isManager} setShowAddTask={setShowAddTask} setTaskDetail={setTaskDetail}
               onRepeat={setRepeatTask} onArchive={archiveTask} />
           )}
-          {page === "notifications" && <Notifications tasks={boardTasks} notifications={notifications} onMarkRead={markNotificationRead} setPage={setPage} setTaskDetail={setTaskDetail} />}
+          {page === "notifications" && <Notifications tasks={boardTasks} byId={byId} notifications={notifications} onMarkRead={markNotificationRead} setPage={setPage} setTaskDetail={setTaskDetail} />}
           {page === "settings" && <SettingsPage isAdmin={isAdmin} dark={dark} setDark={setDark} />}
         </main>
         </div>
@@ -1801,17 +1801,16 @@ function FormRow({ label, children }) {
 }
 const inputStyle = { width: "100%", border: "1px solid var(--mb-control-border, #E4E2DC)", borderRadius: 8, padding: "8px 0px", fontSize: 13.5, fontFamily: "inherit", background: "var(--mb-control-bg, #FFFFFF)", color: "var(--mb-control-fg, #20263D)" };
 
-function Notifications({ tasks, notifications = [], onMarkRead, setPage, setTaskDetail }) {
+function Notifications({ tasks, byId, notifications = [], onMarkRead, setPage, setTaskDetail }) {
   const taskItems = [
     ...tasks.filter(t => statusMeta(t).label === "Overdue").map(t => ({ type: "overdue", t })),
     ...tasks.filter(t => statusMeta(t).label === "Due today").map(t => ({ type: "due", t })),
     ...tasks.filter(t => t.status === "For Review").map(t => ({ type: "review", t })),
   ];
-  // Comment notifications are DB rows (so they can be marked read); newest first, ahead of the computed ones.
+  // Comment notifications are DB rows so they can be marked read.
   const commentItems = notifications
     .filter(n => n.type === "comment")
     .map(n => ({ type: "comment", n, t: tasks.find(t => t.id === n.task_id) }));
-  const items = [...commentItems, ...taskItems];
 
   const copy = { overdue: (t) => `"${t.title}" is overdue`, due: (t) => `"${t.title}" is due today`, review: (t) => `"${t.title}" is waiting on your sign-off` };
   const iconFor = { overdue: CircleAlert, due: Clock, review: ShieldCheck, comment: MessageSquare };
@@ -1828,30 +1827,39 @@ function Notifications({ tasks, notifications = [], onMarkRead, setPage, setTask
     }
   };
 
+  const renderItem = (item, index) => {
+    const Icon = iconFor[item.type];
+    const label = item.type === "comment" ? item.n.message : copy[item.type](item.t);
+    const when = item.type === "comment" ? new Date(item.n.created_at).toLocaleDateString() : item.t.due;
+    const clickable = !!(setPage && setTaskDetail);
+    return (
+      <div key={item.type === "comment" ? `c${item.n.id}` : `${item.type}-${item.t.id}-${index}`} onClick={() => clickable && openItem(item)}
+        style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 0", borderBottom: `1px solid ${C.line}`, cursor: clickable ? "pointer" : "default", opacity: item.type === "comment" && item.n.read ? 0.6 : 1 }}>
+        <span style={{ position: "relative", display: "inline-flex", marginTop: 2 }}>
+          <Icon size={16} color={colorFor[item.type]} />
+          {isUrgent(item) && <span style={{ position: "absolute", top: -3, right: -3, width: 6, height: 6, borderRadius: 6, background: C.coral, border: `1.5px solid ${C.card}` }} />}
+        </span>
+        <div style={{ fontSize: 13.5, flex: 1, minWidth: 0 }}>
+          <div>{label}</div>
+          {item.type === "overdue" && <div style={{ fontSize: 11.5, color: C.slate, marginTop: 3 }}>Assigned to {byId[item.t.assignee]?.name || "Unassigned"}</div>}
+        </div>
+        <span style={{ fontSize: 11.5, color: C.slate, whiteSpace: "nowrap" }}>{when}</span>
+        {clickable && <ChevronRight size={14} color={C.slate} style={{ flexShrink: 0, marginTop: 2 }} />}
+      </div>
+    );
+  };
+
   return (
     <div>
       <PageHeader eyebrow="In-app alerts" title="Notifications" />
-      <Panel title={`${items.length} notification${items.length===1?"":"s"}`}>
-        {items.length === 0 && <Empty text="You're all caught up." />}
-        {items.map((item, i) => {
-          const Icon = iconFor[item.type];
-          const label = item.type === "comment" ? item.n.message : copy[item.type](item.t);
-          const when = item.type === "comment" ? new Date(item.n.created_at).toLocaleDateString() : item.t.due;
-          const clickable = !!(setPage && setTaskDetail);
-          return (
-            <div key={item.type === "comment" ? `c${item.n.id}` : `t${i}`} onClick={() => clickable && openItem(item)}
-              style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${C.line}`, cursor: clickable ? "pointer" : "default", opacity: item.type === "comment" && item.n.read ? 0.6 : 1 }}>
-              <span style={{ position: "relative", display: "inline-flex" }}>
-                <Icon size={16} color={colorFor[item.type]} />
-                {isUrgent(item) && <span style={{ position: "absolute", top: -3, right: -3, width: 6, height: 6, borderRadius: 6, background: C.coral, border: `1.5px solid ${C.card}` }} />}
-              </span>
-              <div style={{ fontSize: 13.5, flex: 1 }}>{label}</div>
-              <span style={{ fontSize: 11.5, color: C.slate }}>{when}</span>
-              {clickable && <ChevronRight size={14} color={C.slate} />}
-            </div>
-          );
-        })}
-      </Panel>
+      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16, alignItems: "start" }}>
+        <Panel title={`Task alerts (${taskItems.length})`}>
+          {taskItems.length === 0 ? <Empty text="No task alerts." /> : taskItems.map(renderItem)}
+        </Panel>
+        <Panel title={`Comments (${commentItems.length})`}>
+          {commentItems.length === 0 ? <Empty text="No comments." /> : commentItems.map(renderItem)}
+        </Panel>
+      </div>
     </div>
   );
 }
