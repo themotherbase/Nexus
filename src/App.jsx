@@ -412,9 +412,12 @@ export default function App() {
   };
 
   const updateTask = async (id, patch) => {
-    const { error } = await supabase.from("tasks").update(patch).eq("id", id);
+    const { data, error } = await supabase.from("tasks").update(patch).eq("id", id).select("id").maybeSingle();
     if (error) alert(error.message);
+    else if (!data) alert("No task was updated. Check that your Supabase UPDATE policy allows this user to change the task.");
+    if (error || !data) return false;
     await refetchTasks();
+    return true;
   };
   const setTaskStatus = (id, status) => {
     const patch = { status };
@@ -1433,7 +1436,8 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
     clearHoverTimeout();
   };
   const handleDragOver = (event, col, archivedView) => {
-    if (!dragEnabled || archivedView || !draggedTaskId) return;
+    const carriesTaskId = Array.from(event.dataTransfer.types || []).includes("text/plain");
+    if (!dragEnabled || archivedView || (!draggedTaskId && !carriesTaskId)) return;
     if (col === "Completed" && !canManage) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
