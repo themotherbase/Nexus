@@ -531,7 +531,7 @@ export default function App() {
 
   return (
     <EmpContext.Provider value={{ employees, byId, directReports, addEmployee, updateEmployee, deleteEmployee, canEditOrg, onlineIds }}>
-      <div className="mb-body" style={{ background: C.paper, minHeight: "100vh", color: C.ink, display: "flex", flexDirection: "column", colorScheme: dark ? "dark" : "light", "--mb-control-bg": C.card, "--mb-control-fg": C.ink, "--mb-control-border": C.line }}>
+      <div className="mb-body" style={{ background: C.paper, minHeight: "100vh", color: C.ink, display: "flex", flexDirection: "column", colorScheme: dark ? "dark" : "light", "--mb-control-bg": C.card, "--mb-control-fg": C.ink, "--mb-control-border": C.line, "--mb-glass-surface": dark ? "rgba(25, 30, 47, 0.76)" : "rgba(255, 255, 255, 0.70)", "--mb-glass-border": dark ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.72)", "--mb-glass-header": dark ? "rgba(33, 39, 58, 0.84)" : "rgba(237, 240, 244, 0.78)", "--mb-glass-node": dark ? "rgba(24, 30, 47, 0.82)" : "rgba(255, 255, 255, 0.78)", "--mb-glass-chart": dark ? "rgba(21, 27, 43, 0.48)" : "rgba(255, 255, 255, 0.42)" }}>
         <style>{FONT}{RESPONSIVE_CSS}</style>
 
         <div className="mb-topbar" style={{ alignItems: "center", gap: 12, padding: "12px 16px", background: C.navy, color: "#fff", position: "sticky", top: 0, zIndex: 60 }}>
@@ -591,7 +591,7 @@ export default function App() {
           </div>
         </aside>
 
-        <main className="mb-main" style={{ flex: 1, minWidth: 0, padding: "26px 34px 60px", overflowY: "auto" }}>
+        <main className="mb-main" style={{ flex: 1, minWidth: 0, padding: "26px 34px 60px", overflowY: "auto", backgroundColor: C.paper, backgroundImage: `linear-gradient(${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}, ${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}), url("${motherbaseBackground}")`, backgroundSize: "cover, min(1100px, 94vw) auto", backgroundPosition: "center, center 42%", backgroundRepeat: "no-repeat" }}>
           {page === "dashboard" && <Dashboard tasks={tasks} viewerEmp={viewerEmp} isManager={isManager} isExec={isExec} setPage={setPage} setTaskDetail={setTaskDetail} />}
           {page === "organization" && (
             <Organization orgView={orgView} setOrgView={setOrgView} setSelectedEmp={setSelectedEmp}
@@ -805,11 +805,11 @@ function Organization({ orgView, setOrgView, setSelectedEmp, search, setSearch, 
       {orgView === "chart" ? (
         <OrgChartPyramid onSelect={setSelectedEmp} onEdit={onEdit} />
       ) : (
-        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, overflow: "hidden" }}>
+        <div style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 14, overflow: "hidden", backdropFilter: "blur(14px) saturate(140%)", boxShadow: "0 10px 28px rgba(22,30,55,0.10)" }}>
           <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
             <thead>
-              <tr style={{ background: C.paper, textAlign: "left" }}>
+              <tr style={{ background: "var(--mb-glass-header)", textAlign: "left" }}>
                 {["Employee","Position","Department","Supervisor","Status",""].map(h => (
                   <th key={h} style={{ padding: "10px 16px", fontSize: 11.5, color: C.slate, fontWeight: 600 }}>{h}</th>
                 ))}
@@ -881,7 +881,7 @@ function OrgChartPyramid({ onSelect, onEdit }) {
   const py = (id) => layout.depths[id] * (NODE_H + GAP_Y);
 
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: "24px 16px 50px", overflowX: "auto" }}>
+    <div style={{ background: "var(--mb-glass-chart)", border: "1px solid var(--mb-glass-border)", borderRadius: 14, padding: "24px 16px 50px", overflowX: "auto", backdropFilter: "blur(10px) saturate(135%)", boxShadow: "0 12px 32px rgba(22,30,55,0.10)" }}>
       <div style={{ position: "relative", width: Math.max(layout.width, 400), height: layout.height + NODE_H, margin: "0 auto" }}>
         <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible", pointerEvents: "none" }}>
           <defs>
@@ -903,8 +903,8 @@ function OrgChartPyramid({ onSelect, onEdit }) {
           return (
             <div key={e.id} style={{
               position: "absolute", left: px(e.id), top: py(e.id), width: NODE_W,
-              background: C.card, border: `1.5px ${e.secondary ? "dashed" : "solid"} ${dep.color}`,
-              borderRadius: 10, padding: "8px 10px", cursor: "pointer", boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+              background: "var(--mb-glass-node)", border: `1.5px ${e.secondary ? "dashed" : "solid"} ${dep.color}`,
+              borderRadius: 10, padding: "8px 10px", cursor: "pointer", backdropFilter: "blur(12px) saturate(145%)", boxShadow: "0 4px 14px rgba(20,28,48,0.11), inset 0 1px 0 rgba(255,255,255,0.36)",
             }}>
               <div onClick={() => onSelect(e.id)} style={{ marginBottom: 2 }}>
                 <div style={{ fontSize: 11.5, fontWeight: 700, lineHeight: 1.25 }}>{e.name}</div>
@@ -1035,7 +1035,7 @@ function EmployeesList({ setSelectedEmp, search, setSearch, tasks, onAdd }) {
         {filtered.map(e => {
           const active = tasks.filter(t => t.assignee === e.id && t.status !== "Completed").length;
           return (
-            <div key={e.id} onClick={() => setSelectedEmp(e.id)} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16, cursor: "pointer" }}>
+            <div key={e.id} onClick={() => setSelectedEmp(e.id)} style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 12, padding: 16, cursor: "pointer", backdropFilter: "blur(14px) saturate(140%)", boxShadow: "0 8px 22px rgba(22,30,55,0.09)" }}>
               <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
                 <Avatar name={e.name} size={38} online={onlineIds.has(e.id)} />
                 <div><div style={{ fontWeight: 600, fontSize: 14 }}>{e.name}</div><div style={{ fontSize: 12, color: C.slate }}>{e.position}</div></div>
@@ -1128,9 +1128,7 @@ function exportTaskReport(employees, tasks) {
 function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTaskStatus, viewerEmp, canCreate, setShowAddTask, setTaskDetail, onRepeat, onArchive, dark }) {
   const { employees } = useEmp();
   return (
-    <div style={{ position: "relative", isolation: "isolate", minHeight: "calc(100vh - 112px)", overflow: "hidden", borderRadius: 16, padding: 18, margin: -8 }}>
-      <img src={motherbaseBackground} alt="" aria-hidden="true" style={{ position: "absolute", zIndex: -2, width: "120%", maxWidth: "none", height: "auto", left: "50%", top: "50%", transform: "translate(-50%, -50%)", opacity: dark ? 0.22 : 0.2, pointerEvents: "none" }} />
-      <div aria-hidden="true" style={{ position: "absolute", zIndex: -1, inset: 0, background: dark ? "rgba(13, 18, 34, 0.56)" : "rgba(239, 242, 246, 0.50)", backdropFilter: "blur(2px)" }} />
+    <div style={{ position: "relative", minHeight: "calc(100vh - 112px)", overflow: "hidden", borderRadius: 16, padding: 18, margin: -8 }}>
       <div style={{ position: "relative", zIndex: 1 }}>
         <PageHeader eyebrow="Task Management" title="Tasks" actions={
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -1978,17 +1976,17 @@ function PageHeader({ eyebrow, title, actions }) {
   return <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 20 }}><div><div style={{ fontSize: 11.5, color: C.slate, fontWeight: 600, marginBottom: 3 }}>{eyebrow}</div><div className="mb-display" style={{ fontSize: 26, fontWeight: 600 }}>{title}</div></div>{actions}</div>;
 }
 function StatCard({ label, value, sub, accent }) {
-  return <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 16px" }}><div style={{ fontSize: 11.5, color: C.slate, marginBottom: 4 }}>{label}</div><div className="mb-display" style={{ fontSize: 26, fontWeight: 600, color: accent || C.ink }}>{value}</div><div style={{ fontSize: 11, color: C.slate, marginTop: 2 }}>{sub}</div></div>;
+  return <div style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 12, padding: "14px 16px", backdropFilter: "blur(14px) saturate(140%)", boxShadow: "0 8px 22px rgba(22,30,55,0.09)" }}><div style={{ fontSize: 11.5, color: C.slate, marginBottom: 4 }}>{label}</div><div className="mb-display" style={{ fontSize: 26, fontWeight: 600, color: accent || C.ink }}>{value}</div><div style={{ fontSize: 11, color: C.slate, marginTop: 2 }}>{sub}</div></div>;
 }
 function Panel({ title, children, style }) {
-  return <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: 18, ...style }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>{title}</div>{children}</div>;
+  return <div style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 14, padding: 18, backdropFilter: "blur(14px) saturate(140%)", boxShadow: "0 8px 22px rgba(22,30,55,0.08)", ...style }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>{title}</div>{children}</div>;
 }
 function SectionLabel({ children }) { return <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 14 }}>{children}</div>; }
 function ToggleBtn({ active, onClick, icon: Icon, label }) {
   return <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 8, border: `1px solid ${active ? C.navy : C.line}`, background: active ? C.navy : C.card, color: active ? "#fff" : C.ink, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><Icon size={14} /> {label}</button>;
 }
 function SearchBar({ value, onChange, placeholder }) {
-  return <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: "8px 12px", marginBottom: 16, maxWidth: 420 }}><Search size={15} color={C.slate} /><input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ background: "transparent", color: C.ink, border: "none", outline: "none", fontSize: 13.5, flex: 1, fontFamily: "inherit" }} /></div>;
+  return <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 10, padding: "8px 12px", marginBottom: 16, maxWidth: 420, backdropFilter: "blur(12px) saturate(140%)" }}><Search size={15} color={C.slate} /><input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ background: "transparent", color: C.ink, border: "none", outline: "none", fontSize: 13.5, flex: 1, fontFamily: "inherit" }} /></div>;
 }
 function Avatar({ name, size = 32, online }) {
   return (
