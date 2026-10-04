@@ -601,7 +601,7 @@ export default function App() {
             <EmployeesList setSelectedEmp={setSelectedEmp} search={search} setSearch={setSearch} tasks={tasks} onAdd={() => setEditingEmp(null)} />
           )}
           {page === "tasks" && (
-            <Tasks tasks={boardTasks} archivedTasks={archivedTasks} reportTasks={visibleTasks}
+            <Tasks tasks={boardTasks} archivedTasks={archivedTasks} reportTasks={visibleTasks} dark={dark}
               taskView={taskView} setTaskView={setTaskView}
               setTaskStatus={setTaskStatus} viewerEmp={viewerEmp}
               canCreate={isManager} setShowAddTask={setShowAddTask} setTaskDetail={setTaskDetail}
@@ -1125,27 +1125,31 @@ function exportTaskReport(employees, tasks) {
   URL.revokeObjectURL(url);
 }
 
-function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTaskStatus, viewerEmp, canCreate, setShowAddTask, setTaskDetail, onRepeat, onArchive }) {
+function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTaskStatus, viewerEmp, canCreate, setShowAddTask, setTaskDetail, onRepeat, onArchive, dark }) {
   const { employees } = useEmp();
   return (
-    <div>
-      <PageHeader eyebrow="Task Management" title="Tasks" actions={
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <ToggleBtn active={taskView==="kanban"} onClick={()=>setTaskView("kanban")} icon={KanbanSquare} label="Kanban" />
-          <ToggleBtn active={taskView==="list"} onClick={()=>setTaskView("list")} icon={Table2} label="List" />
-          <ToggleBtn active={taskView==="calendar"} onClick={()=>setTaskView("calendar")} icon={CalendarDays} label="Calendar" />
-          {canCreate && (
-            <button onClick={() => exportTaskReport(employees, reportTasks || tasks)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.card, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 8, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", marginLeft: 6 }}>
-              Export Report
-            </button>
-          )}
-          {canCreate && <button onClick={() => setShowAddTask(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}><Plus size={15} /> Add Task</button>}
-        </div>
-      } />
-      {!canCreate && <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 14 }}>Viewing as {viewerEmp.name} ({ROLE_LABEL[viewerEmp.role]}) — you can update status and progress on your own tasks. Completion needs your supervisor's sign-off.</div>}
-      {taskView === "kanban" && <KanbanView tasks={tasks} archivedTasks={archivedTasks} setTaskStatus={setTaskStatus} viewerEmp={viewerEmp} setTaskDetail={setTaskDetail} onRepeat={onRepeat} onArchive={onArchive} />}
-      {taskView === "list" && <ListView tasks={tasks} setTaskDetail={setTaskDetail} />}
-      {taskView === "calendar" && <CalendarView tasks={tasks} setTaskDetail={setTaskDetail} />}
+    <div style={{ position: "relative", isolation: "isolate", minHeight: "calc(100vh - 112px)", overflow: "hidden", borderRadius: 16, padding: 18, margin: -8 }}>
+      <img src={motherbaseBackground} alt="" aria-hidden="true" style={{ position: "absolute", zIndex: -2, width: "120%", maxWidth: "none", height: "auto", left: "50%", top: "50%", transform: "translate(-50%, -50%)", opacity: dark ? 0.22 : 0.2, pointerEvents: "none" }} />
+      <div aria-hidden="true" style={{ position: "absolute", zIndex: -1, inset: 0, background: dark ? "rgba(13, 18, 34, 0.56)" : "rgba(239, 242, 246, 0.50)", backdropFilter: "blur(2px)" }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <PageHeader eyebrow="Task Management" title="Tasks" actions={
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <ToggleBtn active={taskView==="kanban"} onClick={()=>setTaskView("kanban")} icon={KanbanSquare} label="Kanban" />
+            <ToggleBtn active={taskView==="list"} onClick={()=>setTaskView("list")} icon={Table2} label="List" />
+            <ToggleBtn active={taskView==="calendar"} onClick={()=>setTaskView("calendar")} icon={CalendarDays} label="Calendar" />
+            {canCreate && (
+              <button onClick={() => exportTaskReport(employees, reportTasks || tasks)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.card, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 8, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", marginLeft: 6 }}>
+                Export Report
+              </button>
+            )}
+            {canCreate && <button onClick={() => setShowAddTask(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}><Plus size={15} /> Add Task</button>}
+          </div>
+        } />
+        {!canCreate && <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 14 }}>Viewing as {viewerEmp.name} ({ROLE_LABEL[viewerEmp.role]}) — you can update status and progress on your own tasks. Completion needs your supervisor's sign-off.</div>}
+        {taskView === "kanban" && <KanbanView tasks={tasks} archivedTasks={archivedTasks} setTaskStatus={setTaskStatus} viewerEmp={viewerEmp} setTaskDetail={setTaskDetail} onRepeat={onRepeat} onArchive={onArchive} dark={dark} />}
+        {taskView === "list" && <ListView tasks={tasks} setTaskDetail={setTaskDetail} dark={dark} />}
+        {taskView === "calendar" && <CalendarView tasks={tasks} setTaskDetail={setTaskDetail} dark={dark} />}
+      </div>
     </div>
   );
 }
@@ -1277,7 +1281,7 @@ function Chip({ children, color, bg }) {
 }
 
 // A stack-of-cards tile that stands for everything one person has in a column.
-function GroupHolder({ group, onOpen }) {
+function GroupHolder({ group, onOpen, dark }) {
   const { byId, onlineIds } = useEmp();
   const emp = byId[group.assignee];
   const overdue = group.cards.filter(t => statusMeta(t).label === "Overdue").length;
@@ -1286,7 +1290,7 @@ function GroupHolder({ group, onOpen }) {
   const more = group.cards.length - shown.length;
   return (
     <button type="button" onClick={onOpen} aria-label={`Open ${group.cards.length} tasks for ${group.name}`}
-      style={{ display: "block", width: "100%", textAlign: "left", fontFamily: "inherit", color: C.ink, cursor: "pointer", background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 12, marginBottom: 8,
+      style={{ display: "block", width: "100%", textAlign: "left", fontFamily: "inherit", color: C.ink, cursor: "pointer", background: dark ? "rgba(28, 33, 51, 0.78)" : "rgba(255, 255, 255, 0.78)", border: `1px solid ${dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.72)"}`, borderRadius: 12, padding: 12, marginBottom: 8, backdropFilter: "blur(12px) saturate(140%)",
         boxShadow: `0 4px 0 -1px ${C.card}, 0 5px 0 -1px ${C.line}, 0 9px 0 -3px ${C.card}, 0 10px 0 -3px ${C.line}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <Avatar name={group.name} size={34} online={onlineIds?.has(group.assignee)} />
@@ -1348,7 +1352,7 @@ function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, r
   );
 }
 
-function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTaskDetail, onRepeat, onArchive }) {
+function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTaskDetail, onRepeat, onArchive, dark }) {
   const { byId } = useEmp();
   const [openGroup, setOpenGroup] = useState(null); // { col, assignee }
   const [showArchived, setShowArchived] = useState(false);
@@ -1364,7 +1368,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
           const groups = groupByAssignee(items, byId);
           const archivedView = col === "Completed" && showArchived;
           return (
-            <div key={col} style={{ minWidth: 250, flex: "0 0 250px" }}>
+            <div key={col} style={{ minWidth: 250, flex: "0 0 250px", padding: 12, borderRadius: 14, border: `1px solid ${dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.72)"}`, background: dark ? "rgba(22, 28, 46, 0.68)" : "rgba(255, 255, 255, 0.60)", backdropFilter: "blur(14px) saturate(140%)", boxShadow: "0 10px 28px rgba(22, 30, 55, 0.12)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, fontWeight: 700, letterSpacing: 0.2 }}>
                   <span style={{ width: 8, height: 8, borderRadius: 8, background: stageColor(col) }} />
@@ -1380,7 +1384,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
               )}
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {groups.map(g => g.cards.length > 1 ? (
-                  <GroupHolder key={`g-${col}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} />
+                  <GroupHolder key={`g-${col}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} dark={dark} />
                 ) : (
                   <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)}>{actions(g.cards[0])}</TaskCard>
                 ))}
@@ -1413,7 +1417,7 @@ function TaskCard({ t, children, onOpen }) {
   const subtaskProgress = t.subtasks?.length ? `${t.subtasks.filter(s=>s.done).length}/${t.subtasks.length}` : null;
   const pc = priorityCardColors(t);
   return (
-    <div onClick={onOpen} style={{ background: pc.bg, border: `1.5px solid ${pc.border}`, borderRadius: 10, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1 }}>
+    <div onClick={onOpen} style={{ background: `${pc.bg}CC`, border: `1.5px solid ${pc.border}99`, borderRadius: 10, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(12px) saturate(145%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.42), 0 5px 14px rgba(20,28,48,0.08)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
         <span style={{ fontSize: 10, fontWeight: 700, color: priColor(t.priority) }}>{t.priority}</span>
         {t.recurring && <span title="Recurring"><Repeat size={12} color={C.slate} /></span>}
@@ -1434,10 +1438,10 @@ function TaskCard({ t, children, onOpen }) {
   );
 }
 
-function ListView({ tasks, setTaskDetail }) {
+function ListView({ tasks, setTaskDetail, dark }) {
   const { byId } = useEmp();
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, overflow: "hidden" }}>
+    <div style={{ background: dark ? "rgba(22, 28, 46, 0.72)" : "rgba(255, 255, 255, 0.70)", border: `1px solid ${dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.72)"}`, borderRadius: 14, overflow: "hidden", backdropFilter: "blur(14px) saturate(140%)" }}>
       <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
         <thead><tr style={{ background: C.paper, textAlign: "left" }}>{["Task","Employee","Department","Priority","Due","Status"].map(h => <th key={h} style={{ padding: "10px 16px", fontSize: 11.5, color: C.slate, fontWeight: 600 }}>{h}</th>)}</tr></thead>
@@ -1462,7 +1466,7 @@ function ListView({ tasks, setTaskDetail }) {
   );
 }
 
-function CalendarView({ tasks, setTaskDetail }) {
+function CalendarView({ tasks, setTaskDetail, dark }) {
   const { byId } = useEmp();
   const grouped = {};
   tasks.forEach(t => { grouped[t.due] = grouped[t.due] || []; grouped[t.due].push(t); });
@@ -1471,7 +1475,7 @@ function CalendarView({ tasks, setTaskDetail }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {dates.length === 0 && <Empty text="No tasks scheduled." />}
       {dates.map(dt => (
-        <div key={dt} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 14 }}>
+        <div key={dt} style={{ background: dark ? "rgba(22, 28, 46, 0.72)" : "rgba(255, 255, 255, 0.70)", border: `1px solid ${dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.72)"}`, borderRadius: 12, padding: 14, backdropFilter: "blur(14px) saturate(140%)", boxShadow: "0 8px 24px rgba(22,30,55,0.1)" }}>
           <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 8, color: dt < today() ? C.coral : dt === today() ? C.amber : C.ink }}>{dt} {dt === today() && "· Today"}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {grouped[dt].map(t => (
