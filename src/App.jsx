@@ -5,7 +5,7 @@ import {
   Search, Plus, X, CircleAlert, Clock, CheckCircle2,
   Table2, CalendarDays, KanbanSquare, ShieldCheck, Pencil, Trash2,
   Repeat, TriangleAlert, ListTree, LogOut, Undo2, Menu,
-  ArrowRightLeft, ChevronDown, ChevronLeft, ChevronRight, Check, Archive, ArchiveRestore
+  ArrowRightLeft, ChevronDown, ChevronLeft, ChevronRight, Check, Archive, ArchiveRestore, MessageSquare
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import motherbaseBackground from "./The Motherbase (Transparent).png";
@@ -293,6 +293,7 @@ export default function App() {
     try { return localStorage.getItem("mb-dark") === "1"; } catch { return false; }
   });
   const [onlineIds, setOnlineIds] = useState(new Set());
+  const [notifications, setNotifications] = useState([]);
 
   // Mutate the shared color-token object in place so every component (which reads
   // C.xxx live at render time) picks up the theme without threading it through props.
@@ -323,6 +324,10 @@ export default function App() {
     }
     if (!error) setTasks((data || []).map(mapTask));
   };
+  const refetchNotifications = async () => {
+    const { data, error } = await supabase.from("notifications").select("*").order("created_at", { ascending: false });
+    if (!error) setNotifications(data || []);
+  };
 
   useEffect(() => {
     if (!session) return;
@@ -333,7 +338,7 @@ export default function App() {
         .update({ auth_user_id: session.user.id })
         .eq("email", session.user.email)
         .is("auth_user_id", null);
-      await Promise.all([refetchEmployees(), refetchTasks()]);
+      await Promise.all([refetchEmployees(), refetchTasks(), refetchNotifications()]);
       setLoadingData(false);
     })();
   }, [session]);
@@ -353,6 +358,16 @@ export default function App() {
       if (status === "SUBSCRIBED") await channel.track({ at: new Date().toISOString() });
     });
     return () => { supabase.removeChannel(channel); };
+  }, [me?.id]);
+
+  // Live comment notifications: the row insert itself is already scoped to "me" by RLS,
+  // but Realtime still needs a matching filter to know which inserts to push to this client.
+  useEffect(() => {
+    if (!me) return;
+    const ch = supabase.channel(`notif-${me.id}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `employee_id=eq.${me.id}` }, () => refetchNotifications())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, [me?.id]);
 
   if (session === undefined) return <FullScreenMsg text="Loading…" />;
@@ -385,7 +400,12 @@ export default function App() {
   const boardTasks = visibleTasks.filter(t => !t.archived);
   const archivedTasks = visibleTasks.filter(t => t.archived);
   const urgentTasks = boardTasks.filter(t => statusMeta(t).label === "Overdue" || t.status === "For Review");
-  const urgentCount = urgentTasks.length;
+  const unreadCommentCount = notifications.filter(n => n.type === "comment" && !n.read).length;
+  const urgentCount = urgentTasks.length + unreadCommentCount;
+  const markNotificationRead = async (id) => {
+    setNotifications(ns => ns.map(n => n.id === id ? { ...n, read: true } : n));
+    await supabase.from("notifications").update({ read: true }).eq("id", id);
+  };
 
   const updateTask = async (id, patch) => {
     const { error } = await supabase.from("tasks").update(patch).eq("id", id);
@@ -428,7 +448,24 @@ export default function App() {
       delete payload.parent_comment_id;
       ({ error } = await supabase.from("task_comments").insert(payload));
     }
-    if (error) alert("Comment didn't save: " + error.message);
+    if (error) { alert("Comment didn't save: " + error.message); await refetchTasks(); return; }
+
+    // Notify whoever else is "on" this task — the assignee, the supervisor, and (for a
+    // reply) the person being replied to — skipping the commenter themself. If the
+    // notifications migration hasn't been run yet this just silently does nothing;
+    // the comment itself has already saved either way.
+    const task = tasks.find(t => t.id === id);
+    if (task) {
+      const repliedToAuthor = parentId ? task.comments?.find(c => c.id === parentId)?.author : null;
+      const recipients = [...new Set([task.assignee, task.supervisor, repliedToAuthor].filter(Boolean))]
+        .filter(empId => empId !== viewerEmp.id);
+      if (recipients.length) {
+        const message = `${viewerEmp.name} commented on "${task.title}"`;
+        await supabase.from("notifications").insert(
+          recipients.map(employee_id => ({ employee_id, type: "comment", message, task_id: id, read: false }))
+        );
+      }
+    }
     await refetchTasks();
   };
   const createTask = async (t) => {
@@ -570,7 +607,7 @@ export default function App() {
               canCreate={isManager} setShowAddTask={setShowAddTask} setTaskDetail={setTaskDetail}
               onRepeat={setRepeatTask} onArchive={archiveTask} />
           )}
-          {page === "notifications" && <Notifications tasks={boardTasks} setPage={setPage} setTaskDetail={setTaskDetail} />}
+          {page === "notifications" && <Notifications tasks={boardTasks} notifications={notifications} onMarkRead={markNotificationRead} setPage={setPage} setTaskDetail={setTaskDetail} />}
           {page === "settings" && <SettingsPage isAdmin={isAdmin} dark={dark} setDark={setDark} />}
         </main>
         </div>
@@ -1764,34 +1801,56 @@ function FormRow({ label, children }) {
 }
 const inputStyle = { width: "100%", border: "1px solid var(--mb-control-border, #E4E2DC)", borderRadius: 8, padding: "8px 0px", fontSize: 13.5, fontFamily: "inherit", background: "var(--mb-control-bg, #FFFFFF)", color: "var(--mb-control-fg, #20263D)" };
 
-function Notifications({ tasks, setPage, setTaskDetail }) {
-  const items = [
+function Notifications({ tasks, notifications = [], onMarkRead, setPage, setTaskDetail }) {
+  const taskItems = [
     ...tasks.filter(t => statusMeta(t).label === "Overdue").map(t => ({ type: "overdue", t })),
     ...tasks.filter(t => statusMeta(t).label === "Due today").map(t => ({ type: "due", t })),
     ...tasks.filter(t => t.status === "For Review").map(t => ({ type: "review", t })),
   ];
+  // Comment notifications are DB rows (so they can be marked read); newest first, ahead of the computed ones.
+  const commentItems = notifications
+    .filter(n => n.type === "comment")
+    .map(n => ({ type: "comment", n, t: tasks.find(t => t.id === n.task_id) }));
+  const items = [...commentItems, ...taskItems];
+
   const copy = { overdue: (t) => `"${t.title}" is overdue`, due: (t) => `"${t.title}" is due today`, review: (t) => `"${t.title}" is waiting on your sign-off` };
-  const iconFor = { overdue: CircleAlert, due: Clock, review: ShieldCheck };
-  const colorFor = { overdue: C.coral, due: C.amber, review: C.slate };
-  const urgent = { overdue: true, due: false, review: true };
-  const goToTask = (id) => { if (!setPage || !setTaskDetail) return; setTaskDetail(id); setPage("tasks"); };
+  const iconFor = { overdue: CircleAlert, due: Clock, review: ShieldCheck, comment: MessageSquare };
+  const colorFor = { overdue: C.coral, due: C.amber, review: C.slate, comment: C.navy };
+  const isUrgent = (item) => item.type === "comment" ? !item.n.read : item.type !== "due";
+  const goToTask = (id) => { if (!setPage || !setTaskDetail || id == null) return; setTaskDetail(id); setPage("tasks"); };
+
+  const openItem = (item) => {
+    if (item.type === "comment") {
+      if (!item.n.read) onMarkRead?.(item.n.id);
+      goToTask(item.n.task_id);
+    } else {
+      goToTask(item.t.id);
+    }
+  };
+
   return (
     <div>
       <PageHeader eyebrow="In-app alerts" title="Notifications" />
       <Panel title={`${items.length} notification${items.length===1?"":"s"}`}>
         {items.length === 0 && <Empty text="You're all caught up." />}
-        {items.map((n, i) => { const Icon = iconFor[n.type]; const clickable = !!(setPage && setTaskDetail); return (
-          <div key={i} onClick={() => goToTask(n.t.id)}
-            style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${C.line}`, cursor: clickable ? "pointer" : "default" }}>
-            <span style={{ position: "relative", display: "inline-flex" }}>
-              <Icon size={16} color={colorFor[n.type]} />
-              {urgent[n.type] && <span style={{ position: "absolute", top: -3, right: -3, width: 6, height: 6, borderRadius: 6, background: C.coral, border: `1.5px solid ${C.card}` }} />}
-            </span>
-            <div style={{ fontSize: 13.5, flex: 1 }}>{copy[n.type](n.t)}</div>
-            <span style={{ fontSize: 11.5, color: C.slate }}>{n.t.due}</span>
-            {clickable && <ChevronRight size={14} color={C.slate} />}
-          </div>
-        ); })}
+        {items.map((item, i) => {
+          const Icon = iconFor[item.type];
+          const label = item.type === "comment" ? item.n.message : copy[item.type](item.t);
+          const when = item.type === "comment" ? new Date(item.n.created_at).toLocaleDateString() : item.t.due;
+          const clickable = !!(setPage && setTaskDetail);
+          return (
+            <div key={item.type === "comment" ? `c${item.n.id}` : `t${i}`} onClick={() => clickable && openItem(item)}
+              style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${C.line}`, cursor: clickable ? "pointer" : "default", opacity: item.type === "comment" && item.n.read ? 0.6 : 1 }}>
+              <span style={{ position: "relative", display: "inline-flex" }}>
+                <Icon size={16} color={colorFor[item.type]} />
+                {isUrgent(item) && <span style={{ position: "absolute", top: -3, right: -3, width: 6, height: 6, borderRadius: 6, background: C.coral, border: `1.5px solid ${C.card}` }} />}
+              </span>
+              <div style={{ fontSize: 13.5, flex: 1 }}>{label}</div>
+              <span style={{ fontSize: 11.5, color: C.slate }}>{when}</span>
+              {clickable && <ChevronRight size={14} color={C.slate} />}
+            </div>
+          );
+        })}
       </Panel>
     </div>
   );
