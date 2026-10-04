@@ -5,7 +5,7 @@ import {
   Search, Plus, X, CircleAlert, Clock, CheckCircle2,
   Table2, CalendarDays, KanbanSquare, ShieldCheck, Pencil, Trash2,
   Repeat, TriangleAlert, ListTree, LogOut, Undo2, Menu,
-  ArrowRightLeft, ChevronDown, ChevronLeft, ChevronRight, Check, Archive, ArchiveRestore, MessageSquare, GripVertical
+  ArrowRightLeft, ChevronDown, ChevronLeft, ChevronRight, Check, Archive, ArchiveRestore, MessageSquare
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import motherbaseBackground from "./The Motherbase (Transparent).png";
@@ -32,10 +32,6 @@ const FONT = `
   .mb-body { font-family: 'Inter', -apple-system, sans-serif; }
 `;
 const RESPONSIVE_CSS = `
-  @keyframes mb-group-peek-in {
-    from { opacity: 0; transform: scale(0.94) translateY(4px); }
-    to { opacity: 1; transform: scale(1) translateY(0); }
-  }
   .mb-topbar { display: none; }
   .mb-backdrop { display: none; }
   @media (max-width: 860px) {
@@ -412,12 +408,9 @@ export default function App() {
   };
 
   const updateTask = async (id, patch) => {
-    const { data, error } = await supabase.from("tasks").update(patch).eq("id", id).select("id").maybeSingle();
+    const { error } = await supabase.from("tasks").update(patch).eq("id", id);
     if (error) alert(error.message);
-    else if (!data) alert("No task was updated. Check that your Supabase UPDATE policy allows this user to change the task.");
-    if (error || !data) return false;
     await refetchTasks();
-    return true;
   };
   const setTaskStatus = (id, status) => {
     const patch = { status };
@@ -1286,7 +1279,7 @@ function Chip({ children, color, bg }) {
 }
 
 // A stack-of-cards tile that stands for everything one person has in a column.
-function GroupHolder({ group, onOpen, dark, onHoverStart, onHoverEnd }) {
+function GroupHolder({ group, onOpen, dark }) {
   const { byId, onlineIds } = useEmp();
   const emp = byId[group.assignee];
   const overdue = group.cards.filter(t => statusMeta(t).label === "Overdue").length;
@@ -1294,8 +1287,7 @@ function GroupHolder({ group, onOpen, dark, onHoverStart, onHoverEnd }) {
   const shown = group.cards.slice(0, 2);
   const more = group.cards.length - shown.length;
   return (
-    <button type="button" onClick={onOpen} onMouseEnter={event => onHoverStart?.(event.currentTarget.getBoundingClientRect())} onMouseLeave={onHoverEnd}
-      onFocus={event => onHoverStart?.(event.currentTarget.getBoundingClientRect())} onBlur={onHoverEnd} aria-label={`Open ${group.cards.length} tasks for ${group.name}`}
+    <button type="button" onClick={onOpen} aria-label={`Open ${group.cards.length} tasks for ${group.name}`}
       style={{ display: "block", width: "100%", textAlign: "left", fontFamily: "inherit", color: C.ink, cursor: "pointer", background: dark ? "rgba(28, 33, 51, 0.78)" : "rgba(255, 255, 255, 0.78)", border: `1px solid ${dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.72)"}`, borderRadius: 12, padding: 12, marginBottom: 8, backdropFilter: "blur(12px) saturate(140%)",
         boxShadow: `0 4px 0 -1px ${C.card}, 0 5px 0 -1px ${C.line}, 0 9px 0 -3px ${C.card}, 0 10px 0 -3px ${C.line}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1318,35 +1310,6 @@ function GroupHolder({ group, onOpen, dark, onHoverStart, onHoverEnd }) {
         <span style={{ display: "flex", alignItems: "center", fontSize: 11.5, fontWeight: 600, color: C.ink, whiteSpace: "nowrap" }}>View all <ChevronRight size={14} /></span>
       </div>
     </button>
-  );
-}
-
-function GroupHoverPreview({ group, position, dark, dragEnabled, canDragTask, draggedTaskId, onDragStart, onDragEnd, onOpenTask, onMouseEnter, onMouseLeave }) {
-  return createPortal(
-    <div onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} style={{ position: "fixed", zIndex: 150, left: position.left, top: position.top, width: 320, maxHeight: "min(420px, calc(100vh - 24px))", overflowY: "auto", padding: 14, borderRadius: 14, color: C.ink, background: dark ? "rgba(25,30,47,0.94)" : "rgba(255,255,255,0.93)", border: `1px solid ${dark ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.86)"}`, backdropFilter: "blur(18px) saturate(150%)", boxShadow: "0 18px 48px rgba(16,24,44,0.24)", pointerEvents: draggedTaskId ? "none" : "auto", animation: "mb-group-peek-in 140ms ease-out" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
-        <div style={{ fontSize: 13, fontWeight: 700 }}>{group.name}</div>
-        <div style={{ fontSize: 11, color: C.slate }}>{group.cards.length} tasks</div>
-      </div>
-      {group.cards.map(task => (
-        <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 40, borderTop: `1px solid ${C.line}`, padding: "6px 0" }}>
-          {dragEnabled && canDragTask(task) && (
-            <button type="button" draggable aria-label={`Drag ${task.title} to another task stage`} title="Drag to change status"
-              onClick={event => event.stopPropagation()} onDragStart={event => onDragStart(event, task)} onDragEnd={onDragEnd}
-              style={{ display: "flex", flexShrink: 0, alignItems: "center", justifyContent: "center", width: 28, height: 28, border: `1px solid ${C.line}`, borderRadius: 7, background: "transparent", color: C.slate, cursor: "grab" }}>
-              <GripVertical size={15} />
-            </button>
-          )}
-          <button type="button" onClick={() => onOpenTask(task.id)} style={{ flex: 1, minWidth: 0, padding: 0, textAlign: "left", border: 0, background: "none", color: C.ink, font: "inherit", cursor: "pointer" }}>
-            <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12.5, fontWeight: 600 }}>{task.title}</span>
-            <span style={{ display: "block", fontSize: 10.5, color: C.slate }}>{task.status} · {task.due}</span>
-          </button>
-          <span style={{ fontSize: 10.5, color: priColor(task.priority), fontWeight: 700 }}>{task.priority}</span>
-        </div>
-      ))}
-      <div style={{ fontSize: 10.5, color: C.slate, marginTop: 8 }}>Click the stack for the full task view.</div>
-    </div>,
-    document.body
   );
 }
 
@@ -1391,73 +1354,9 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
   const { byId } = useEmp();
   const [openGroup, setOpenGroup] = useState(null); // { col, assignee }
   const [showArchived, setShowArchived] = useState(false);
-  const [dragEnabled, setDragEnabled] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 861px) and (pointer: fine)").matches);
-  const [draggedTaskId, setDraggedTaskId] = useState(null);
-  const [dragOverColumn, setDragOverColumn] = useState(null);
-  const [hoveredGroup, setHoveredGroup] = useState(null);
-  const hoverTimeoutRef = useRef(null);
   const canManage = viewerEmp.role !== "employee";
   const sourceFor = (col) => (col === "Completed" && showArchived ? archivedTasks : tasks);
   const actions = (t) => <TaskCardActions t={t} viewerEmp={viewerEmp} setTaskStatus={setTaskStatus} onRepeat={onRepeat} onArchive={onArchive} />;
-  const canDragTask = (task) => !task.archived && task.status !== "Completed" && (canManage || task.assignee === viewerEmp.id);
-
-  const clearHoverTimeout = () => { window.clearTimeout(hoverTimeoutRef.current); hoverTimeoutRef.current = null; };
-  const hideGroupPreview = () => {
-    clearHoverTimeout();
-    if (!draggedTaskId) hoverTimeoutRef.current = window.setTimeout(() => setHoveredGroup(null), 160);
-  };
-  const showGroupPreview = (group, rect) => {
-    clearHoverTimeout();
-    const width = 320, height = Math.min(420, Math.max(154, group.cards.length * 48 + 78));
-    const left = rect.right + width + 12 < window.innerWidth ? rect.right + 12 : Math.max(12, rect.left - width - 12);
-    const top = Math.max(12, Math.min(rect.top, window.innerHeight - height - 12));
-    setHoveredGroup({ group, position: { left, top } });
-  };
-
-  useEffect(() => {
-    const media = window.matchMedia("(min-width: 861px) and (pointer: fine)");
-    const update = () => setDragEnabled(media.matches);
-    update();
-    media.addEventListener?.("change", update);
-    return () => media.removeEventListener?.("change", update);
-  }, []);
-
-  const handleDragStart = (event, task) => {
-    clearHoverTimeout();
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", task.id);
-    setDraggedTaskId(task.id);
-    setDragOverColumn(null);
-  };
-  const handleDragEnd = () => {
-    setDraggedTaskId(null);
-    setDragOverColumn(null);
-    setHoveredGroup(null);
-    clearHoverTimeout();
-  };
-  const handleDragOver = (event, col, archivedView) => {
-    const carriesTaskId = Array.from(event.dataTransfer.types || []).includes("text/plain");
-    if (!dragEnabled || archivedView || (!draggedTaskId && !carriesTaskId)) return;
-    if (col === "Completed" && !canManage) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-    if (dragOverColumn !== col) setDragOverColumn(col);
-  };
-  const handleDrop = (event, col, archivedView) => {
-    event.preventDefault();
-    const taskId = event.dataTransfer.getData("text/plain") || draggedTaskId;
-    const task = tasks.find(item => item.id === taskId);
-    if (!archivedView && task && canDragTask(task) && !(col === "Completed" && !canManage) && task.status !== col) {
-      setTaskStatus(task.id, col);
-    }
-    handleDragEnd();
-  };
-  const renderTaskCard = (task) => (
-    <TaskCard key={task.id} t={task} onOpen={() => setTaskDetail(task.id)} draggable={dragEnabled && canDragTask(task)}
-      isDragging={draggedTaskId === task.id} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      {actions(task)}
-    </TaskCard>
-  );
 
   return (
     <>
@@ -1467,8 +1366,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
           const groups = groupByAssignee(items, byId);
           const archivedView = col === "Completed" && showArchived;
           return (
-            <div key={col} onDragOver={event => handleDragOver(event, col, archivedView)} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget)) setDragOverColumn(null); }} onDrop={event => handleDrop(event, col, archivedView)}
-              style={{ minWidth: 250, flex: "0 0 250px", padding: 12, borderRadius: 14, border: `1px solid ${dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.72)"}`, background: dark ? "rgba(22, 28, 46, 0.68)" : "rgba(255, 255, 255, 0.60)", backdropFilter: "blur(14px) saturate(140%)", boxShadow: dragOverColumn === col ? `0 0 0 2px ${stageColor(col)}, 0 10px 28px rgba(22, 30, 55, 0.12)` : "0 10px 28px rgba(22, 30, 55, 0.12)", transition: "box-shadow 120ms ease" }}>
+            <div key={col} style={{ minWidth: 250, flex: "0 0 250px", padding: 12, borderRadius: 14, border: `1px solid ${dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.72)"}`, background: dark ? "rgba(22, 28, 46, 0.68)" : "rgba(255, 255, 255, 0.60)", backdropFilter: "blur(14px) saturate(140%)", boxShadow: "0 10px 28px rgba(22, 30, 55, 0.12)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, fontWeight: 700, letterSpacing: 0.2 }}>
                   <span style={{ width: 8, height: 8, borderRadius: 8, background: stageColor(col) }} />
@@ -1484,9 +1382,10 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
               )}
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {groups.map(g => g.cards.length > 1 ? (
-                  <GroupHolder key={`g-${col}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} dark={dark}
-                    onHoverStart={rect => showGroupPreview(g, rect)} onHoverEnd={hideGroupPreview} />
-                ) : renderTaskCard(g.cards[0]))}
+                  <GroupHolder key={`g-${col}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} dark={dark} />
+                ) : (
+                  <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)}>{actions(g.cards[0])}</TaskCard>
+                ))}
                 {items.length === 0 && <div style={{ fontSize: 12, color: C.slate, padding: "10px 4px" }}>{archivedView ? "Nothing removed." : "No tasks."}</div>}
               </div>
             </div>
@@ -1497,11 +1396,6 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
         <GroupModal col={openGroup.col} assignee={openGroup.assignee} source={sourceFor(openGroup.col)}
           onClose={() => setOpenGroup(null)} onSwitch={(a) => setOpenGroup({ col: openGroup.col, assignee: a })}
           setTaskDetail={setTaskDetail} renderActions={actions} />
-      )}
-      {hoveredGroup && dragEnabled && !openGroup && (
-        <GroupHoverPreview group={hoveredGroup.group} position={hoveredGroup.position} dark={dark} dragEnabled={dragEnabled}
-          canDragTask={canDragTask} draggedTaskId={draggedTaskId} onDragStart={handleDragStart} onDragEnd={handleDragEnd}
-          onOpenTask={id => { setHoveredGroup(null); setTaskDetail(id); }} onMouseEnter={clearHoverTimeout} onMouseLeave={hideGroupPreview} />
       )}
     </>
   );
@@ -1514,24 +1408,17 @@ function priorityCardColors(t) {
   return { bg: C.blueSoft, border: C.blue }; // Low
 }
 
-function TaskCard({ t, children, onOpen, draggable = false, isDragging = false, onDragStart, onDragEnd }) {
+function TaskCard({ t, children, onOpen }) {
   const { byId, onlineIds } = useEmp();
   const meta = statusMeta(t);
   const emp = byId[t.assignee] || { name: "Unassigned" };
   const subtaskProgress = t.subtasks?.length ? `${t.subtasks.filter(s=>s.done).length}/${t.subtasks.length}` : null;
   const pc = priorityCardColors(t);
   return (
-    <div onClick={onOpen} style={{ background: `${pc.bg}CC`, border: `1.5px solid ${pc.border}99`, borderRadius: 10, padding: 12, cursor: "pointer", opacity: isDragging ? 0.48 : t.archived ? 0.8 : 1, backdropFilter: "blur(12px) saturate(145%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.42), 0 5px 14px rgba(20,28,48,0.08)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+    <div onClick={onOpen} style={{ background: `${pc.bg}CC`, border: `1.5px solid ${pc.border}99`, borderRadius: 10, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(12px) saturate(145%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.42), 0 5px 14px rgba(20,28,48,0.08)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
         <span style={{ fontSize: 10, fontWeight: 700, color: priColor(t.priority) }}>{t.priority}</span>
-        <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          {t.recurring && <span title="Recurring"><Repeat size={12} color={C.slate} /></span>}
-          {draggable && <button type="button" draggable aria-label={`Drag ${t.title} to another task stage`} title="Drag to change status"
-            onClick={event => event.stopPropagation()} onDragStart={event => onDragStart?.(event, t)} onDragEnd={onDragEnd}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, border: `1px solid ${C.line}`, borderRadius: 7, background: "rgba(255,255,255,0.38)", color: C.slate, cursor: "grab" }}>
-            <GripVertical size={14} />
-          </button>}
-        </span>
+        {t.recurring && <span title="Recurring"><Repeat size={12} color={C.slate} /></span>}
       </div>
       <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6, lineHeight: 1.3 }}>{t.title}</div>
       <div style={{ fontSize: 11, color: C.slate, marginBottom: 8 }}>{deptById[t.dept]?.name}</div>
