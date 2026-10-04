@@ -1354,9 +1354,54 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
   const { byId } = useEmp();
   const [openGroup, setOpenGroup] = useState(null); // { col, assignee }
   const [showArchived, setShowArchived] = useState(false);
+  const [dragEnabled, setDragEnabled] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 861px) and (pointer: fine)").matches);
+  const [draggedTaskId, setDraggedTaskId] = useState(null);
+  const [dragOverColumn, setDragOverColumn] = useState(null);
   const canManage = viewerEmp.role !== "employee";
   const sourceFor = (col) => (col === "Completed" && showArchived ? archivedTasks : tasks);
   const actions = (t) => <TaskCardActions t={t} viewerEmp={viewerEmp} setTaskStatus={setTaskStatus} onRepeat={onRepeat} onArchive={onArchive} />;
+  const canDragTask = (task) => !task.archived && task.status !== "Completed" && (canManage || task.assignee === viewerEmp.id);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 861px) and (pointer: fine)");
+    const update = () => setDragEnabled(media.matches);
+    update();
+    media.addEventListener?.("change", update);
+    return () => media.removeEventListener?.("change", update);
+  }, []);
+
+  const handleDragStart = (event, task) => {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", task.id);
+    setDraggedTaskId(task.id);
+    setDragOverColumn(null);
+  };
+  const handleDragEnd = () => {
+    setDraggedTaskId(null);
+    setDragOverColumn(null);
+  };
+  const handleDragOver = (event, col, archivedView) => {
+    if (!dragEnabled || archivedView || !draggedTaskId) return;
+    if (col === "Completed" && !canManage) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    if (dragOverColumn !== col) setDragOverColumn(col);
+  };
+  const handleDrop = (event, col, archivedView) => {
+    event.preventDefault();
+    const taskId = event.dataTransfer.getData("text/plain") || draggedTaskId;
+    const task = tasks.find(item => item.id === taskId);
+    if (!archivedView && task && canDragTask(task) && !(col === "Completed" && !canManage) && task.status !== col) {
+      setTaskStatus(task.id, col);
+    }
+    handleDragEnd();
+  };
+  const renderTaskCard = (task) => (
+    <TaskCard key={task.id} t={task} onOpen={() => setTaskDetail(task.id)} draggable={dragEnabled && canDragTask(task)}
+      isDragging={draggedTaskId === task.id} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      {actions(task)}
+    </TaskCard>
+  );
 
   return (
     <>
@@ -1366,7 +1411,8 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
           const groups = groupByAssignee(items, byId);
           const archivedView = col === "Completed" && showArchived;
           return (
-            <div key={col} style={{ minWidth: 250, flex: "0 0 250px", padding: 12, borderRadius: 14, border: `1px solid ${dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.72)"}`, background: dark ? "rgba(22, 28, 46, 0.68)" : "rgba(255, 255, 255, 0.60)", backdropFilter: "blur(14px) saturate(140%)", boxShadow: "0 10px 28px rgba(22, 30, 55, 0.12)" }}>
+            <div key={col} onDragOver={event => handleDragOver(event, col, archivedView)} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget)) setDragOverColumn(null); }} onDrop={event => handleDrop(event, col, archivedView)}
+              style={{ minWidth: 250, flex: "0 0 250px", padding: 12, borderRadius: 14, border: `1px solid ${dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.72)"}`, background: dark ? "rgba(22, 28, 46, 0.68)" : "rgba(255, 255, 255, 0.60)", backdropFilter: "blur(14px) saturate(140%)", boxShadow: dragOverColumn === col ? `0 0 0 2px ${stageColor(col)}, 0 10px 28px rgba(22, 30, 55, 0.12)` : "0 10px 28px rgba(22, 30, 55, 0.12)", transition: "box-shadow 120ms ease" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, fontWeight: 700, letterSpacing: 0.2 }}>
                   <span style={{ width: 8, height: 8, borderRadius: 8, background: stageColor(col) }} />
@@ -1381,11 +1427,11 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
                 </button>
               )}
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {groups.map(g => g.cards.length > 1 ? (
-                  <GroupHolder key={`g-${col}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} dark={dark} />
-                ) : (
-                  <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)}>{actions(g.cards[0])}</TaskCard>
-                ))}
+                {groups.flatMap(g => {
+                  if (dragEnabled) return g.cards.map(renderTaskCard);
+                  if (g.cards.length > 1) return [<GroupHolder key={`g-${col}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} dark={dark} />];
+                  return [renderTaskCard(g.cards[0])];
+                })}
                 {items.length === 0 && <div style={{ fontSize: 12, color: C.slate, padding: "10px 4px" }}>{archivedView ? "Nothing removed." : "No tasks."}</div>}
               </div>
             </div>
@@ -1408,14 +1454,19 @@ function priorityCardColors(t) {
   return { bg: C.blueSoft, border: C.blue }; // Low
 }
 
-function TaskCard({ t, children, onOpen }) {
+function TaskCard({ t, children, onOpen, draggable = false, isDragging = false, onDragStart, onDragEnd }) {
   const { byId, onlineIds } = useEmp();
+  const suppressClickUntil = useRef(0);
   const meta = statusMeta(t);
   const emp = byId[t.assignee] || { name: "Unassigned" };
   const subtaskProgress = t.subtasks?.length ? `${t.subtasks.filter(s=>s.done).length}/${t.subtasks.length}` : null;
   const pc = priorityCardColors(t);
   return (
-    <div onClick={onOpen} style={{ background: `${pc.bg}CC`, border: `1.5px solid ${pc.border}99`, borderRadius: 10, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(12px) saturate(145%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.42), 0 5px 14px rgba(20,28,48,0.08)" }}>
+    <div draggable={draggable} onClick={event => { if (Date.now() < suppressClickUntil.current) { event.stopPropagation(); return; } onOpen?.(); }}
+      onDragStart={event => { if (event.target.closest("button")) { event.preventDefault(); return; } suppressClickUntil.current = Number.MAX_SAFE_INTEGER; onDragStart?.(event, t); }}
+      onDragEnd={() => { suppressClickUntil.current = Date.now() + 250; onDragEnd?.(); }}
+      title={draggable ? "Drag to change task status" : undefined}
+      style={{ background: `${pc.bg}CC`, border: `1.5px solid ${pc.border}99`, borderRadius: 10, padding: 12, cursor: draggable ? "grab" : "pointer", opacity: isDragging ? 0.48 : t.archived ? 0.8 : 1, backdropFilter: "blur(12px) saturate(145%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.42), 0 5px 14px rgba(20,28,48,0.08)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
         <span style={{ fontSize: 10, fontWeight: 700, color: priColor(t.priority) }}>{t.priority}</span>
         {t.recurring && <span title="Recurring"><Repeat size={12} color={C.slate} /></span>}
