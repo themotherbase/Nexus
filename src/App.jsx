@@ -1803,9 +1803,9 @@ const inputStyle = { width: "100%", border: "1px solid var(--mb-control-border, 
 
 function Notifications({ tasks, byId, notifications = [], onMarkRead, setPage, setTaskDetail }) {
   const taskItems = [
-    ...tasks.filter(t => statusMeta(t).label === "Overdue").map(t => ({ type: "overdue", t })),
     ...tasks.filter(t => statusMeta(t).label === "Due today").map(t => ({ type: "due", t })),
     ...tasks.filter(t => t.status === "For Review").map(t => ({ type: "review", t })),
+    ...tasks.filter(t => statusMeta(t).label === "Overdue").map(t => ({ type: "overdue", t })),
   ];
   // Comment notifications are DB rows so they can be marked read.
   const commentItems = notifications
@@ -1854,7 +1854,17 @@ function Notifications({ tasks, byId, notifications = [], onMarkRead, setPage, s
       <PageHeader eyebrow="In-app alerts" title="Notifications" />
       <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16, alignItems: "start" }}>
         <Panel title={`Task alerts (${taskItems.length})`}>
-          {taskItems.length === 0 ? <Empty text="No task alerts." /> : taskItems.map(renderItem)}
+          {taskItems.length === 0 ? <Empty text="No task alerts." /> : taskItems.map((item, index) => (
+            <React.Fragment key={`${item.type}-${item.t.id}-${index}`}>
+              {item.type === "overdue" && index > 0 && taskItems[index - 1].type !== "overdue" && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 10, borderTop: `1px solid ${C.line}`, marginTop: 4 }}>
+                  <span style={{ fontSize: 10.5, color: C.slate, fontWeight: 600, textTransform: "uppercase" }}>Lower priority</span>
+                  <span style={{ flex: 1, borderTop: `1px solid ${C.line}` }} />
+                </div>
+              )}
+              {renderItem(item, index)}
+            </React.Fragment>
+          ))}
         </Panel>
         <Panel title={`Comments (${commentItems.length})`}>
           {commentItems.length === 0 ? <Empty text="No comments." /> : commentItems.map(renderItem)}
