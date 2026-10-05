@@ -75,13 +75,18 @@ const COLUMNS = ["Backlog", "To Do", "In Progress", "For Review", "Completed"];
    HELPERS
 ----------------------------------------------------------------*/
 const today = () => new Date().toISOString().slice(0, 10);
+const mixHex = (color, base, baseWeight) => `#${[1, 3, 5].map(i => {
+  const foreground = parseInt(color.slice(i, i + 2), 16);
+  const background = parseInt(base.slice(i, i + 2), 16);
+  return Math.round(foreground * (1 - baseWeight) + background * baseWeight).toString(16).padStart(2, "0");
+}).join("")}`;
 const priColor = (p) => p === "High" ? C.coral : p === "Medium" ? C.amber : C.slate;
 const statusMeta = (t) => {
   const overdue = t.due && t.due < today() && t.status !== "Completed";
   const dueToday = t.due === today() && t.status !== "Completed";
   if (overdue) return { label: "Overdue", color: C.coral };
   if (dueToday) return { label: "Due today", color: C.amber };
-  if (t.status === "Completed") return { label: "Completed", color: C.sage };
+  if (t.status === "Completed") return { label: "Completed", color: C.completed };
   return { label: "On track", color: C.slate };
 };
 const initials = (name) => (name || "?").split(" ").map(n => n[0]).slice(0, 2).join("");
@@ -292,6 +297,7 @@ export default function App() {
   const [dark, setDark] = useState(() => {
     try { return localStorage.getItem("mb-dark") === "1"; } catch { return false; }
   });
+  const [completedTaskColorPref, setCompletedTaskColorPref] = useState(null);
   const [onlineIds, setOnlineIds] = useState(new Set());
   const [notifications, setNotifications] = useState([]);
 
@@ -346,6 +352,21 @@ export default function App() {
   const byId = useMemo(() => Object.fromEntries(employees.map(e => [e.id, e])), [employees]);
   const directReports = (id) => employees.filter(e => e.sup === id);
   const me = useMemo(() => employees.find(e => e.email === session?.user?.email), [employees, session]);
+  const defaultCompletedTaskColor = me?.name.trim().toLowerCase() === "maria cortez" ? "#7C3AED" : C.sage;
+  const completedTaskColor = completedTaskColorPref?.employeeId === me?.id && completedTaskColorPref.color
+    ? completedTaskColorPref.color
+    : defaultCompletedTaskColor;
+  Object.assign(C, {
+    completed: completedTaskColor,
+    completedSoft: mixHex(completedTaskColor, dark ? C.card : "#FFFFFF", dark ? 0.82 : 0.84),
+  });
+
+  useEffect(() => {
+    if (!me) return;
+    let color = null;
+    try { color = localStorage.getItem(`mb-completed-task-color-${me.id}`); } catch {}
+    setCompletedTaskColorPref({ employeeId: me.id, color });
+  }, [me?.id]);
 
   // Presence: lets everyone see who else is currently signed into the app.
   useEffect(() => {
@@ -608,7 +629,16 @@ export default function App() {
               onRepeat={setRepeatTask} onArchive={archiveTask} />
           )}
           {page === "notifications" && <Notifications tasks={boardTasks} byId={byId} notifications={notifications} onMarkRead={markNotificationRead} setPage={setPage} setTaskDetail={setTaskDetail} />}
-          {page === "settings" && <SettingsPage isAdmin={isAdmin} dark={dark} setDark={setDark} />}
+          {page === "settings" && <SettingsPage isAdmin={isAdmin} dark={dark} setDark={setDark}
+            viewerEmp={viewerEmp} completedTaskColor={completedTaskColor} defaultCompletedTaskColor={defaultCompletedTaskColor}
+            onCompletedTaskColorChange={(color) => {
+              setCompletedTaskColorPref({ employeeId: viewerEmp.id, color });
+              try { localStorage.setItem(`mb-completed-task-color-${viewerEmp.id}`, color); } catch {}
+            }}
+            onResetCompletedTaskColor={() => {
+              setCompletedTaskColorPref({ employeeId: viewerEmp.id, color: null });
+              try { localStorage.removeItem(`mb-completed-task-color-${viewerEmp.id}`); } catch {}
+            }} />}
         </main>
         </div>
 
@@ -688,7 +718,7 @@ function Dashboard({ tasks, viewerEmp, isManager, isExec, setPage, setTaskDetail
         <Panel title="Management alerts">
           <AlertRow icon={CircleAlert} color={C.coral} label="Overdue" items={overdue} onOpen={goToTask} />
           <AlertRow icon={Clock} color={C.amber} label="Due today" items={dueToday} onOpen={goToTask} />
-          <AlertRow icon={CheckCircle2} color={C.sage} label="Recently completed" items={completed.slice(-3)} onOpen={goToTask} />
+          <AlertRow icon={CheckCircle2} color={C.completed} label="Recently completed" items={completed.slice(-3)} onOpen={goToTask} />
         </Panel>
 
         {isExec && (
@@ -1154,7 +1184,7 @@ function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTa
 
 const ellipsis = { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
 const STAGE_HINT = { "For Review": "Submit for sign-off" };
-const stageColor = (s) => ({ Backlog: C.slate, "To Do": C.blue, "In Progress": C.amber, "For Review": "#7C6BD6", Completed: C.sage }[s] || C.slate);
+const stageColor = (s) => ({ Backlog: C.slate, "To Do": C.blue, "In Progress": C.amber, "For Review": "#7C6BD6", Completed: C.completed }[s] || C.slate);
 
 // One entry per person, alphabetical, "Unassigned" last.
 function groupByAssignee(items, byId) {
@@ -1402,7 +1432,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
 }
 
 function priorityCardColors(t) {
-  if (t.status === "Completed") return { bg: C.sageSoft, border: C.sage };
+  if (t.status === "Completed") return { bg: C.completedSoft, border: C.completed };
   if (t.priority === "High") return { bg: C.coralSoft, border: C.coral };
   if (t.priority === "Medium") return { bg: C.yellowSoft, border: C.yellow };
   return { bg: C.blueSoft, border: C.blue }; // Low
@@ -1907,7 +1937,7 @@ function ChangePasswordPanel() {
   );
 }
 
-function SettingsPage({ isAdmin, dark, setDark }) {
+function SettingsPage({ isAdmin, dark, setDark, viewerEmp, completedTaskColor, defaultCompletedTaskColor, onCompletedTaskColorChange, onResetCompletedTaskColor }) {
   const perms = [
     ["View Organization", true, true, true, true],
     ["Edit Organization / Employees", true, true, true, false],
@@ -1933,6 +1963,24 @@ function SettingsPage({ isAdmin, dark, setDark }) {
             background: dark ? C.amber : C.line, position: "relative", flexShrink: 0,
           }}>
             <span style={{ position: "absolute", top: 3, left: dark ? 23 : 3, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.15s" }} />
+          </button>
+        </div>
+      </Panel>
+      <Panel title="Completed task cards" style={{ marginTop: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 240px" }}>
+            <div style={{ fontSize: 13.5, fontWeight: 600 }}>Card color</div>
+            <div style={{ fontSize: 11.5, color: C.slate }}>Customize completed task cards for {viewerEmp.name}. Maria Cortez defaults to purple.</div>
+          </div>
+          <div aria-label="Completed task card preview" style={{ display: "flex", alignItems: "center", gap: 8, background: `${mixHex(completedTaskColor, dark ? C.card : "#FFFFFF", dark ? 0.82 : 0.84)}CC`, border: `1.5px solid ${completedTaskColor}99`, borderRadius: 8, padding: "8px 10px", fontSize: 12, fontWeight: 600 }}>
+            <CheckCircle2 size={15} color={completedTaskColor} /> Completed task
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11.5, color: C.slate }}>
+            <input type="color" aria-label="Completed task card color" value={completedTaskColor} onChange={e => onCompletedTaskColorChange(e.target.value)} style={{ width: 38, height: 32, padding: 2, border: `1px solid ${C.line}`, borderRadius: 6, background: C.card, cursor: "pointer" }} />
+            {completedTaskColor.toUpperCase()}
+          </label>
+          <button type="button" onClick={onResetCompletedTaskColor} style={{ background: "none", border: `1px solid ${C.line}`, borderRadius: 7, padding: "7px 10px", color: C.ink, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+            Reset to {defaultCompletedTaskColor === "#7C3AED" ? "purple" : "green"}
           </button>
         </div>
       </Panel>
