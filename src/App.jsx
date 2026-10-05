@@ -353,7 +353,7 @@ export default function App() {
   const directReports = (id) => employees.filter(e => e.sup === id);
   const me = useMemo(() => employees.find(e => e.email === session?.user?.email), [employees, session]);
   const defaultCompletedTaskColor = me?.name.trim().toLowerCase() === "maria cortez" ? "#7C3AED" : C.sage;
-  const completedTaskColor = completedTaskColorPref?.employeeId === me?.id && completedTaskColorPref.color
+  const completedTaskColor = completedTaskColorPref?.employeeId === me?.id && completedTaskColorPref?.color
     ? completedTaskColorPref.color
     : defaultCompletedTaskColor;
   Object.assign(C, {
