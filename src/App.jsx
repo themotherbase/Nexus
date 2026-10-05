@@ -4,7 +4,7 @@ import {
   LayoutGrid, Users, ClipboardList, Bell, Settings, Network,
   Search, Plus, X, CircleAlert, Clock, CheckCircle2,
   Table2, CalendarDays, KanbanSquare, ShieldCheck, Pencil, Trash2,
-  Repeat, TriangleAlert, ListTree, LogOut, Undo2, Menu,
+  Repeat, TriangleAlert, ListTree, LogOut, Undo2,
   ArrowRightLeft, ChevronDown, ChevronLeft, ChevronRight, Check, Archive, ArchiveRestore, MessageSquare
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
@@ -32,23 +32,16 @@ const FONT = `
   .mb-body { font-family: 'Inter', -apple-system, sans-serif; }
 `;
 const RESPONSIVE_CSS = `
-  .mb-topbar { display: none; }
-  .mb-backdrop { display: none; }
+  .mb-topnav::-webkit-scrollbar { display: none; }
+  .mb-topnav { scrollbar-width: none; }
   @media (max-width: 860px) {
-    .mb-topbar { display: flex !important; }
-    .mb-sidebar {
-      position: fixed !important; top: 0; left: -260px; height: 100vh;
-      z-index: 100; transition: left 0.2s ease; box-shadow: 2px 0 16px rgba(0,0,0,0.25);
-    }
-    .mb-sidebar--open { left: 0 !important; }
-    .mb-backdrop.mb-backdrop--open {
-      display: block; position: fixed; inset: 0; background: rgba(15,17,30,0.5); z-index: 90;
-    }
     .mb-main { padding: 16px 14px 60px !important; }
     .mb-grid-2, .mb-grid-3, .mb-grid-4 { grid-template-columns: 1fr !important; }
     .mb-modal-overlay { padding: 16px 8px !important; }
     .mb-modal-card { padding: 18px !important; width: 100% !important; }
     .mb-hide-mobile { display: none !important; }
+    .mb-topnav-label { display: none !important; }
+    .mb-brand-sub { display: none !important; }
   }
 `;
 
@@ -270,6 +263,61 @@ function getAuthHashParams() {
   return Object.fromEntries(new URLSearchParams(hash));
 }
 
+function TopNavItem({ icon: Icon, label, active, badge, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
+      background: "none", border: "none", cursor: "pointer", flexShrink: 0,
+      padding: "9px 16px 11px", position: "relative", color: active ? C.amber : "#9CA3C4",
+    }}>
+      <span style={{ position: "relative", display: "inline-flex", filter: active ? `drop-shadow(0 0 7px ${C.amber}99)` : "none", transition: "filter 0.15s, color 0.15s" }}>
+        <Icon size={19} strokeWidth={2} />
+        {badge > 0 && (
+          <span style={{ position: "absolute", top: -4, right: -6, width: 8, height: 8, borderRadius: 8, background: C.coral, border: `1.5px solid ${C.navy}` }} />
+        )}
+      </span>
+      <span className="mb-topnav-label" style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", whiteSpace: "nowrap" }}>{label}</span>
+      <span style={{
+        position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)",
+        width: active ? 18 : 0, height: 3, borderRadius: 3, background: C.amber,
+        boxShadow: active ? `0 0 8px ${C.amber}` : "none", transition: "width 0.15s",
+      }} />
+    </button>
+  );
+}
+
+function UserMenu({ viewerEmp, canEditOrg, onlineSelf }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [open]);
+  return (
+    <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
+      <button onClick={() => setOpen(v => !v)} style={{ display: "flex", alignItems: "center", gap: 7, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 20, padding: "4px 10px 4px 4px", cursor: "pointer" }}>
+        <Avatar name={viewerEmp.name} size={28} online={onlineSelf} />
+        <span className="mb-topnav-label" style={{ fontSize: 12.5, fontWeight: 600, color: "#fff", maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{viewerEmp.name.split(" ")[0]}</span>
+        <ChevronDown size={13} color="#9CA3C4" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+      </button>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, width: 210, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 10, boxShadow: "0 10px 30px rgba(0,0,0,0.25)", zIndex: 120, color: C.ink }}>
+          <div style={{ padding: "4px 8px 8px", borderBottom: `1px solid ${C.line}`, marginBottom: 6 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{viewerEmp.name}</div>
+            <div style={{ fontSize: 11, color: C.slate }}>{ROLE_LABEL[viewerEmp.role]}</div>
+            {canEditOrg && <div style={{ fontSize: 10, color: C.sage, marginTop: 3 }}>✓ Can edit org &amp; employees</div>}
+          </div>
+          <button onClick={() => supabase.auth.signOut()} style={{ display: "flex", alignItems: "center", gap: 7, width: "100%", background: "none", border: "none", borderRadius: 8, padding: "8px", fontSize: 13, color: C.coral, cursor: "pointer", fontFamily: "inherit" }}>
+            <LogOut size={14} /> Sign out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = loading, null = logged out
   const [authFlow, setAuthFlow] = useState(() => {
@@ -292,7 +340,6 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [showAddTask, setShowAddTask] = useState(false);
   const [repeatTask, setRepeatTask] = useState(null);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [taskDetail, setTaskDetail] = useState(null);
   const [dark, setDark] = useState(() => {
     try { return localStorage.getItem("mb-dark") === "1"; } catch { return false; }
@@ -546,7 +593,6 @@ export default function App() {
     { id: "organization", label: "Organization", icon: Network },
     { id: "employees", label: "Employees", icon: Users },
     { id: "tasks", label: "Tasks", icon: ClipboardList },
-    { id: "notifications", label: "Notifications", icon: Bell },
     { id: "settings", label: "Settings", icon: Settings },
   ];
 
@@ -555,63 +601,46 @@ export default function App() {
       <div className="mb-body" style={{ background: C.paper, minHeight: "100vh", color: C.ink, display: "flex", flexDirection: "column", colorScheme: dark ? "dark" : "light", "--mb-control-bg": C.card, "--mb-control-fg": C.ink, "--mb-control-border": C.line, "--mb-glass-surface": dark ? "rgba(25, 30, 47, 0.76)" : "rgba(255, 255, 255, 0.70)", "--mb-glass-border": dark ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.72)", "--mb-glass-header": dark ? "rgba(33, 39, 58, 0.84)" : "rgba(237, 240, 244, 0.78)", "--mb-glass-node": dark ? "rgba(24, 30, 47, 0.82)" : "rgba(255, 255, 255, 0.78)", "--mb-glass-chart": dark ? "rgba(21, 27, 43, 0.48)" : "rgba(255, 255, 255, 0.42)" }}>
         <style>{FONT}{RESPONSIVE_CSS}</style>
 
-        <div className="mb-topbar" style={{ alignItems: "center", gap: 12, padding: "12px 16px", background: C.navy, color: "#fff", position: "sticky", top: 0, zIndex: 60 }}>
-          <button onClick={() => setMobileNavOpen(true)} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", padding: 4, position: "relative" }}>
-            <Menu size={22} />
-            {urgentCount > 0 && (
-              <span style={{ position: "absolute", top: 0, right: 0, width: 8, height: 8, borderRadius: 8, background: C.coral, border: `1.5px solid ${C.navy}` }} />
-            )}
-          </button>
-          <div className="mb-display" style={{ fontSize: 16, fontWeight: 600 }}>The Motherbase</div>
-        </div>
-        <div className={`mb-backdrop${mobileNavOpen ? " mb-backdrop--open" : ""}`} onClick={() => setMobileNavOpen(false)} />
-
-        <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-        <aside className={`mb-sidebar${mobileNavOpen ? " mb-sidebar--open" : ""}`} style={{ width: 236, background: C.navy, color: "#fff", display: "flex", flexDirection: "column", flexShrink: 0 }}>
-          <div style={{ padding: "22px 20px 16px" }}>
-            <div className="mb-display" style={{ fontSize: 19, fontWeight: 600, lineHeight: 1.15 }}>The Motherbase</div>
-            <div style={{ fontSize: 11.5, color: "#9FA6C4", marginTop: 2 }}>Toys &amp; Collectibles · Ops System</div>
-          </div>
-          <nav style={{ padding: "6px 10px", display: "flex", flexDirection: "column", gap: 2 }}>
-            {nav.map(n => {
-              const Icon = n.icon;
-              const active = page === n.id;
-              return (
-                <button key={n.id} onClick={() => { setPage(n.id); setMobileNavOpen(false); }}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 8,
-                    background: active ? "rgba(255,255,255,0.1)" : "transparent",
-                    border: "none", color: active ? "#fff" : "#B7BCD6", cursor: "pointer",
-                    fontSize: 13.5, fontWeight: active ? 600 : 500, textAlign: "left", width: "100%",
-                  }}>
-                  <span style={{ position: "relative", display: "inline-flex" }}>
-                    <Icon size={16} strokeWidth={2} />
-                    {n.id === "notifications" && urgentCount > 0 && (
-                      <span style={{ position: "absolute", top: -3, right: -3, width: 7, height: 7, borderRadius: 7, background: C.coral, border: `1.5px solid ${C.navy}` }} />
-                    )}
-                  </span>
-                  <span style={{ flex: 1 }}>{n.label}</span>
-                  {n.id === "notifications" && <NavBadge count={urgentCount} />}
-                </button>
-              );
-            })}
-          </nav>
-
-          <div style={{ marginTop: "auto", padding: 14, borderTop: "1px solid rgba(255,255,255,0.1)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <Avatar name={viewerEmp.name} size={30} />
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{viewerEmp.name}</div>
-                <div style={{ fontSize: 10.5, color: "#9FA6C4" }}>{ROLE_LABEL[viewerEmp.role]}</div>
+        <header style={{ position: "sticky", top: 0, zIndex: 60, background: C.navy, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 18px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 9, flexShrink: 0 }}>
+              <div style={{
+                width: 30, height: 30, borderRadius: 9, flexShrink: 0,
+                background: "linear-gradient(135deg, #DD9A34, #D8574C)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 14, fontWeight: 800, color: "#fff", fontFamily: "'Fraunces', serif",
+              }}>M</div>
+              <div className="mb-brand-sub">
+                <div className="mb-display" style={{ fontSize: 15.5, fontWeight: 600, color: "#fff", lineHeight: 1.1 }}>The Motherbase</div>
+                <div style={{ fontSize: 10, color: "#9FA6C4" }}>Ops System</div>
               </div>
             </div>
-            {canEditOrg && <div style={{ fontSize: 10, color: "#8DE0B0", marginBottom: 8 }}>✓ Can edit org & employees</div>}
-            <button onClick={() => supabase.auth.signOut()} style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", background: C.navySoft, color: "#fff", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, padding: "7px 8px", fontSize: 12, cursor: "pointer" }}>
-              <LogOut size={13} /> Sign out
-            </button>
-          </div>
-        </aside>
 
+            <nav className="mb-topnav" style={{ display: "flex", margin: "0 auto", overflowX: "auto" }}>
+              {nav.map(n => (
+                <TopNavItem key={n.id} icon={n.icon} label={n.label} active={page === n.id} onClick={() => setPage(n.id)} />
+              ))}
+            </nav>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+              <button onClick={() => setPage("notifications")} title="Notifications" style={{
+                position: "relative", width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center",
+                background: page === "notifications" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, cursor: "pointer", color: page === "notifications" ? C.amber : "#C9CEE0",
+              }}>
+                <Bell size={16} />
+                {urgentCount > 0 && (
+                  <span style={{ position: "absolute", top: -4, right: -4, width: 15, height: 15, borderRadius: 10, background: C.coral, color: "#fff", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", border: `1.5px solid ${C.navy}` }}>
+                    {urgentCount > 9 ? "9+" : urgentCount}
+                  </span>
+                )}
+              </button>
+              <UserMenu viewerEmp={viewerEmp} canEditOrg={canEditOrg} onlineSelf />
+            </div>
+          </div>
+        </header>
+
+        <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         <main className="mb-main" style={{ flex: 1, minWidth: 0, padding: "26px 34px 60px", overflowY: "auto", backgroundColor: C.paper, backgroundImage: `linear-gradient(${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}, ${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}), url("${motherbaseBackground}")`, backgroundSize: "cover, min(1100px, 94vw) auto", backgroundPosition: "center, center 42%", backgroundRepeat: "no-repeat" }}>
           {page === "dashboard" && <Dashboard tasks={tasks} viewerEmp={viewerEmp} isManager={isManager} isExec={isExec} setPage={setPage} setTaskDetail={setTaskDetail} />}
           {page === "organization" && (
@@ -2010,16 +2039,6 @@ function SettingsPage({ isAdmin, dark, setDark, viewerEmp, completedTaskColor, d
 /* ---------------------------------------------------------------
    SHARED UI PRIMITIVES
 ----------------------------------------------------------------*/
-function NavBadge({ count }) {
-  if (!count) return null;
-  return (
-    <span style={{
-      minWidth: 17, height: 17, padding: "0 4px", borderRadius: 10, background: C.coral, color: "#fff",
-      fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
-    }}>{count > 99 ? "99+" : count}</span>
-  );
-}
-
 function PageHeader({ eyebrow, title, actions }) {
   return <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 20 }}><div><div style={{ fontSize: 11.5, color: C.slate, fontWeight: 600, marginBottom: 3 }}>{eyebrow}</div><div className="mb-display" style={{ fontSize: 26, fontWeight: 600 }}>{title}</div></div>{actions}</div>;
 }
