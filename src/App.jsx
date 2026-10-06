@@ -125,7 +125,9 @@ const useEmp = () => useContext(EmpContext);
 ----------------------------------------------------------------*/
 function Login() {
   const [mode, setMode] = useState("signin"); // "signin" | "forgot"
+  const [method, setMethod] = useState("email"); // "email" | "bundy"
   const [email, setEmail] = useState("");
+  const [bundyId, setBundyId] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -134,9 +136,16 @@ function Login() {
   const submit = async (e) => {
     e.preventDefault();
     setError(""); setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const genericError = "We couldn't sign you in — check your Bundy number and password.";
+    let targetEmail = email;
+    if (method === "bundy") {
+      const { data: resolved, error: lookupErr } = await supabase.rpc("email_for_bundy_id", { p_bundy_id: bundyId.trim() });
+      if (lookupErr || !resolved) { setLoading(false); setError(genericError); return; }
+      targetEmail = resolved;
+    }
+    const { error } = await supabase.auth.signInWithPassword({ email: targetEmail, password });
     setLoading(false);
-    if (error) setError(error.message);
+    if (error) setError(method === "bundy" ? genericError : error.message);
   };
 
   const sendReset = async (e) => {
@@ -175,18 +184,42 @@ function Login() {
       <AuthBackdrop />
       <form onSubmit={submit} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 32, width: 360, maxWidth: "calc(100% - 32px)", position: "relative", zIndex: 1 }}>
         <div className="mb-display" style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}>The Motherbase</div>
-        <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 20 }}>Sign in to the Ops System</div>
-        <FormRow label="Email"><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} style={inputStyle} /></FormRow>
+        <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 16 }}>Sign in to the Ops System</div>
+
+        <div style={{ display: "flex", background: C.paper, borderRadius: 9, padding: 3, marginBottom: 16 }}>
+          {[["email", "Email"], ["bundy", "Bundy ID"]].map(([val, label]) => (
+            <button key={val} type="button" onClick={() => { setMethod(val); setError(""); }}
+              style={{
+                flex: 1, padding: "7px 0", borderRadius: 7, border: "none", cursor: "pointer",
+                fontSize: 12.5, fontWeight: 600, fontFamily: "inherit",
+                background: method === val ? C.card : "transparent",
+                color: method === val ? C.ink : C.slate,
+                boxShadow: method === val ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
+              }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {method === "email" ? (
+          <FormRow label="Email"><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} style={inputStyle} /></FormRow>
+        ) : (
+          <FormRow label="Bundy account number"><input type="text" inputMode="numeric" required value={bundyId} onChange={e=>setBundyId(e.target.value)} placeholder="e.g. 20240029" style={inputStyle} /></FormRow>
+        )}
         <FormRow label="Password"><input type="password" required value={password} onChange={e=>setPassword(e.target.value)} style={inputStyle} /></FormRow>
         {error && <div style={{ color: C.coral, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
         <button type="submit" disabled={loading} style={{ width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
           {loading ? "Signing in…" : "Sign in"}
         </button>
-        <button type="button" onClick={() => setMode("forgot")} style={{ background: "none", border: "none", color: C.navy, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0, marginTop: 12 }}>
-          Forgot password?
-        </button>
+        {method === "email" && (
+          <button type="button" onClick={() => setMode("forgot")} style={{ background: "none", border: "none", color: C.navy, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0, marginTop: 12 }}>
+            Forgot password?
+          </button>
+        )}
         <div style={{ fontSize: 11.5, color: C.slate, marginTop: 14, lineHeight: 1.5 }}>
-          First time? Check your email for the invite link to set your password. If you don't have an account yet, ask Jose Paulo, Andrea, Maria, or Julian to invite you.
+          {method === "bundy"
+            ? "Forgot your password? Ask Jose Paulo, Andrea, Maria, or Julian to reset it for you."
+            : "First time? Check your email for the invite link to set your password. If you don't have an account yet, ask Jose Paulo, Andrea, Maria, or Julian to invite you."}
         </div>
       </form>
     </div>
