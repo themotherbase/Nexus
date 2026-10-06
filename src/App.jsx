@@ -5,10 +5,10 @@ import {
   Search, Plus, X, CircleAlert, Clock, CheckCircle2,
   Table2, CalendarDays, KanbanSquare, ShieldCheck, Pencil, Trash2,
   Repeat, TriangleAlert, ListTree, LogOut, Undo2,
-  ArrowRightLeft, ChevronDown, ChevronLeft, ChevronRight, Check, Archive, ArchiveRestore, MessageSquare
+  ArrowRightLeft, ChevronDown, ChevronLeft, ChevronRight, Check, Archive, ArchiveRestore, MessageSquare, Flag
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
-import motherbaseBackground from "./The Motherbase (Transparent).png";
+import motherbaseBackground from "../images/The Motherbase (Transparent).png";
 
 /* ---------------------------------------------------------------
    DESIGN TOKENS
@@ -375,7 +375,7 @@ export default function App() {
   const [repeatTask, setRepeatTask] = useState(null);
   const [taskDetail, setTaskDetail] = useState(null);
   const [dark, setDark] = useState(() => {
-    try { return localStorage.getItem("mb-dark") === "1"; } catch { return false; }
+    try { return localStorage.getItem("mb-dark") !== "0"; } catch { return true; }
   });
   const [completedTaskColorPref, setCompletedTaskColorPref] = useState(null);
   const [onlineIds, setOnlineIds] = useState(new Set());
@@ -637,12 +637,21 @@ export default function App() {
         <header style={{ position: "sticky", top: 0, zIndex: 60, background: C.navy, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 18px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 9, flexShrink: 0 }}>
-              <div style={{
-                width: 30, height: 30, borderRadius: 9, flexShrink: 0,
-                background: "linear-gradient(135deg, #DD9A34, #D8574C)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 14, fontWeight: 800, color: "#fff", fontFamily: "'Fraunces', serif",
-              }}>M</div>
+              <img
+                src={motherbaseBackground}
+                alt="The Motherbase logo"
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 9,
+                  objectFit: "cover",
+                  flexShrink: 0,
+                  display: "block",
+                  background: "rgba(255,255,255,0.08)",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.18)",
+                }}
+              />
               <div className="mb-brand-sub">
                 <div className="mb-display" style={{ fontSize: 15.5, fontWeight: 600, color: "#fff", lineHeight: 1.1 }}>The Motherbase</div>
                 <div style={{ fontSize: 10, color: "#9FA6C4" }}>Ops System</div>
@@ -1459,12 +1468,15 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
           const archivedView = col === "Completed" && showArchived;
           return (
             <div key={col} style={{ minWidth: 250, flex: "0 0 250px", padding: 12, borderRadius: 14, border: `1px solid ${dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.72)"}`, background: dark ? "rgba(22, 28, 46, 0.68)" : "rgba(255, 255, 255, 0.60)", backdropFilter: "blur(14px) saturate(140%)", boxShadow: "0 10px 28px rgba(22, 30, 55, 0.12)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, fontWeight: 700, letterSpacing: 0.2 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 8, background: stageColor(col) }} />
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <span style={{
+                  display: "inline-flex", alignItems: "center", fontSize: 11.5, fontWeight: 700, letterSpacing: 0.2, color: "#fff",
+                  background: archivedView ? C.slate : stageColor(col), borderRadius: 20, padding: "5px 13px",
+                  boxShadow: `0 3px 10px ${(archivedView ? C.slate : stageColor(col))}4D`,
+                }}>
                   {archivedView ? "Removed" : col}
                 </span>
-                <span style={{ fontSize: 11.5, color: C.slate, background: C.card, border: `1px solid ${C.line}`, borderRadius: 20, padding: "1px 8px" }}>{items.length}</span>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: C.ink, background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 20, minWidth: 26, textAlign: "center", padding: "3px 8px" }}>{items.length}</span>
               </div>
               {col === "Completed" && canManage && (archivedTasks.length > 0 || showArchived) && (
                 <button type="button" onClick={() => setShowArchived(v => !v)}
@@ -1493,11 +1505,12 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
   );
 }
 
-function priorityCardColors(t) {
-  if (t.status === "Completed") return { bg: C.completedSoft, border: C.completed };
-  if (t.priority === "High") return { bg: C.coralSoft, border: C.coral };
-  if (t.priority === "Medium") return { bg: C.yellowSoft, border: C.yellow };
-  return { bg: C.blueSoft, border: C.blue }; // Low
+// Priority still reads as color — just as a small flag/tag now, not a tinted card.
+function priorityFlagColor(t) {
+  if (t.status === "Completed") return C.completed;
+  if (t.priority === "High") return C.coral;
+  if (t.priority === "Medium") return C.yellow;
+  return C.blue; // Low
 }
 
 function TaskCard({ t, children, onOpen }) {
@@ -1505,24 +1518,31 @@ function TaskCard({ t, children, onOpen }) {
   const meta = statusMeta(t);
   const emp = byId[t.assignee] || { name: "Unassigned" };
   const subtaskProgress = t.subtasks?.length ? `${t.subtasks.filter(s=>s.done).length}/${t.subtasks.length}` : null;
-  const pc = priorityCardColors(t);
+  const flagColor = priorityFlagColor(t);
+  const flagLabel = t.status === "Completed" ? "Completed" : t.priority;
   return (
-    <div onClick={onOpen} style={{ background: `${pc.bg}CC`, border: `1.5px solid ${pc.border}99`, borderRadius: 10, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(12px) saturate(145%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.42), 0 5px 14px rgba(20,28,48,0.08)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-        <span style={{ fontSize: 10, fontWeight: 700, color: priColor(t.priority) }}>{t.priority}</span>
-        {t.recurring && <span title="Recurring"><Repeat size={12} color={C.slate} /></span>}
-      </div>
+    <div onClick={onOpen} style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 12, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(14px) saturate(140%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.38), 0 6px 16px rgba(20,28,48,0.10)" }}>
+      {t.recurring && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: -2 }}>
+          <span title="Recurring"><Repeat size={12} color={C.slate} /></span>
+        </div>
+      )}
       <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6, lineHeight: 1.3 }}>{t.title}</div>
-      <div style={{ fontSize: 11, color: C.slate, marginBottom: 8 }}>{deptById[t.dept]?.name}</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-        <Avatar name={emp.name} size={20} online={onlineIds?.has(t.assignee)} /><span style={{ fontSize: 11.5 }}>{emp.name}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: meta.color, fontWeight: 600, marginBottom: 3 }}>
+        <CalendarDays size={12} /> {t.due}
+        {meta.label !== "On track" && meta.label !== "Completed" && <span>· {meta.label}</span>}
       </div>
-      <div style={{ height: 4, background: C.paper, borderRadius: 4, overflow: "hidden", marginBottom: 8 }}>
+      <div style={{ fontSize: 11, color: C.slate, marginBottom: 10 }}>{deptById[t.dept]?.name}</div>
+      <div style={{ height: 4, background: "var(--mb-glass-border)", borderRadius: 4, overflow: "hidden", marginBottom: 10 }}>
         <div style={{ height: "100%", width: `${t.progress}%`, background: C.amber }} />
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: meta.color, fontWeight: 600 }}>
-        <span>{meta.label} · {t.due}</span>{subtaskProgress && <span style={{ color: C.slate, fontWeight: 500 }}>{subtaskProgress} subtasks</span>}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10.5, fontWeight: 700, color: "#fff", background: flagColor, borderRadius: 20, padding: "3px 9px 3px 7px" }}>
+          <Flag size={10} fill="#fff" strokeWidth={0} /> {flagLabel}
+        </span>
+        <Avatar name={emp.name} size={24} online={onlineIds?.has(t.assignee)} />
       </div>
+      {subtaskProgress && <div style={{ fontSize: 10.5, color: C.slate, marginTop: 7 }}>{subtaskProgress} subtasks</div>}
       {children}
     </div>
   );
