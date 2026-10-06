@@ -8,7 +8,7 @@ import {
   ArrowRightLeft, ChevronDown, ChevronLeft, ChevronRight, Check, Archive, ArchiveRestore, MessageSquare
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
-import motherbaseBackground from "./The Motherbase (Transparent).png";
+import motherbaseBackground from "../images/The Motherbase (Transparent).png";
 
 /* ---------------------------------------------------------------
    DESIGN TOKENS
