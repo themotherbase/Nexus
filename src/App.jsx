@@ -8,7 +8,7 @@ import {
   ArrowRightLeft, ChevronDown, ChevronLeft, ChevronRight, Check, Archive, ArchiveRestore, MessageSquare
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
-import motherbaseBackground from "../images/The Motherbase (Transparent).png";
+import motherbaseBackground from "./The Motherbase (Transparent).png";
 
 /* ---------------------------------------------------------------
    DESIGN TOKENS
@@ -375,7 +375,7 @@ export default function App() {
   const [repeatTask, setRepeatTask] = useState(null);
   const [taskDetail, setTaskDetail] = useState(null);
   const [dark, setDark] = useState(() => {
-    try { return localStorage.getItem("mb-dark") !== "0"; } catch { return true; }
+    try { return localStorage.getItem("mb-dark") === "1"; } catch { return false; }
   });
   const [completedTaskColorPref, setCompletedTaskColorPref] = useState(null);
   const [onlineIds, setOnlineIds] = useState(new Set());
@@ -637,21 +637,12 @@ export default function App() {
         <header style={{ position: "sticky", top: 0, zIndex: 60, background: C.navy, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 18px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 9, flexShrink: 0 }}>
-              <img
-                src={motherbaseBackground}
-                alt="The Motherbase logo"
-                style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: 9,
-                  objectFit: "cover",
-                  flexShrink: 0,
-                  display: "block",
-                  background: "rgba(255,255,255,0.08)",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.18)",
-                }}
-              />
+              <div style={{
+                width: 30, height: 30, borderRadius: 9, flexShrink: 0,
+                background: "linear-gradient(135deg, #DD9A34, #D8574C)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 14, fontWeight: 800, color: "#fff", fontFamily: "'Fraunces', serif",
+              }}>M</div>
               <div className="mb-brand-sub">
                 <div className="mb-display" style={{ fontSize: 15.5, fontWeight: 600, color: "#fff", lineHeight: 1.1 }}>The Motherbase</div>
                 <div style={{ fontSize: 10, color: "#9FA6C4" }}>Ops System</div>
