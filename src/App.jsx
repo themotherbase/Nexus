@@ -5,7 +5,7 @@ import {
   Search, Plus, X, CircleAlert, Clock, CheckCircle2,
   Table2, CalendarDays, KanbanSquare, ShieldCheck, Pencil, Trash2,
   Repeat, TriangleAlert, ListTree, LogOut, Undo2,
-  ArrowRightLeft, ChevronDown, ChevronLeft, ChevronRight, Check, Archive, ArchiveRestore, MessageSquare
+  ArrowRightLeft, ChevronDown, ChevronLeft, ChevronRight, Check, Archive, ArchiveRestore, MessageSquare, Flag
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import motherbaseBackground from "./The Motherbase (Transparent).png";
@@ -1406,7 +1406,7 @@ function GroupHolder({ group, onOpen, dark }) {
 }
 
 // Everything one person has in one column, as a responsive grid, with arrows to hop to the next person.
-function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, renderActions }) {
+function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, renderActions, dark }) {
   const { byId, onlineIds } = useEmp();
   const people = groupByAssignee(source.filter(t => t.status === col), byId);
   const idx = people.findIndex(p => p.assignee === assignee);
@@ -1435,7 +1435,7 @@ function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, r
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12, maxHeight: "62vh", overflowY: "auto", padding: 2 }}>
         {group.cards.map(t => (
-          <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)}>{renderActions(t)}</TaskCard>
+          <TaskCard key={t.id} t={t} dark={dark} onOpen={() => setTaskDetail(t.id)}>{renderActions(t)}</TaskCard>
         ))}
       </div>
     </ModalShell>
@@ -1476,7 +1476,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
                 {groups.map(g => g.cards.length > 1 ? (
                   <GroupHolder key={`g-${col}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} dark={dark} />
                 ) : (
-                  <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)}>{actions(g.cards[0])}</TaskCard>
+                  <TaskCard key={g.cards[0].id} t={g.cards[0]} dark={dark} onOpen={() => setTaskDetail(g.cards[0].id)}>{actions(g.cards[0])}</TaskCard>
                 ))}
                 {items.length === 0 && <div style={{ fontSize: 12, color: C.slate, padding: "10px 4px" }}>{archivedView ? "Nothing removed." : "No tasks."}</div>}
               </div>
@@ -1485,7 +1485,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
         })}
       </div>
       {openGroup && (
-        <GroupModal col={openGroup.col} assignee={openGroup.assignee} source={sourceFor(openGroup.col)}
+        <GroupModal col={openGroup.col} assignee={openGroup.assignee} source={sourceFor(openGroup.col)} dark={dark}
           onClose={() => setOpenGroup(null)} onSwitch={(a) => setOpenGroup({ col: openGroup.col, assignee: a })}
           setTaskDetail={setTaskDetail} renderActions={actions} />
       )}
@@ -1493,23 +1493,24 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
   );
 }
 
-function priorityCardColors(t) {
-  if (t.status === "Completed") return { bg: C.completedSoft, border: C.completed };
-  if (t.priority === "High") return { bg: C.coralSoft, border: C.coral };
-  if (t.priority === "Medium") return { bg: C.yellowSoft, border: C.yellow };
-  return { bg: C.blueSoft, border: C.blue }; // Low
+function priorityFlagColor(priority) {
+  if (priority === "High") return C.coral;
+  if (priority === "Medium") return C.yellow;
+  return C.blue;
 }
 
-function TaskCard({ t, children, onOpen }) {
+function TaskCard({ t, children, onOpen, dark }) {
   const { byId, onlineIds } = useEmp();
   const meta = statusMeta(t);
   const emp = byId[t.assignee] || { name: "Unassigned" };
   const subtaskProgress = t.subtasks?.length ? `${t.subtasks.filter(s=>s.done).length}/${t.subtasks.length}` : null;
-  const pc = priorityCardColors(t);
+  const priorityColor = priorityFlagColor(t.priority);
   return (
-    <div onClick={onOpen} style={{ background: `${pc.bg}CC`, border: `1.5px solid ${pc.border}99`, borderRadius: 10, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(12px) saturate(145%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.42), 0 5px 14px rgba(20,28,48,0.08)" }}>
+    <div onClick={onOpen} style={{ background: dark ? "rgba(25, 30, 47, 0.78)" : "rgba(255, 255, 255, 0.70)", border: `1px solid ${dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.78)"}`, borderRadius: 10, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(14px) saturate(145%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.28), 0 8px 20px rgba(20,28,48,0.12)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-        <span style={{ fontSize: 10, fontWeight: 700, color: priColor(t.priority) }}>{t.priority}</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 20, color: priorityColor, background: `${priorityColor}24`, border: `1px solid ${priorityColor}55`, fontSize: 10.5, fontWeight: 700 }}>
+          <Flag size={11} fill={priorityColor} strokeWidth={1.8} /> {t.priority}
+        </span>
         {t.recurring && <span title="Recurring"><Repeat size={12} color={C.slate} /></span>}
       </div>
       <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6, lineHeight: 1.3 }}>{t.title}</div>
