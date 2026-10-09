@@ -1733,7 +1733,7 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
           );
         })}
       </div>
-      <label style={{ display: "inline-block", fontSize: 12.5, fontWeight: 600, color: C.navy, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", marginBottom: 18 }}>
+      <label style={{ display: "inline-block", fontSize: 12.5, fontWeight: 600, color: C.white, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", marginBottom: 18 }}>
         {uploading ? "Uploading…" : "+ Attach a file"}
         <input type="file" disabled={uploading} style={{ display: "none" }} onChange={async (e) => { const f = e.target.files?.[0]; if (f) await uploadFile(f); e.target.value = ""; }} />
       </label>
