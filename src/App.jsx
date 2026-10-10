@@ -514,7 +514,7 @@ export default function App() {
 
   const visibleTasks = isExec ? tasks
     : viewerEmp.role === "manager"
-      ? tasks.filter(t => new Set([viewerEmp.id, ...directReports(viewerEmp.id).map(e=>e.id)]).has(t.assignee) || t.supervisor === viewerEmp.id)
+      ? tasks.filter(t => new Set([viewerEmp.id, ...collectDescendants(viewerEmp.id, employees)]).has(t.assignee) || t.supervisor === viewerEmp.id)
       : tasks.filter(t => t.assignee === viewerEmp.id);
 
   const boardTasks = visibleTasks.filter(t => !t.archived);
@@ -771,7 +771,7 @@ function Dashboard({ tasks, viewerEmp, isManager, isExec, setPage, setTaskDetail
   const { employees, directReports, onlineIds } = useEmp();
   const goToTask = (id) => { setTaskDetail(id); setPage("tasks"); };
   const scoped = isExec ? tasks : isManager
-    ? tasks.filter(t => [viewerEmp.id, ...directReports(viewerEmp.id).map(e=>e.id)].includes(t.assignee))
+    ? tasks.filter(t => [viewerEmp.id, ...collectDescendants(viewerEmp.id, employees)].includes(t.assignee))
     : tasks.filter(t => t.assignee === viewerEmp.id);
 
   const overdue = scoped.filter(t => statusMeta(t).label === "Overdue");
@@ -839,7 +839,7 @@ function Dashboard({ tasks, viewerEmp, isManager, isExec, setPage, setTaskDetail
 
       {isManager && (
         <Panel title={isExec ? "Workload by employee" : "My team's workload"} style={{ marginTop: 18 }}>
-          {workload.filter(w => isExec || [viewerEmp.id, ...directReports(viewerEmp.id).map(e=>e.id)].includes(w.emp.id)).map(w => (
+          {workload.filter(w => isExec || [viewerEmp.id, ...collectDescendants(viewerEmp.id, employees)].includes(w.emp.id)).map(w => (
             <div key={w.emp.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 0", borderBottom: `1px solid ${C.line}` }}>
               <Avatar name={w.emp.name} online={onlineIds.has(w.emp.id)} />
               <div style={{ flex: 1 }}>
