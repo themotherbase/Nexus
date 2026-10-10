@@ -471,6 +471,25 @@ export default function App() {
     return () => { supabase.removeChannel(ch); };
   }, [me?.id]);
 
+  // Live board sync: without this, a status change (or a new comment/attachment) made by
+  // someone else only shows up after a manual page reload. RLS still governs what
+  // refetchTasks() actually returns — this just tells this browser *when* to ask again.
+  const refetchTasksDebounced = useRef(null);
+  useEffect(() => {
+    if (!me) return;
+    const bump = () => {
+      clearTimeout(refetchTasksDebounced.current);
+      refetchTasksDebounced.current = setTimeout(() => refetchTasks(), 250);
+    };
+    const ch = supabase.channel("tasks-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, bump)
+      .on("postgres_changes", { event: "*", schema: "public", table: "subtasks" }, bump)
+      .on("postgres_changes", { event: "*", schema: "public", table: "task_comments" }, bump)
+      .on("postgres_changes", { event: "*", schema: "public", table: "task_attachments" }, bump)
+      .subscribe();
+    return () => { clearTimeout(refetchTasksDebounced.current); supabase.removeChannel(ch); };
+  }, [me?.id]);
+
   if (session === undefined) return <FullScreenMsg text="Loading…" />;
   if (authFlow && session) {
     return (
@@ -1733,7 +1752,7 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
           );
         })}
       </div>
-      <label style={{ display: "inline-block", fontSize: 12.5, fontWeight: 600, color: C.white, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", marginBottom: 18 }}>
+      <label style={{ display: "inline-block", fontSize: 12.5, fontWeight: 600, color: C.navy, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", marginBottom: 18 }}>
         {uploading ? "Uploading…" : "+ Attach a file"}
         <input type="file" disabled={uploading} style={{ display: "none" }} onChange={async (e) => { const f = e.target.files?.[0]; if (f) await uploadFile(f); e.target.value = ""; }} />
       </label>
