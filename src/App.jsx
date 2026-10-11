@@ -1887,7 +1887,7 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
     if (!title.trim() || !assignee || saving) return;
     setSaving(true);
     const assigneeEmp = byId[assignee];
-    const taskId = await onCreate({ title, assignee, dept: assigneeEmp.dept, supervisor: assigneeEmp.sup || createdBy, priority, status: "Backlog", due, progress: 0, category, recurring: recurring || null, recurringCustomDays: recurring === "Custom" ? Number(customDays) || 7 : null, createdBy, needsSignoff: true });
+    const taskId = await onCreate({ title, assignee, dept: assigneeEmp.dept, supervisor: assigneeEmp.sup || createdBy, priority, status: "To Do", due, progress: 0, category, recurring: recurring || null, recurringCustomDays: recurring === "Custom" ? Number(customDays) || 7 : null, createdBy, needsSignoff: true });
     if (taskId && file) await onAttach(taskId, file);
     setSaving(false);
     onClose();
