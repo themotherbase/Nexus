@@ -408,7 +408,23 @@ export default function App() {
         .select("*, subtasks(*), task_comments(*)")
         .order("due_date"));
     }
-    if (!error) setTasks((data || []).map(mapTask));
+    if (!error) {
+      const todayDate = today();
+      const backlogTasksToMove = (data || []).filter(task =>
+        !task.archived && task.status === "Backlog" && (!task.due_date || task.due_date >= todayDate)
+      );
+      if (backlogTasksToMove.length) {
+        const { data: updatedTasks, error: updateError } = await supabase.from("tasks")
+          .update({ status: "To Do" })
+          .in("id", backlogTasksToMove.map(task => task.id))
+          .select("id");
+        if (!updateError) {
+          const updatedIds = new Set((updatedTasks || []).map(task => task.id));
+          data = data.map(task => updatedIds.has(task.id) ? { ...task, status: "To Do" } : task);
+        }
+      }
+      setTasks((data || []).map(mapTask));
+    }
   };
   const refetchNotifications = async () => {
     const { data, error } = await supabase.from("notifications").select("*").order("created_at", { ascending: false });
@@ -1887,7 +1903,7 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
     if (!title.trim() || !assignee || saving) return;
     setSaving(true);
     const assigneeEmp = byId[assignee];
-    const taskId = await onCreate({ title, assignee, dept: assigneeEmp.dept, supervisor: assigneeEmp.sup || createdBy, priority, status: "To Do", due, progress: 0, category, recurring: recurring || null, recurringCustomDays: recurring === "Custom" ? Number(customDays) || 7 : null, createdBy, needsSignoff: true });
+    const taskId = await onCreate({ title, assignee, dept: assigneeEmp.dept, supervisor: assigneeEmp.sup || createdBy, priority, status: due < today() ? "Backlog" : "To Do", due, progress: 0, category, recurring: recurring || null, recurringCustomDays: recurring === "Custom" ? Number(customDays) || 7 : null, createdBy, needsSignoff: true });
     if (taskId && file) await onAttach(taskId, file);
     setSaving(false);
     onClose();
