@@ -332,7 +332,7 @@ function UserMenu({ viewerEmp, canEditOrg, onlineSelf }) {
   return (
     <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
       <button onClick={() => setOpen(v => !v)} style={{ display: "flex", alignItems: "center", gap: 7, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 20, padding: "4px 10px 4px 4px", cursor: "pointer" }}>
-        <Avatar name={viewerEmp.name} size={28} online={onlineSelf} />
+        <Avatar name={viewerEmp.name} size={28} color={deptById[viewerEmp.dept]?.color} online={onlineSelf} />
         <span className="mb-topnav-label" style={{ fontSize: 12.5, fontWeight: 600, color: "#fff", maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{viewerEmp.name.split(" ")[0]}</span>
         <ChevronDown size={13} color="#9CA3C4" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
       </button>
@@ -1456,7 +1456,7 @@ function GroupHolder({ group, onOpen, dark }) {
       style={{ display: "block", width: "100%", textAlign: "left", fontFamily: "inherit", color: C.ink, cursor: "pointer", background: dark ? "rgba(28, 33, 51, 0.78)" : "rgba(255, 255, 255, 0.78)", border: `1px solid ${dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.72)"}`, borderRadius: 12, padding: 12, marginBottom: 8, backdropFilter: "blur(12px) saturate(140%)",
         boxShadow: `0 4px 0 -1px ${C.card}, 0 5px 0 -1px ${C.line}, 0 9px 0 -3px ${C.card}, 0 10px 0 -3px ${C.line}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <Avatar name={group.name} size={34} online={onlineIds?.has(group.assignee)} />
+        <Avatar name={group.name} size={34} color={deptById[emp?.dept]?.color} online={onlineIds?.has(group.assignee)} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13.5, fontWeight: 700, ...ellipsis }}>{group.name}</div>
           <div style={{ fontSize: 11, color: C.slate, ...ellipsis }}>{emp?.position || "No assignee"}</div>
@@ -1491,7 +1491,7 @@ function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, r
   return (
     <ModalShell onClose={onClose} width={780}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, paddingRight: 44, marginBottom: 14, flexWrap: "wrap" }}>
-        <Avatar name={group.name} size={42} online={onlineIds?.has(assignee)} />
+        <Avatar name={group.name} size={42} color={deptById[byId[assignee]?.dept]?.color} online={onlineIds?.has(assignee)} />
         <div style={{ flex: 1, minWidth: 150 }}>
           <div className="mb-display" style={{ fontSize: 19, fontWeight: 600 }}>{group.name}</div>
           <div style={{ fontSize: 12, color: C.slate }}>
@@ -1604,7 +1604,7 @@ function TaskCard({ t, children, onOpen }) {
         <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10.5, fontWeight: 700, color: "#fff", background: flagColor, borderRadius: 20, padding: "3px 9px 3px 7px" }}>
           <Flag size={10} fill="#fff" strokeWidth={0} /> {flagLabel}
         </span>
-        <Avatar name={emp.name} size={24} online={onlineIds?.has(t.assignee)} />
+        <Avatar name={emp.name} size={24} color={deptById[emp.dept]?.color} online={onlineIds?.has(t.assignee)} />
       </div>
       {subtaskProgress && <div style={{ fontSize: 10.5, color: C.slate, marginTop: 7 }}>{subtaskProgress} subtasks</div>}
       {children}
