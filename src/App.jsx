@@ -53,6 +53,7 @@ const RESPONSIVE_CSS = `
     .mb-brand-sub { display: none !important; }
   }
   @media (max-width: 640px) {
+    .mb-header-inner { justify-content: space-between; padding-right: 12px !important; padding-left: 12px !important; }
     .mb-topnav { display: none !important; }
     .mb-mobile-nav { display: flex !important; }
     .mb-main { padding-bottom: calc(92px + env(safe-area-inset-bottom)) !important; }
@@ -350,7 +351,7 @@ function UserMenu({ viewerEmp, canEditOrg, onlineSelf }) {
         <ChevronDown size={13} color="#9CA3C4" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
       </button>
       {open && (
-        <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, width: 210, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 10, boxShadow: "0 10px 30px rgba(0,0,0,0.25)", zIndex: 120, color: C.ink }}>
+        <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, width: "min(210px, calc(100vw - 16px))", boxSizing: "border-box", background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 10, boxShadow: "0 10px 30px rgba(0,0,0,0.25)", zIndex: 120, color: C.ink }}>
           <div style={{ padding: "4px 8px 8px", borderBottom: `1px solid ${C.line}`, marginBottom: 6 }}>
             <div style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{viewerEmp.name}</div>
             <div style={{ fontSize: 11, color: C.slate }}>{ROLE_LABEL[viewerEmp.role]}</div>
@@ -684,7 +685,7 @@ export default function App() {
         <style>{FONT}{RESPONSIVE_CSS}</style>
 
         <header style={{ position: "sticky", top: 0, zIndex: 60, background: C.navy, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 18px" }}>
+          <div className="mb-header-inner" style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 18px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 9, flexShrink: 0 }}>
               <img
                 src={motherbaseBackground}
