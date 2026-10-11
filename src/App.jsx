@@ -34,15 +34,28 @@ const FONT = `
 const RESPONSIVE_CSS = `
   .mb-topnav::-webkit-scrollbar { display: none; }
   .mb-topnav { scrollbar-width: none; }
+  .mb-kanban-mobile { display: none; }
+  .mb-mobile-nav { display: none; }
   @media (max-width: 860px) {
     .mb-main { padding: 16px 14px 60px !important; }
     .mb-grid-2, .mb-grid-3, .mb-grid-4 { grid-template-columns: 1fr !important; }
+    .mb-kanban-desktop { display: none !important; }
+    .mb-kanban-mobile { display: block; }
+    .mb-page-header { gap: 12px; align-items: flex-start !important; flex-direction: column; }
+    .mb-page-actions { width: 100%; flex-wrap: wrap; }
+    .mb-task-toolbar { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+    .mb-task-toolbar > button { justify-content: center; padding-left: 6px !important; padding-right: 6px !important; }
     .mb-employee-task-column { border-left: none !important; padding-left: 0 !important; border-top: 1px solid var(--mb-control-border) !important; padding-top: 12px !important; }
     .mb-modal-overlay { padding: 16px 8px !important; }
     .mb-modal-card { padding: 18px !important; width: 100% !important; }
     .mb-hide-mobile { display: none !important; }
     .mb-topnav-label { display: none !important; }
     .mb-brand-sub { display: none !important; }
+  }
+  @media (max-width: 640px) {
+    .mb-topnav { display: none !important; }
+    .mb-mobile-nav { display: flex !important; }
+    .mb-main { padding-bottom: calc(92px + env(safe-area-inset-bottom)) !important; }
   }
 `;
 
@@ -717,6 +730,19 @@ export default function App() {
             </div>
           </div>
         </header>
+        <nav className="mb-mobile-nav" aria-label="Main navigation" style={{ position: "fixed", zIndex: 80, right: 0, bottom: 0, left: 0, alignItems: "stretch", justifyContent: "space-around", padding: "7px 6px calc(7px + env(safe-area-inset-bottom))", background: C.navy, borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+          {nav.map(n => {
+            const Icon = n.icon;
+            const active = page === n.id;
+            return (
+              <button key={n.id} type="button" aria-current={active ? "page" : undefined} onClick={() => setPage(n.id)}
+                style={{ display: "flex", flex: 1, minWidth: 0, flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, padding: "4px 2px", color: active ? C.amber : "#9CA3C4", background: "none", border: "none", fontFamily: "inherit", cursor: "pointer" }}>
+                <Icon size={18} strokeWidth={2} />
+                <span style={{ fontSize: 9, fontWeight: 700, whiteSpace: "nowrap" }}>{n.label}</span>
+              </button>
+            );
+          })}
+        </nav>
 
         <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         <main className="mb-main" style={{ flex: 1, minWidth: 0, padding: "26px 34px 60px", overflowY: "auto", backgroundColor: C.paper, backgroundImage: `linear-gradient(${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}, ${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}), url("${motherbaseBackground}")`, backgroundSize: "cover, min(1100px, 94vw) auto", backgroundPosition: "center, center 42%", backgroundRepeat: "no-repeat" }}>
@@ -1296,7 +1322,7 @@ function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTa
     <div style={{ position: "relative", minHeight: "calc(100vh - 112px)", overflow: "hidden", borderRadius: 16, padding: 18, margin: -8 }}>
       <div style={{ position: "relative", zIndex: 1 }}>
         <PageHeader eyebrow="Task Management" title="Tasks" actions={
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div className="mb-task-toolbar" style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <ToggleBtn active={taskView==="kanban"} onClick={()=>setTaskView("kanban")} icon={KanbanSquare} label="Kanban" />
             <ToggleBtn active={taskView==="list"} onClick={()=>setTaskView("list")} icon={Table2} label="List" />
             <ToggleBtn active={taskView==="calendar"} onClick={()=>setTaskView("calendar")} icon={CalendarDays} label="Calendar" />
@@ -1519,13 +1545,43 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
   const { byId } = useEmp();
   const [openGroup, setOpenGroup] = useState(null); // { col, assignee }
   const [showArchived, setShowArchived] = useState(false);
+  const [mobileStage, setMobileStage] = useState("To Do");
   const canManage = viewerEmp.role !== "employee";
   const sourceFor = (col) => (col === "Completed" && showArchived ? archivedTasks : tasks);
   const actions = (t) => <TaskCardActions t={t} viewerEmp={viewerEmp} setTaskStatus={setTaskStatus} onRepeat={onRepeat} onArchive={onArchive} />;
 
   return (
     <>
-      <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 8 }}>
+      <div className="mb-kanban-mobile" style={{ marginBottom: 14 }}>
+        <div role="tablist" aria-label="Task stages" style={{ display: "flex", gap: 8, overflowX: "auto", padding: "2px 2px 10px", scrollbarWidth: "none" }}>
+          {COLUMNS.map(col => {
+            const count = sourceFor(col).filter(t => t.status === col).length;
+            const selected = mobileStage === col;
+            return (
+              <button key={col} type="button" role="tab" aria-selected={selected} onClick={() => setMobileStage(col)}
+                style={{ display: "inline-flex", alignItems: "center", gap: 7, flex: "0 0 auto", minHeight: 42, padding: "7px 12px", borderRadius: 22, border: `1px solid ${selected ? stageColor(col) : C.line}`, background: selected ? stageColor(col) : C.card, color: selected ? "#fff" : C.ink, fontFamily: "inherit", fontSize: 12.5, fontWeight: 700, cursor: "pointer", boxShadow: selected ? `0 3px 10px ${stageColor(col)}40` : "none" }}>
+                {col === "For Review" ? "Review" : col}
+                <span style={{ minWidth: 20, height: 20, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 5px", borderRadius: 12, background: selected ? "rgba(255,255,255,0.2)" : C.paper, color: selected ? "#fff" : C.slate, fontSize: 10.5 }}>{count}</span>
+              </button>
+            );
+          })}
+        </div>
+        {mobileStage === "Completed" && canManage && (archivedTasks.length > 0 || showArchived) && (
+          <button type="button" onClick={() => setShowArchived(v => !v)}
+            style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", padding: "0 2px 10px", fontSize: 11.5, fontWeight: 600, color: C.slate, cursor: "pointer", fontFamily: "inherit" }}>
+            {showArchived ? <><ChevronLeft size={13} /> Back to completed</> : <><Archive size={12} /> Removed from board ({archivedTasks.length})</>}
+          </button>
+        )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {sourceFor(mobileStage).filter(t => t.status === mobileStage).map(t => (
+            <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)}>{actions(t)}</TaskCard>
+          ))}
+          {sourceFor(mobileStage).filter(t => t.status === mobileStage).length === 0 && (
+            <Empty text={showArchived && mobileStage === "Completed" ? "Nothing removed." : "No tasks in this stage."} />
+          )}
+        </div>
+      </div>
+      <div className="mb-kanban-desktop" style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 8 }}>
         {COLUMNS.map(col => {
           const items = sourceFor(col).filter(t => t.status === col);
           const groups = groupByAssignee(items, byId);
@@ -2157,7 +2213,7 @@ function SettingsPage({ isAdmin, dark, setDark, viewerEmp, completedTaskColor, d
    SHARED UI PRIMITIVES
 ----------------------------------------------------------------*/
 function PageHeader({ eyebrow, title, actions }) {
-  return <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 20 }}><div><div style={{ fontSize: 11.5, color: C.slate, fontWeight: 600, marginBottom: 3 }}>{eyebrow}</div><div className="mb-display" style={{ fontSize: 26, fontWeight: 600 }}>{title}</div></div>{actions}</div>;
+  return <div className="mb-page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 20 }}><div><div style={{ fontSize: 11.5, color: C.slate, fontWeight: 600, marginBottom: 3 }}>{eyebrow}</div><div className="mb-display" style={{ fontSize: 26, fontWeight: 600 }}>{title}</div></div>{actions && <div className="mb-page-actions" style={{ display: "flex", justifyContent: "flex-end" }}>{actions}</div>}</div>;
 }
 function StatCard({ label, value, sub, accent }) {
   return <div style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 12, padding: "14px 16px", backdropFilter: "blur(14px) saturate(140%)", boxShadow: "0 8px 22px rgba(22,30,55,0.09)" }}><div style={{ fontSize: 11.5, color: C.slate, marginBottom: 4 }}>{label}</div><div className="mb-display" style={{ fontSize: 26, fontWeight: 600, color: accent || C.ink }}>{value}</div><div style={{ fontSize: 11, color: C.slate, marginTop: 2 }}>{sub}</div></div>;
