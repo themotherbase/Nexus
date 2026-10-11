@@ -1174,7 +1174,7 @@ function EmployeesList({ setSelectedEmp, search, setSearch, tasks, onAdd }) {
           return (
             <div key={e.id} onClick={() => setSelectedEmp(e.id)} style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 12, padding: 16, cursor: "pointer", backdropFilter: "blur(14px) saturate(140%)", boxShadow: "0 8px 22px rgba(22,30,55,0.09)" }}>
               <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
-                <Avatar name={e.name} size={38} online={onlineIds.has(e.id)} />
+                <Avatar name={e.name} size={38} color={deptById[e.dept]?.color} online={onlineIds.has(e.id)} />
                 <div><div style={{ fontWeight: 600, fontSize: 14 }}>{e.name}</div><div style={{ fontSize: 12, color: C.slate }}>{e.position}</div></div>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1205,7 +1205,7 @@ function EmployeeModal({ empId, tasks, onClose, setSelectedEmp, onEdit }) {
       <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 24, alignItems: "start" }}>
         <div>
           <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 18 }}>
-            <Avatar name={emp.name} size={52} />
+            <Avatar name={emp.name} size={52} color={deptById[emp.dept]?.color} />
             <div style={{ flex: 1, minWidth: 0 }}><div className="mb-display" style={{ fontSize: 20, fontWeight: 600 }}>{emp.name}</div><div style={{ fontSize: 13, color: C.slate }}>{emp.position}</div></div>
             <DeptTag id={emp.dept} />
           </div>
@@ -2172,10 +2172,10 @@ function ToggleBtn({ active, onClick, icon: Icon, label }) {
 function SearchBar({ value, onChange, placeholder }) {
   return <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 10, padding: "8px 12px", marginBottom: 16, maxWidth: 420, backdropFilter: "blur(12px) saturate(140%)" }}><Search size={15} color={C.slate} /><input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ background: "transparent", color: C.ink, border: "none", outline: "none", fontSize: 13.5, flex: 1, fontFamily: "inherit" }} /></div>;
 }
-function Avatar({ name, size = 32, online }) {
+function Avatar({ name, size = 32, online, color = C.navySoft }) {
   return (
     <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
-      <div style={{ width: size, height: size, borderRadius: size, background: C.navySoft, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: size*0.36, fontWeight: 700 }}>{initials(name)}</div>
+      <div style={{ width: size, height: size, borderRadius: size, background: color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: size*0.36, fontWeight: 700 }}>{initials(name)}</div>
       {online && <span title="Online" style={{ position: "absolute", bottom: -1, right: -1, width: Math.max(8, size*0.28), height: Math.max(8, size*0.28), borderRadius: "50%", background: C.sage, border: `2px solid ${C.card}` }} />}
     </div>
   );
