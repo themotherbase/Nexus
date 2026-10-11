@@ -37,6 +37,7 @@ const RESPONSIVE_CSS = `
   @media (max-width: 860px) {
     .mb-main { padding: 16px 14px 60px !important; }
     .mb-grid-2, .mb-grid-3, .mb-grid-4 { grid-template-columns: 1fr !important; }
+    .mb-employee-task-column { border-left: none !important; padding-left: 0 !important; border-top: 1px solid var(--mb-control-border) !important; padding-top: 12px !important; }
     .mb-modal-overlay { padding: 16px 8px !important; }
     .mb-modal-card { padding: 18px !important; width: 100% !important; }
     .mb-hide-mobile { display: none !important; }
@@ -1192,39 +1193,67 @@ function EmployeeModal({ empId, tasks, onClose, setSelectedEmp, onEdit }) {
   const emp = byId[empId];
   if (!emp) return null;
   const myTasks = tasks.filter(t => t.assignee === emp.id);
+  const activeTasks = myTasks
+    .filter(t => t.status !== "Completed" && !t.archived)
+    .sort((a, b) => (a.due || "").localeCompare(b.due || ""));
   const stats = { total: myTasks.length, completed: myTasks.filter(t => t.status === "Completed").length, inProgress: myTasks.filter(t => t.status === "In Progress").length };
   const rate = stats.total ? Math.round((stats.completed/stats.total)*100) : 0;
   const reports = directReports(emp.id);
 
   return (
-    <ModalShell onClose={onClose} width={560}>
-      <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 18 }}>
-        <Avatar name={emp.name} size={52} />
-        <div style={{ flex: 1 }}><div className="mb-display" style={{ fontSize: 20, fontWeight: 600 }}>{emp.name}</div><div style={{ fontSize: 13, color: C.slate }}>{emp.position}</div></div>
-        <DeptTag id={emp.dept} />
-      </div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
-        <StatusPill status={emp.status} />
-        {emp.secondary && <span style={{ fontSize: 11, background: C.amberSoft, color: "#7A4E10", padding: "3px 9px", borderRadius: 20, fontWeight: 600 }}>{emp.secondary}</span>}
-        {canEditOrg && <button onClick={onEdit} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 600, color: C.navy, background: C.paper, border: "none", borderRadius: 20, padding: "3px 10px", cursor: "pointer" }}><Pencil size={12} /> Edit</button>}
-      </div>
-      <SectionLabel>Primary responsibilities</SectionLabel>
-      <ul style={{ margin: "6px 0 18px", paddingLeft: 18, fontSize: 13.5, lineHeight: 1.7 }}>{emp.resp.map((r,i) => <li key={i}>{r}</li>)}</ul>
-      <SectionLabel>Task statistics</SectionLabel>
-      <div className="mb-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, margin: "8px 0 18px" }}>
-        <MiniStat label="Total" value={stats.total} /><MiniStat label="Completed" value={stats.completed} /><MiniStat label="Completion" value={`${rate}%`} />
-      </div>
-      <SectionLabel>Reporting structure</SectionLabel>
-      <div style={{ fontSize: 13.5, margin: "8px 0 6px" }}>
-        Reports to: {emp.sup && byId[emp.sup] ? <b onClick={() => setSelectedEmp(emp.sup)} style={{cursor:"pointer", textDecoration:"underline"}}>{byId[emp.sup].name}</b> : <span style={{color:C.slate}}>— (top of org)</span>}
-      </div>
-      {reports.length > 0 && (
-        <div style={{ fontSize: 13.5 }}>Direct reports:
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
-            {reports.map(r => <span key={r.id} onClick={() => setSelectedEmp(r.id)} style={{ fontSize: 12, background: C.paper, padding: "4px 10px", borderRadius: 20, cursor: "pointer" }}>{r.name}</span>)}
+    <ModalShell onClose={onClose} width={900}>
+      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 24, alignItems: "start" }}>
+        <div>
+          <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 18 }}>
+            <Avatar name={emp.name} size={52} />
+            <div style={{ flex: 1, minWidth: 0 }}><div className="mb-display" style={{ fontSize: 20, fontWeight: 600 }}>{emp.name}</div><div style={{ fontSize: 13, color: C.slate }}>{emp.position}</div></div>
+            <DeptTag id={emp.dept} />
           </div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
+            <StatusPill status={emp.status} />
+            {emp.secondary && <span style={{ fontSize: 11, background: C.amberSoft, color: "#7A4E10", padding: "3px 9px", borderRadius: 20, fontWeight: 600 }}>{emp.secondary}</span>}
+            {canEditOrg && <button onClick={onEdit} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 600, color: C.navy, background: C.paper, border: "none", borderRadius: 20, padding: "3px 10px", cursor: "pointer" }}><Pencil size={12} /> Edit</button>}
+          </div>
+          <SectionLabel>Primary responsibilities</SectionLabel>
+          <ul style={{ margin: "6px 0 18px", paddingLeft: 18, fontSize: 13.5, lineHeight: 1.7 }}>{emp.resp.map((r,i) => <li key={i}>{r}</li>)}</ul>
+          <SectionLabel>Task statistics</SectionLabel>
+          <div className="mb-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, margin: "8px 0 18px" }}>
+            <MiniStat label="Total" value={stats.total} /><MiniStat label="Completed" value={stats.completed} /><MiniStat label="Completion" value={`${rate}%`} />
+          </div>
+          <SectionLabel>Reporting structure</SectionLabel>
+          <div style={{ fontSize: 13.5, margin: "8px 0 6px" }}>
+            Reports to: {emp.sup && byId[emp.sup] ? <b onClick={() => setSelectedEmp(emp.sup)} style={{cursor:"pointer", textDecoration:"underline"}}>{byId[emp.sup].name}</b> : <span style={{color:C.slate}}>— (top of org)</span>}
+          </div>
+          {reports.length > 0 && (
+            <div style={{ fontSize: 13.5 }}>Direct reports:
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                {reports.map(r => <span key={r.id} onClick={() => setSelectedEmp(r.id)} style={{ fontSize: 12, background: C.paper, padding: "4px 10px", borderRadius: 20, cursor: "pointer" }}>{r.name}</span>)}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+        <section className="mb-employee-task-column" style={{ minWidth: 0, borderLeft: `1px solid ${C.line}`, paddingLeft: 20 }}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+            <SectionLabel>Active tasks</SectionLabel>
+            <span style={{ fontSize: 11.5, color: C.slate }}>{activeTasks.length}</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8, maxHeight: "62vh", overflowY: "auto", paddingRight: 4 }}>
+            {activeTasks.length === 0 && <Empty text="No active tasks assigned." />}
+            {activeTasks.map(t => {
+              const meta = statusMeta(t);
+              return (
+                <div key={t.id} style={{ background: C.paper, border: `1px solid ${C.line}`, borderLeft: `3px solid ${stageColor(t.status)}`, borderRadius: 8, padding: "10px 12px" }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.4, overflowWrap: "anywhere" }}>{t.title}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6, fontSize: 11.5 }}>
+                    <span style={{ color: stageColor(t.status), fontWeight: 600 }}>{t.status}</span>
+                    <span style={{ color: meta.color, whiteSpace: "nowrap" }}>Due {t.due || "—"}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      </div>
     </ModalShell>
   );
 }
@@ -1768,7 +1797,7 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
           );
         })}
       </div>
-      <label style={{ display: "inline-block", fontSize: 12.5, fontWeight: 600, color: C.navy, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", marginBottom: 18 }}>
+      <label style={{ display: "inline-block", fontSize: 12.5, fontWeight: 600, color: C.white, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", marginBottom: 18 }}>
         {uploading ? "Uploading…" : "+ Attach a file"}
         <input type="file" disabled={uploading} style={{ display: "none" }} onChange={async (e) => { const f = e.target.files?.[0]; if (f) await uploadFile(f); e.target.value = ""; }} />
       </label>
