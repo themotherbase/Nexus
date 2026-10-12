@@ -1647,19 +1647,19 @@ function Chip({ children, color, bg }) {
   return <span style={{ fontSize: 10.5, fontWeight: 700, color, background: bg, borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>{children}</span>;
 }
 
-function TaskSelectButton({ checked, indeterminate = false, dark, label, onClick, className }) {
+function TaskSelectButton({ checked, indeterminate = false, dark, label, onClick, className, style }) {
   const active = checked || indeterminate;
   return (
     <button className={className} type="button" role="checkbox" aria-checked={indeterminate ? "mixed" : checked} aria-label={label}
       onClick={e => { e.stopPropagation(); onClick(); }}
-      style={{ width: 20, height: 20, flexShrink: 0, borderRadius: 6, border: `1px solid ${active ? "rgba(166, 144, 255, 0.9)" : dark ? "rgba(255,255,255,0.12)" : C.line}`, background: active ? "linear-gradient(180deg, #8a7aff, #6552d6)" : dark ? "rgba(255,255,255,0.02)" : C.paper, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", cursor: "pointer", padding: 0 }}>
+      style={{ width: 20, height: 20, flexShrink: 0, borderRadius: 6, border: `1px solid ${active ? "rgba(166, 144, 255, 0.9)" : dark ? "rgba(255,255,255,0.12)" : C.line}`, background: active ? "linear-gradient(180deg, #8a7aff, #6552d6)" : dark ? "rgba(255,255,255,0.02)" : C.paper, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", cursor: "pointer", padding: 0, ...style }}>
       {checked ? <Check size={12} /> : indeterminate ? <Minus size={12} /> : null}
     </button>
   );
 }
 
 // A stack-of-cards tile that stands for everything one person has in a column.
-function GroupHolder({ group, dark, checkedTaskIds, onToggleGroup, selectionMode, bulkUpdateTasks, canBulkEdit, children }) {
+function GroupHolder({ group, onOpen, dark, checkedTaskIds, onToggleGroup, selectionMode, bulkUpdateTasks, canBulkEdit }) {
   const { byId, onlineIds } = useEmp();
   const emp = byId[group.assignee];
   const overdue = group.cards.filter(t => statusMeta(t).label === "Overdue").length;
@@ -1667,6 +1667,8 @@ function GroupHolder({ group, dark, checkedTaskIds, onToggleGroup, selectionMode
   const checkedCount = group.cards.filter(t => checkedTaskIds.has(t.id)).length;
   const allChecked = checkedCount === group.cards.length;
   const selectedCards = group.cards.filter(task => checkedTaskIds.has(task.id));
+  const shownTasks = group.cards.slice(0, 2);
+  const moreCount = group.cards.length - shownTasks.length;
   const [moving, setMoving] = useState(false);
   const moveSelected = async (status) => {
     if (!status || !selectedCards.length || moving) return;
@@ -1677,32 +1679,82 @@ function GroupHolder({ group, dark, checkedTaskIds, onToggleGroup, selectionMode
     setMoving(false);
   };
   return (
-    <section className={`mb-group-select-wrap${selectionMode ? " is-selection-mode" : ""}${checkedCount ? " has-checked" : ""}`} style={{ position: "relative", paddingTop: 9, marginBottom: 8, borderTop: `1px solid ${dark ? "rgba(179, 154, 255, 0.16)" : C.line}` }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 9, minHeight: 38, padding: "0 4px" }}>
-        <Avatar name={group.name} size={28} color={deptById[emp?.dept]?.color} online={onlineIds?.has(group.assignee)} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 700, ...ellipsis }}>{group.name}</div>
-          <div style={{ fontSize: 10.5, color: C.slate, ...ellipsis }}>{emp?.position || "No assignee"}</div>
+    <div className={`mb-group-select-wrap${selectionMode ? " is-selection-mode" : ""}${checkedCount ? " has-checked" : ""}`} style={{ position: "relative", marginBottom: 8 }}>
+      <TaskSelectButton className="mb-group-select-control" checked={allChecked} indeterminate={checkedCount > 0 && !allChecked} dark={dark}
+        onClick={onToggleGroup} label={allChecked ? `Deselect all tasks for ${group.name}` : `Select all ${group.cards.length} tasks for ${group.name}`}
+        style={{ position: "absolute", zIndex: 3, top: 14, right: 14 }} />
+      <button type="button" onClick={onOpen} aria-label={`Open ${group.cards.length} tasks for ${group.name}`} style={{ display: "block", width: "100%", textAlign: "left", fontFamily: "inherit", color: C.ink, cursor: "pointer", background: dark ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))" : "var(--mb-glass-surface)", border: `1px solid ${checkedCount ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`, borderRadius: 16, padding: 12, paddingRight: canBulkEdit && checkedCount ? 170 : 42, backdropFilter: "blur(14px) saturate(140%)", boxShadow: checkedCount ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)" : dark ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)" : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Avatar name={group.name} size={34} color={deptById[emp?.dept]?.color} online={onlineIds?.has(group.assignee)} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, ...ellipsis }}>{group.name}</div>
+            <div style={{ fontSize: 11, color: C.slate, ...ellipsis }}>{emp?.position || "No assignee"}</div>
+          </div>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", background: C.navySoft, borderRadius: 20, padding: "2px 9px" }}>{checkedCount ? `${checkedCount}/${group.cards.length}` : group.cards.length}</span>
         </div>
-        {(overdue > 0 || high > 0) && <span style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-          {overdue > 0 && <Chip color={C.coral} bg={C.coralSoft}>{overdue} overdue</Chip>}
-          {high > 0 && <Chip color={C.coral} bg={C.coralSoft}>{high} high</Chip>}
-        </span>}
-        <span style={{ fontSize: 11, fontWeight: 700, color: checkedCount ? "#fff" : C.slate, background: checkedCount ? C.navySoft : "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 999, padding: "3px 8px" }}>{checkedCount ? `${checkedCount}/${group.cards.length}` : group.cards.length}</span>
-        <TaskSelectButton className="mb-group-select-control" checked={allChecked} indeterminate={checkedCount > 0 && !allChecked} dark={dark}
-          onClick={onToggleGroup} label={allChecked ? `Deselect all tasks for ${group.name}` : `Select all ${group.cards.length} tasks for ${group.name}`} />
-        {canBulkEdit && checkedCount > 0 && <select aria-label={`Move ${checkedCount} checked tasks for ${group.name}`} value="" disabled={moving} onChange={e => moveSelected(e.target.value)} style={{ ...inputStyle, width: "auto", maxWidth: 150, fontSize: 11.5, padding: "5px 6px" }}>
-          <option value="">{moving ? "Moving…" : "Move checked…"}</option>
+        <div style={{ marginTop: 10, borderTop: `1px solid ${C.line}`, paddingTop: 8 }}>
+          {shownTasks.map(task => <div key={task.id} style={{ fontSize: 12, color: C.slate, padding: "1px 0", ...ellipsis }}>• {task.title}</div>)}
+          {moreCount > 0 && <div style={{ fontSize: 11.5, color: C.slate, fontWeight: 600, paddingTop: 2 }}>+ {moreCount} more</div>}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8, gap: 6 }}>
+          <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {overdue > 0 && <Chip color={C.coral} bg={C.coralSoft}>{overdue} overdue</Chip>}
+            {high > 0 && <Chip color={C.coral} bg={C.coralSoft}>{high} high</Chip>}
+          </span>
+          <span style={{ display: "flex", alignItems: "center", fontSize: 11.5, fontWeight: 600, color: C.ink, whiteSpace: "nowrap" }}>View all <ChevronRight size={14} /></span>
+        </div>
+      </button>
+      {canBulkEdit && checkedCount > 0 && <select aria-label={`Move ${checkedCount} checked tasks for ${group.name}`} value="" disabled={moving} onClick={e => e.stopPropagation()} onChange={e => moveSelected(e.target.value)} style={{ position: "absolute", zIndex: 3, top: 9, right: 42, width: 116, ...inputStyle, fontSize: 10.5, padding: "4px 5px", background: C.card }}>
+        <option value="">{moving ? "Moving…" : "Move checked…"}</option>
+        {COLUMNS.map(stage => <option key={stage} value={stage}>{stage}</option>)}
+      </select>}
+    </div>
+  );
+}
+
+function GroupModal({ group, onClose, setTaskDetail, renderActions, dark, checkedTaskIds, onToggleChecked, selectionMode, bulkUpdateTasks, canBulkEdit }) {
+  const { byId, onlineIds } = useEmp();
+  const [moving, setMoving] = useState(false);
+  const selectedCards = group.cards.filter(task => checkedTaskIds.has(task.id));
+  const allChecked = selectedCards.length === group.cards.length;
+  const toggleAll = () => {
+    group.cards.filter(task => checkedTaskIds.has(task.id) === allChecked).forEach(task => onToggleChecked(task.id));
+  };
+  const moveSelected = async (status) => {
+    if (!status || !selectedCards.length || moving) return;
+    const patch = { status };
+    if (status === "Completed") patch.progress = 100;
+    setMoving(true);
+    await bulkUpdateTasks(selectedCards.map(task => task.id), patch);
+    setMoving(false);
+  };
+  return (
+    <ModalShell onClose={onClose} width={900}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, paddingRight: 44, marginBottom: 14, flexWrap: "wrap" }}>
+        <Avatar name={group.name} size={42} color={deptById[byId[group.assignee]?.dept]?.color} online={onlineIds?.has(group.assignee)} />
+        <div style={{ flex: 1, minWidth: 150 }}>
+          <div className="mb-display" style={{ fontSize: 19, fontWeight: 600 }}>{group.name}</div>
+          <div style={{ fontSize: 12, color: C.slate }}>{byId[group.assignee]?.position ? `${byId[group.assignee].position} · ` : ""}{group.cards.length} individual tasks</div>
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: C.slate, cursor: "pointer" }}>
+          <TaskSelectButton checked={allChecked} indeterminate={selectedCards.length > 0 && !allChecked} dark={dark} onClick={toggleAll} label={allChecked ? `Deselect all tasks for ${group.name}` : `Select all tasks for ${group.name}`} />
+          Select all
+        </label>
+        {canBulkEdit && selectedCards.length > 0 && <select aria-label={`Move ${selectedCards.length} checked tasks for ${group.name}`} value="" disabled={moving} onChange={e => moveSelected(e.target.value)} style={{ ...inputStyle, width: "auto", maxWidth: 170, fontSize: 12, padding: "7px 8px" }}>
+          <option value="">{moving ? "Moving…" : `Move ${selectedCards.length} checked to…`}</option>
           {COLUMNS.map(stage => <option key={stage} value={stage}>{stage}</option>)}
         </select>}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "8px 4px 4px" }}>{children}</div>
-    </section>
+      <div className="mb-group-task-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16, maxHeight: "70vh", overflowY: "auto", padding: 6 }}>
+        {group.cards.map(task => <TaskCard key={task.id} t={task} onOpen={() => setTaskDetail(task.id)} dark={dark} isChecked={checkedTaskIds.has(task.id)} onToggleChecked={() => onToggleChecked(task.id)} selectionMode={selectionMode}>{renderActions(task)}</TaskCard>)}
+      </div>
+    </ModalShell>
   );
 }
 
 function KanbanView({ tasks, archivedTasks = [], setTaskStatus, bulkUpdateTasks, viewerEmp, setTaskDetail, onRepeat, onArchive, dark, checkedTaskIds, onToggleChecked, selectionMode }) {
   const { byId } = useEmp();
+  const [openGroup, setOpenGroup] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
   const [mobileStage, setMobileStage] = useState("To Do");
   const canManage = viewerEmp.role !== "employee";
@@ -1712,6 +1764,9 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, bulkUpdateTasks,
     const allChecked = group.cards.every(task => checkedTaskIds.has(task.id));
     group.cards.filter(task => checkedTaskIds.has(task.id) === allChecked).forEach(task => onToggleChecked(task.id));
   };
+  const openGroupData = openGroup && groupByAssignee(sourceFor(openGroup.col).filter(task => task.status === openGroup.col), byId)
+    .find(group => group.assignee === openGroup.assignee);
+  useEffect(() => { if (openGroup && !openGroupData) setOpenGroup(null); }, [openGroup, openGroupData]);
   return (
     <>
       <div className="mb-kanban-mobile" style={{ marginBottom: 14 }}>
@@ -1777,9 +1832,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, bulkUpdateTasks,
                         <div style={{ fontSize: 12, color: C.slate, padding: "10px 4px" }}>{archivedView ? "Nothing removed." : "No tasks."}</div>
                       ) : (
                         laneGroups.map(g => g.cards.length > 1 ? (
-                          <GroupHolder key={`g-${col}-${laneIndex}-${g.assignee}`} group={g} dark={dark} checkedTaskIds={checkedTaskIds} selectionMode={selectionMode} onToggleGroup={() => toggleGroup(g)} bulkUpdateTasks={bulkUpdateTasks} canBulkEdit={canManage}>
-                            {g.cards.map(task => <TaskCard key={task.id} t={task} onOpen={() => setTaskDetail(task.id)} dark={dark} isChecked={checkedTaskIds.has(task.id)} onToggleChecked={() => onToggleChecked(task.id)} selectionMode={selectionMode}>{actions(task)}</TaskCard>)}
-                          </GroupHolder>
+                          <GroupHolder key={`g-${col}-${laneIndex}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} dark={dark} checkedTaskIds={checkedTaskIds} selectionMode={selectionMode} onToggleGroup={() => toggleGroup(g)} bulkUpdateTasks={bulkUpdateTasks} canBulkEdit={canManage} />
                         ) : (
                           <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)} dark={dark} isChecked={checkedTaskIds.has(g.cards[0].id)} onToggleChecked={() => onToggleChecked(g.cards[0].id)} selectionMode={selectionMode}>{actions(g.cards[0])}</TaskCard>
                         ))
@@ -1792,6 +1845,11 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, bulkUpdateTasks,
           );
         })}
       </div>
+      {openGroupData && (
+        <GroupModal group={openGroupData}
+          onClose={() => setOpenGroup(null)} setTaskDetail={setTaskDetail} renderActions={actions} dark={dark} checkedTaskIds={checkedTaskIds}
+          onToggleChecked={onToggleChecked} selectionMode={selectionMode} bulkUpdateTasks={bulkUpdateTasks} canBulkEdit={canManage} />
+      )}
     </>
   );
 }
