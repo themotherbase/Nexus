@@ -132,7 +132,6 @@ const mapTask = (row) => ({
   id: row.id, title: row.title, description: row.description, dept: row.dept_id,
   assignee: row.assignee_id, supervisor: row.supervisor_id, backup: row.backup_id,
   priority: row.priority, status: row.status, progress: row.progress, category: row.category,
-  createdAt: row.created_at || null,
   updatedAt: row.completed_at || row.updated_at || null,
   recurring: row.recurring, recurringCustomDays: row.recurring_custom_days, due: row.due_date, needsSignoff: row.needs_signoff, createdBy: row.created_by, archived: !!row.archived,
   // Everyone on the task, lead first. The lead (assignee_id) is always included even if the
@@ -156,19 +155,6 @@ const taskProgress = (task) => {
   const subtasks = task.subtasks || [];
   if (subtasks.length) return Math.round((subtasks.filter(subtask => subtask.done).length / subtasks.length) * 100);
   return Math.max(0, Math.min(100, Number(task.progress) || 0));
-};
-
-const NEW_TASK_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
-const isRecentlyCreatedTask = (task) => {
-  const createdAt = Date.parse(task.createdAt || "");
-  const age = Date.now() - createdAt;
-  return Number.isFinite(createdAt) && age >= 0 && age <= NEW_TASK_WINDOW_MS;
-};
-const isRecentlyCompletedTask = (task, completionTimes) => {
-  if (task.status !== "Completed") return false;
-  const completedAt = Date.parse(completionTimes[task.id] || task.updatedAt || "");
-  const age = Date.now() - completedAt;
-  return Number.isFinite(completedAt) && age >= 0 && age <= NEW_TASK_WINDOW_MS;
 };
 
 const EmpContext = createContext(null);
@@ -428,7 +414,6 @@ export default function App() {
   const [showAddTask, setShowAddTask] = useState(false);
   const [repeatTask, setRepeatTask] = useState(null);
   const [taskDetail, setTaskDetail] = useState(null);
-  const [taskReadState, setTaskReadState] = useState({ employeeId: null, ids: new Set() });
   const [completionTimes, setCompletionTimes] = useState(() => {
     try { return JSON.parse(localStorage.getItem("mb-task-completion-times") || "{}"); } catch { return {}; }
   });
@@ -508,65 +493,6 @@ export default function App() {
   const byId = useMemo(() => Object.fromEntries(employees.map(e => [e.id, e])), [employees]);
   const directReports = (id) => employees.filter(e => e.sup === id);
   const me = useMemo(() => employees.find(e => e.email === session?.user?.email), [employees, session]);
-  useEffect(() => {
-    if (!me || !session?.user?.id) return;
-    let active = true;
-    const loadTaskReads = async () => {
-      const savedIds = new Set();
-      try {
-        const saved = JSON.parse(localStorage.getItem(`mb-read-tasks-${me.id}`) || "[]");
-        if (Array.isArray(saved)) saved.forEach(id => savedIds.add(String(id)));
-      } catch {}
-      try {
-        const { data, error } = await supabase.from("task_reads").select("task_id").eq("user_id", session.user.id);
-        if (!error) (data || []).forEach(row => savedIds.add(String(row.task_id)));
-      } catch {}
-      if (!active) return;
-      setTaskReadState(previous => {
-        const ids = new Set(savedIds);
-        if (previous.employeeId === me.id) previous.ids.forEach(id => ids.add(String(id)));
-        return { employeeId: me.id, ids };
-      });
-    };
-    loadTaskReads();
-    return () => { active = false; };
-  }, [me?.id, session?.user?.id]);
-  useEffect(() => {
-    if (!me || taskReadState.employeeId !== me.id) return;
-    const ids = Array.from(taskReadState.ids, String);
-    try {
-      localStorage.setItem(`mb-read-tasks-${me.id}`, JSON.stringify(ids));
-    } catch {}
-    if (!session?.user?.id || !ids.length) return;
-    const rows = ids.map(task_id => ({ user_id: session.user.id, task_id: Number(task_id) }));
-    const persistTaskReads = async () => {
-      try { await supabase.from("task_reads").upsert(rows, { onConflict: "user_id,task_id" }); } catch {}
-    };
-    persistTaskReads();
-  }, [me?.id, session?.user?.id, taskReadState]);
-  useEffect(() => {
-    if (!me || taskDetail == null) return;
-    setTaskReadState(previous => {
-      let ids = previous.employeeId === me.id ? previous.ids : new Set();
-      if (previous.employeeId !== me.id) {
-        try {
-          const saved = JSON.parse(localStorage.getItem(`mb-read-tasks-${me.id}`) || "[]");
-          if (Array.isArray(saved)) ids = new Set(saved.map(String));
-        } catch {}
-      }
-      const taskId = String(taskDetail);
-      if (previous.employeeId === me.id && ids.has(taskId)) return previous;
-      const next = new Set(ids);
-      next.add(taskId);
-      return { employeeId: me.id, ids: next };
-    });
-  }, [taskDetail, me?.id]);
-  const unreadTaskIds = useMemo(() => {
-    if (!me || taskReadState.employeeId !== me.id) return new Set();
-    return new Set(tasks
-      .filter(task => (task.recurring || isRecentlyCreatedTask(task) || isRecentlyCompletedTask(task, completionTimes)) && !taskReadState.ids.has(String(task.id)))
-      .map(task => task.id));
-  }, [completionTimes, me?.id, taskReadState, tasks]);
   const defaultCompletedTaskColor = me?.name.trim().toLowerCase() === "maria cortez" ? "#7C3AED" : C.sage;
   const completedTaskColor = completedTaskColorPref?.employeeId === me?.id && completedTaskColorPref?.color
     ? completedTaskColorPref.color
@@ -954,7 +880,7 @@ export default function App() {
 
         <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         <main className="mb-main" style={{ flex: 1, minWidth: 0, padding: "26px 34px 60px", overflowY: "auto", backgroundColor: C.paper, backgroundImage: `linear-gradient(${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}, ${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}), url("${motherbaseBackground}")`, backgroundSize: "cover, min(1100px, 94vw) auto", backgroundPosition: "center, center 42%", backgroundRepeat: "no-repeat" }}>
-          {page === "dashboard" && <Dashboard tasks={tasks} completionTimes={completionTimes} unreadTaskIds={unreadTaskIds} viewerEmp={viewerEmp} isManager={isManager} isExec={isExec} setPage={setPage} setTaskDetail={setTaskDetail} />}
+          {page === "dashboard" && <Dashboard tasks={tasks} completionTimes={completionTimes} viewerEmp={viewerEmp} isManager={isManager} isExec={isExec} setPage={setPage} setTaskDetail={setTaskDetail} />}
           {page === "organization" && (
             <Organization orgView={orgView} setOrgView={setOrgView} setSelectedEmp={setSelectedEmp}
               search={search} setSearch={setSearch} onAdd={() => setEditingEmp(null)} onEdit={setEditingEmp} />
@@ -966,7 +892,7 @@ export default function App() {
             <Tasks tasks={boardTasks} archivedTasks={archivedTasks} reportTasks={visibleTasks} dark={dark}
               taskView={taskView} setTaskView={setTaskView}
               setTaskStatus={setTaskStatus} bulkUpdateTasks={bulkUpdateTasks} viewerEmp={viewerEmp}
-              canCreate={isManager} setShowAddTask={setShowAddTask} setTaskDetail={setTaskDetail} unreadTaskIds={unreadTaskIds}
+              canCreate={isManager} setShowAddTask={setShowAddTask} setTaskDetail={setTaskDetail}
               onRepeat={setRepeatTask} onArchive={archiveTask} />
           )}
           {page === "notifications" && <Notifications tasks={boardTasks} byId={byId} notifications={notifications} onMarkRead={markNotificationRead} setPage={setPage} setTaskDetail={setTaskDetail} />}
@@ -1018,7 +944,7 @@ function FullScreenMsg({ text }) {
 /* ---------------------------------------------------------------
    DASHBOARD
 ----------------------------------------------------------------*/
-function Dashboard({ tasks, completionTimes = {}, unreadTaskIds, viewerEmp, isManager, isExec, setPage, setTaskDetail }) {
+function Dashboard({ tasks, completionTimes = {}, viewerEmp, isManager, isExec, setPage, setTaskDetail }) {
   const { employees, directReports, onlineIds } = useEmp();
   const goToTask = (id) => { setTaskDetail(id); setPage("tasks"); };
   const scoped = isExec ? tasks : isManager
@@ -1065,9 +991,9 @@ function Dashboard({ tasks, completionTimes = {}, unreadTaskIds, viewerEmp, isMa
 
       <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: isExec ? "1.3fr 1fr" : "1fr", gap: 18 }}>
         <Panel title="Management alerts">
-          <AlertRow icon={CircleAlert} color={C.coral} label="Overdue" items={overdue} unreadTaskIds={unreadTaskIds} onOpen={goToTask} />
-          <AlertRow icon={Clock} color={C.amber} label="Due today" items={dueToday} unreadTaskIds={unreadTaskIds} onOpen={goToTask} />
-          <AlertRow icon={CheckCircle2} color={C.completed} label="Recently completed" items={recentCompleted} unreadTaskIds={unreadTaskIds} onOpen={goToTask} />
+          <AlertRow icon={CircleAlert} color={C.coral} label="Overdue" items={overdue} onOpen={goToTask} />
+          <AlertRow icon={Clock} color={C.amber} label="Due today" items={dueToday} onOpen={goToTask} />
+          <AlertRow icon={CheckCircle2} color={C.completed} label="Recently completed" items={recentCompleted} onOpen={goToTask} />
         </Panel>
 
         {isExec && (
@@ -1126,7 +1052,7 @@ function Dashboard({ tasks, completionTimes = {}, unreadTaskIds, viewerEmp, isMa
   );
 }
 
-function AlertRow({ icon: Icon, color, label, items, unreadTaskIds, onOpen }) {
+function AlertRow({ icon: Icon, color, label, items, onOpen }) {
   const { byId } = useEmp();
   return (
     <div style={{ marginBottom: 14 }}>
@@ -1138,7 +1064,7 @@ function AlertRow({ icon: Icon, color, label, items, unreadTaskIds, onOpen }) {
       {items.length === 0 ? (
         <div style={{ fontSize: 12.5, color: C.slate, paddingLeft: 21 }}>None right now.</div>
       ) : items.slice(0,4).map(t => (
-        <div key={t.id} onClick={() => onOpen?.(t.id)} style={{ fontSize: 13, padding: "3px 0 3px 21px", color: C.ink, cursor: onOpen ? "pointer" : "default", borderLeft: `3px solid ${unreadTaskIds.has(t.id) ? C.amber : "transparent"}`, background: unreadTaskIds.has(t.id) ? "rgba(221, 154, 52, 0.08)" : "transparent", borderRadius: 4 }}>
+        <div key={t.id} onClick={() => onOpen?.(t.id)} style={{ fontSize: 13, padding: "3px 0 3px 21px", color: C.ink, cursor: onOpen ? "pointer" : "default" }}>
           {t.title} <span style={{ color: C.slate }}>— {byId[t.assignee]?.name || "Unassigned"}</span>
         </div>
       ))}
@@ -1532,7 +1458,7 @@ function exportTaskReport(employees, tasks) {
   URL.revokeObjectURL(url);
 }
 
-function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTaskStatus, bulkUpdateTasks, viewerEmp, canCreate, setShowAddTask, setTaskDetail, unreadTaskIds, onRepeat, onArchive, dark }) {
+function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTaskStatus, bulkUpdateTasks, viewerEmp, canCreate, setShowAddTask, setTaskDetail, onRepeat, onArchive, dark }) {
   const { employees } = useEmp();
   const [deptFilter, setDeptFilter] = useState("all");
   const [showBulkEdit, setShowBulkEdit] = useState(false);
@@ -1586,9 +1512,9 @@ function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTa
           </div>
         </div>
         {!canCreate && <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 14 }}>Viewing as {viewerEmp.name} ({ROLE_LABEL[viewerEmp.role]}) — you can update status and progress on your own tasks. Completion needs your supervisor's sign-off.</div>}
-        {taskView === "kanban" && <KanbanView tasks={boardTasks} archivedTasks={archivedTasks} setTaskStatus={setTaskStatus} bulkUpdateTasks={bulkUpdateTasks} viewerEmp={viewerEmp} setTaskDetail={setTaskDetail} onRepeat={onRepeat} onArchive={onArchive} dark={dark} checkedTaskIds={checkedTaskIds} unreadTaskIds={unreadTaskIds} onToggleChecked={toggleCheckedTask} selectionMode={selectionMode} />}
-        {taskView === "list" && <ListView tasks={boardTasks} setTaskDetail={setTaskDetail} dark={dark} checkedTaskIds={checkedTaskIds} unreadTaskIds={unreadTaskIds} onToggleChecked={toggleCheckedTask} />}
-        {taskView === "calendar" && <CalendarView tasks={boardTasks} setTaskDetail={setTaskDetail} dark={dark} checkedTaskIds={checkedTaskIds} unreadTaskIds={unreadTaskIds} onToggleChecked={toggleCheckedTask} />}
+        {taskView === "kanban" && <KanbanView tasks={boardTasks} archivedTasks={archivedTasks} setTaskStatus={setTaskStatus} bulkUpdateTasks={bulkUpdateTasks} viewerEmp={viewerEmp} setTaskDetail={setTaskDetail} onRepeat={onRepeat} onArchive={onArchive} dark={dark} checkedTaskIds={checkedTaskIds} onToggleChecked={toggleCheckedTask} selectionMode={selectionMode} />}
+        {taskView === "list" && <ListView tasks={boardTasks} setTaskDetail={setTaskDetail} dark={dark} checkedTaskIds={checkedTaskIds} onToggleChecked={toggleCheckedTask} />}
+        {taskView === "calendar" && <CalendarView tasks={boardTasks} setTaskDetail={setTaskDetail} dark={dark} checkedTaskIds={checkedTaskIds} onToggleChecked={toggleCheckedTask} />}
         {showBulkEdit && <BulkEditModal tasks={checkedTasks} checkedTaskIds={checkedTaskIds} onToggleChecked={toggleCheckedTask} onClose={() => setShowBulkEdit(false)} onApply={bulkUpdateTasks} />}
       </div>
     </div>
@@ -1733,13 +1659,12 @@ function TaskSelectButton({ checked, indeterminate = false, dark, label, onClick
 }
 
 // A stack-of-cards tile that stands for everything one person has in a column.
-function GroupHolder({ group, onOpen, dark, checkedTaskIds, unreadTaskIds, onToggleGroup, selectionMode, bulkUpdateTasks, canBulkEdit }) {
+function GroupHolder({ group, onOpen, dark, checkedTaskIds, onToggleGroup, selectionMode, bulkUpdateTasks, canBulkEdit }) {
   const { byId, onlineIds } = useEmp();
   const emp = byId[group.assignee];
   const overdue = group.cards.filter(t => statusMeta(t).label === "Overdue").length;
   const high = group.cards.filter(t => t.priority === "High" && t.status !== "Completed").length;
   const checkedCount = group.cards.filter(t => checkedTaskIds.has(t.id)).length;
-  const hasUnread = group.cards.some(task => unreadTaskIds.has(task.id));
   const allChecked = checkedCount === group.cards.length;
   const selectedCards = group.cards.filter(task => checkedTaskIds.has(task.id));
   const shownTasks = group.cards.slice(0, 2);
@@ -1758,7 +1683,7 @@ function GroupHolder({ group, onOpen, dark, checkedTaskIds, unreadTaskIds, onTog
       <TaskSelectButton className="mb-group-select-control" checked={allChecked} indeterminate={checkedCount > 0 && !allChecked} dark={dark}
         onClick={onToggleGroup} label={allChecked ? `Deselect all tasks for ${group.name}` : `Select all ${group.cards.length} tasks for ${group.name}`}
         style={{ position: "absolute", zIndex: 3, top: 14, right: 14 }} />
-      <button type="button" onClick={onOpen} aria-label={`Open ${group.cards.length} tasks for ${group.name}`} style={{ display: "block", width: "100%", textAlign: "left", fontFamily: "inherit", color: C.ink, cursor: "pointer", background: dark ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))" : "var(--mb-glass-surface)", border: `1px solid ${checkedCount ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`, borderRadius: 16, padding: 12, paddingRight: canBulkEdit && checkedCount ? 170 : 42, backdropFilter: "blur(14px) saturate(140%)", boxShadow: `${hasUnread ? `inset 4px 0 0 ${C.amber}, ` : ""}${checkedCount ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)" : dark ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)" : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)"}` }}>
+      <button type="button" onClick={onOpen} aria-label={`Open ${group.cards.length} tasks for ${group.name}`} style={{ display: "block", width: "100%", textAlign: "left", fontFamily: "inherit", color: C.ink, cursor: "pointer", background: dark ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))" : "var(--mb-glass-surface)", border: `1px solid ${checkedCount ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`, borderRadius: 16, padding: 12, paddingRight: canBulkEdit && checkedCount ? 170 : 42, backdropFilter: "blur(14px) saturate(140%)", boxShadow: checkedCount ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)" : dark ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)" : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Avatar name={group.name} size={34} color={deptById[emp?.dept]?.color} online={onlineIds?.has(group.assignee)} />
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -1787,7 +1712,7 @@ function GroupHolder({ group, onOpen, dark, checkedTaskIds, unreadTaskIds, onTog
   );
 }
 
-function GroupModal({ group, onClose, setTaskDetail, renderActions, dark, checkedTaskIds, unreadTaskIds, onToggleChecked, selectionMode, bulkUpdateTasks, canBulkEdit }) {
+function GroupModal({ group, onClose, setTaskDetail, renderActions, dark, checkedTaskIds, onToggleChecked, selectionMode, bulkUpdateTasks, canBulkEdit }) {
   const { byId, onlineIds } = useEmp();
   const [moving, setMoving] = useState(false);
   const selectedCards = group.cards.filter(task => checkedTaskIds.has(task.id));
@@ -1821,13 +1746,13 @@ function GroupModal({ group, onClose, setTaskDetail, renderActions, dark, checke
         </select>}
       </div>
       <div className="mb-group-task-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16, maxHeight: "70vh", overflowY: "auto", padding: 6 }}>
-        {group.cards.map(task => <TaskCard key={task.id} t={task} onOpen={() => setTaskDetail(task.id)} dark={dark} isChecked={checkedTaskIds.has(task.id)} isUnread={unreadTaskIds.has(task.id)} onToggleChecked={() => onToggleChecked(task.id)} selectionMode={selectionMode}>{renderActions(task)}</TaskCard>)}
+        {group.cards.map(task => <TaskCard key={task.id} t={task} onOpen={() => setTaskDetail(task.id)} dark={dark} isChecked={checkedTaskIds.has(task.id)} onToggleChecked={() => onToggleChecked(task.id)} selectionMode={selectionMode}>{renderActions(task)}</TaskCard>)}
       </div>
     </ModalShell>
   );
 }
 
-function KanbanView({ tasks, archivedTasks = [], setTaskStatus, bulkUpdateTasks, viewerEmp, setTaskDetail, onRepeat, onArchive, dark, checkedTaskIds, unreadTaskIds, onToggleChecked, selectionMode }) {
+function KanbanView({ tasks, archivedTasks = [], setTaskStatus, bulkUpdateTasks, viewerEmp, setTaskDetail, onRepeat, onArchive, dark, checkedTaskIds, onToggleChecked, selectionMode }) {
   const { byId } = useEmp();
   const [openGroup, setOpenGroup] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
@@ -1866,7 +1791,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, bulkUpdateTasks,
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {sourceFor(mobileStage).filter(t => t.status === mobileStage).map(t => (
-            <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)} dark={dark} isChecked={checkedTaskIds.has(t.id)} isUnread={unreadTaskIds.has(t.id)} onToggleChecked={() => onToggleChecked(t.id)} selectionMode={selectionMode}>{actions(t)}</TaskCard>
+            <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)} dark={dark} isChecked={checkedTaskIds.has(t.id)} onToggleChecked={() => onToggleChecked(t.id)} selectionMode={selectionMode}>{actions(t)}</TaskCard>
           ))}
           {sourceFor(mobileStage).filter(t => t.status === mobileStage).length === 0 && (
             <Empty text={showArchived && mobileStage === "Completed" ? "Nothing removed." : "No tasks in this stage."} />
@@ -1907,9 +1832,9 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, bulkUpdateTasks,
                         <div style={{ fontSize: 12, color: C.slate, padding: "10px 4px" }}>{archivedView ? "Nothing removed." : "No tasks."}</div>
                       ) : (
                         laneGroups.map(g => g.cards.length > 1 ? (
-                          <GroupHolder key={`g-${col}-${laneIndex}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} dark={dark} checkedTaskIds={checkedTaskIds} unreadTaskIds={unreadTaskIds} selectionMode={selectionMode} onToggleGroup={() => toggleGroup(g)} bulkUpdateTasks={bulkUpdateTasks} canBulkEdit={canManage} />
+                          <GroupHolder key={`g-${col}-${laneIndex}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} dark={dark} checkedTaskIds={checkedTaskIds} selectionMode={selectionMode} onToggleGroup={() => toggleGroup(g)} bulkUpdateTasks={bulkUpdateTasks} canBulkEdit={canManage} />
                         ) : (
-                          <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)} dark={dark} isChecked={checkedTaskIds.has(g.cards[0].id)} isUnread={unreadTaskIds.has(g.cards[0].id)} onToggleChecked={() => onToggleChecked(g.cards[0].id)} selectionMode={selectionMode}>{actions(g.cards[0])}</TaskCard>
+                          <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)} dark={dark} isChecked={checkedTaskIds.has(g.cards[0].id)} onToggleChecked={() => onToggleChecked(g.cards[0].id)} selectionMode={selectionMode}>{actions(g.cards[0])}</TaskCard>
                         ))
                       )}
                     </div>
@@ -1922,7 +1847,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, bulkUpdateTasks,
       </div>
       {openGroupData && (
         <GroupModal group={openGroupData}
-          onClose={() => setOpenGroup(null)} setTaskDetail={setTaskDetail} renderActions={actions} dark={dark} checkedTaskIds={checkedTaskIds} unreadTaskIds={unreadTaskIds}
+          onClose={() => setOpenGroup(null)} setTaskDetail={setTaskDetail} renderActions={actions} dark={dark} checkedTaskIds={checkedTaskIds}
           onToggleChecked={onToggleChecked} selectionMode={selectionMode} bulkUpdateTasks={bulkUpdateTasks} canBulkEdit={canManage} />
       )}
     </>
@@ -1957,7 +1882,7 @@ function priorityFlagColor(t) {
   return C.blue; // Low
 }
 
-function TaskCard({ t, children, onOpen, dark, isChecked = false, isUnread = false, onToggleChecked, selectionMode = false }) {
+function TaskCard({ t, children, onOpen, dark, isChecked = false, onToggleChecked, selectionMode = false }) {
   const { byId, onlineIds } = useEmp();
   const meta = statusMeta(t);
   const emp = byId[t.assignee] || { name: "Unassigned" };
@@ -1966,7 +1891,7 @@ function TaskCard({ t, children, onOpen, dark, isChecked = false, isUnread = fal
   const flagColor = priorityFlagColor(t);
   const flagLabel = t.status === "Completed" ? "Completed" : t.priority;
   return (
-    <div className={`mb-task-card${isChecked ? " is-checked" : ""}${selectionMode ? " is-selection-mode" : ""}`} onClick={onOpen} style={{ background: dark ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))" : "var(--mb-glass-surface)", border: `1px solid ${isChecked ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`, borderRadius: 16, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(14px) saturate(140%)", boxShadow: `${isUnread ? `inset 4px 0 0 ${C.amber}, ` : ""}${isChecked ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)" : dark ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)" : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)"}` }}>
+    <div className={`mb-task-card${isChecked ? " is-checked" : ""}${selectionMode ? " is-selection-mode" : ""}`} onClick={onOpen} style={{ background: dark ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))" : "var(--mb-glass-surface)", border: `1px solid ${isChecked ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`, borderRadius: 16, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(14px) saturate(140%)", boxShadow: isChecked ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)" : dark ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)" : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
         {onToggleChecked ? <TaskSelectButton className="mb-task-select-control" checked={isChecked} dark={dark}
           onClick={onToggleChecked} label={isChecked ? "Uncheck task" : "Check task"} /> : <span style={{ width: 20, height: 20 }} />}
@@ -1995,7 +1920,7 @@ function TaskCard({ t, children, onOpen, dark, isChecked = false, isUnread = fal
   );
 }
 
-function ListView({ tasks, setTaskDetail, dark, checkedTaskIds, unreadTaskIds, onToggleChecked }) {
+function ListView({ tasks, setTaskDetail, dark, checkedTaskIds, onToggleChecked }) {
   const { byId } = useEmp();
   return (
     <div style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 16, overflow: "hidden", boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)" }}>
@@ -2005,11 +1930,9 @@ function ListView({ tasks, setTaskDetail, dark, checkedTaskIds, unreadTaskIds, o
         <tbody>
           {tasks.map(t => {
             const meta = statusMeta(t);
-            const isChecked = checkedTaskIds.has(t.id);
-            const isUnread = unreadTaskIds.has(t.id);
             return (
-              <tr key={t.id} className={`mb-task-row${isChecked ? " is-checked" : ""}`} onClick={() => setTaskDetail(t.id)} style={{ borderTop: `1px solid ${C.line}`, cursor: "pointer", background: isChecked ? "rgba(132, 108, 220, 0.08)" : isUnread ? "rgba(221, 154, 52, 0.08)" : "transparent" }}>
-                <td style={{ padding: "8px 10px", borderLeft: `3px solid ${isUnread ? C.amber : "transparent"}` }}><input className="mb-task-select-control" type="checkbox" checked={isChecked} onClick={e => e.stopPropagation()} onChange={() => onToggleChecked(t.id)} aria-label={`Select ${t.title} for bulk edit`} /></td>
+              <tr key={t.id} className={`mb-task-row${checkedTaskIds.has(t.id) ? " is-checked" : ""}`} onClick={() => setTaskDetail(t.id)} style={{ borderTop: `1px solid ${C.line}`, cursor: "pointer", background: checkedTaskIds.has(t.id) ? "rgba(132, 108, 220, 0.08)" : "transparent" }}>
+                <td style={{ padding: "8px 10px" }}><input className="mb-task-select-control" type="checkbox" checked={checkedTaskIds.has(t.id)} onClick={e => e.stopPropagation()} onChange={() => onToggleChecked(t.id)} aria-label={`Select ${t.title} for bulk edit`} /></td>
                 <td style={{ padding: "10px 16px", fontWeight: 600 }}>{t.title}</td>
                 <td style={{ padding: "10px 16px" }}>{byId[t.assignee]?.name || "Unassigned"}</td>
                 <td style={{ padding: "10px 16px" }}><DeptTag id={t.dept} /></td>
@@ -2026,7 +1949,7 @@ function ListView({ tasks, setTaskDetail, dark, checkedTaskIds, unreadTaskIds, o
   );
 }
 
-function CalendarView({ tasks, setTaskDetail, dark, checkedTaskIds, unreadTaskIds, onToggleChecked }) {
+function CalendarView({ tasks, setTaskDetail, dark, checkedTaskIds, onToggleChecked }) {
   const { byId } = useEmp();
   const grouped = {};
   tasks.forEach(t => { grouped[t.due] = grouped[t.due] || []; grouped[t.due].push(t); });
@@ -2039,7 +1962,7 @@ function CalendarView({ tasks, setTaskDetail, dark, checkedTaskIds, unreadTaskId
           <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 8, color: dt < today() ? C.coral : dt === today() ? C.amber : C.ink }}>{dt} {dt === today() && "· Today"}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {grouped[dt].map(t => (
-              <div key={t.id} className={`mb-task-row${checkedTaskIds.has(t.id) ? " is-checked" : ""}`} onClick={() => setTaskDetail(t.id)} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer", background: checkedTaskIds.has(t.id) ? "rgba(132, 108, 220, 0.08)" : unreadTaskIds.has(t.id) ? "rgba(221, 154, 52, 0.08)" : "transparent", borderLeft: `3px solid ${unreadTaskIds.has(t.id) ? C.amber : "transparent"}`, borderRadius: 6, padding: "2px 4px" }}>
+              <div key={t.id} className={`mb-task-row${checkedTaskIds.has(t.id) ? " is-checked" : ""}`} onClick={() => setTaskDetail(t.id)} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer", background: checkedTaskIds.has(t.id) ? "rgba(132, 108, 220, 0.08)" : "transparent", borderRadius: 6, padding: "2px 4px" }}>
                 <input className="mb-task-select-control" type="checkbox" checked={checkedTaskIds.has(t.id)} onClick={e => e.stopPropagation()} onChange={() => onToggleChecked(t.id)} aria-label={`Select ${t.title} for bulk edit`} />
                 <span style={{ fontWeight: 600, color: priColor(t.priority) }}>{t.priority}</span><span>{t.title}</span><span style={{ color: C.slate }}>— {byId[t.assignee]?.name || "Unassigned"}</span>
               </div>
