@@ -21,9 +21,9 @@ const C = {
 };
 const LIGHT_THEME = { ...C };
 const DARK_THEME = {
-  navy: "#12162A", navySoft: "#1E2440", ink: "#E7E8EE", paper: "#14161F", card: "#1C1F2C",
-  line: "#2B2F42", amber: "#E5A94A", amberSoft: "#3D2E12", coral: "#E3766B", coralSoft: "#3B1D1B",
-  sage: "#63B085", sageSoft: "#1C3226", slate: "#9AA0B4", blue: "#6FA8E0", blueSoft: "#182B41",
+  navy: "#000000", navySoft: "#0A0A0A", ink: "#F5F5F5", paper: "#000000", card: "#0B0B0B",
+  line: "#1A1A1A", amber: "#E5A94A", amberSoft: "#3D2E12", coral: "#E3766B", coralSoft: "#3B1D1B",
+  sage: "#63B085", sageSoft: "#1C3226", slate: "#A7A7A7", blue: "#6FA8E0", blueSoft: "#182B41",
   yellow: "#E3CB55", yellowSoft: "#332D10",
 };
 const FONT = `
@@ -64,9 +64,9 @@ const RESPONSIVE_CSS = `
 // before the first fetch resolves. If you add a department in SQL later,
 // add its color here as well (or upgrade this to fetch from Supabase).
 const DEPARTMENTS = [
-  { id: "exec", name: "Executive", color: "#534AB7" },
+  { id: "exec", name: "Executive", color: "#C99A11" },
   { id: "mkt", name: "Marketing / Live Selling", color: "#1D9E75" },
-  { id: "ops", name: "Operations", color: "#BA7517" },
+  { id: "ops", name: "Operations", color: "#6F4DCC" },
   { id: "admin", name: "Admin", color: "#D4537E" },
   { id: "inv", name: "Inventory / IT", color: "#378ADD" },
   { id: "log", name: "Logistics", color: "#639922" },
