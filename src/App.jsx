@@ -37,6 +37,8 @@ const RESPONSIVE_CSS = `
   .mb-kanban-mobile { display: none; }
   .mb-mobile-nav { display: none; }
   .mb-task-select-control, .mb-group-select-control { opacity: 0; transform: scale(0.8); transition: opacity 0.14s ease, transform 0.14s ease; }
+  .mb-group-task-grid .mb-task-card { transition: transform 0.16s ease; }
+  .mb-group-task-grid .mb-task-card:hover { transform: translateY(-3px); }
   .mb-task-card:hover .mb-task-select-control, .mb-task-card:focus-within .mb-task-select-control,
   .mb-task-card.is-checked .mb-task-select-control, .mb-task-row:hover .mb-task-select-control,
   .mb-task-row:focus-within .mb-task-select-control, .mb-task-row.is-checked .mb-task-select-control,
@@ -130,6 +132,7 @@ const mapTask = (row) => ({
   id: row.id, title: row.title, description: row.description, dept: row.dept_id,
   assignee: row.assignee_id, supervisor: row.supervisor_id, backup: row.backup_id,
   priority: row.priority, status: row.status, progress: row.progress, category: row.category,
+  updatedAt: row.completed_at || row.updated_at || null,
   recurring: row.recurring, recurringCustomDays: row.recurring_custom_days, due: row.due_date, needsSignoff: row.needs_signoff, createdBy: row.created_by, archived: !!row.archived,
   // Everyone on the task, lead first. The lead (assignee_id) is always included even if the
   // multi-assignee migration hasn't been run yet, so the app behaves exactly as before until then.
@@ -148,6 +151,11 @@ const mapTask = (row) => ({
 // plus an optional wider team (task.assignees, lead included).
 const isOnTask = (t, empId) => !!empId && (t.assignee === empId || (t.assignees || []).includes(empId));
 const taskTeam = (t) => [...new Set([t.assignee, ...(t.assignees || [])].filter(Boolean))];
+const taskProgress = (task) => {
+  const subtasks = task.subtasks || [];
+  if (subtasks.length) return Math.round((subtasks.filter(subtask => subtask.done).length / subtasks.length) * 100);
+  return Math.max(0, Math.min(100, Number(task.progress) || 0));
+};
 
 const EmpContext = createContext(null);
 const useEmp = () => useContext(EmpContext);
@@ -406,6 +414,9 @@ export default function App() {
   const [showAddTask, setShowAddTask] = useState(false);
   const [repeatTask, setRepeatTask] = useState(null);
   const [taskDetail, setTaskDetail] = useState(null);
+  const [completionTimes, setCompletionTimes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("mb-task-completion-times") || "{}"); } catch { return {}; }
+  });
   const [dark, setDark] = useState(() => {
     try { return localStorage.getItem("mb-dark") !== "0"; } catch { return true; }
   });
@@ -417,6 +428,7 @@ export default function App() {
   // C.xxx live at render time) picks up the theme without threading it through props.
   Object.assign(C, dark ? DARK_THEME : LIGHT_THEME);
   useEffect(() => { try { localStorage.setItem("mb-dark", dark ? "1" : "0"); } catch {} }, [dark]);
+  useEffect(() => { try { localStorage.setItem("mb-task-completion-times", JSON.stringify(completionTimes)); } catch {} }, [completionTimes]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -593,6 +605,7 @@ export default function App() {
     const { error } = await supabase.from("tasks").update(patch).eq("id", id);
     if (error) alert(error.message);
     await refetchTasks();
+    return !error;
   };
   const bulkUpdateTasks = async (ids, patch) => {
     const { error } = await supabase.from("tasks").update(patch).in("id", ids);
@@ -601,13 +614,33 @@ export default function App() {
       await refetchTasks();
       return false;
     }
+    if (patch.status) {
+      const completedAt = new Date().toISOString();
+      setCompletionTimes(previous => {
+        const next = { ...previous };
+        ids.forEach(id => {
+          if (patch.status === "Completed") next[id] = completedAt;
+          else delete next[id];
+        });
+        return next;
+      });
+    }
     await refetchTasks();
     return true;
   };
-  const setTaskStatus = (id, status) => {
+  const setTaskStatus = async (id, status) => {
     const patch = { status };
     if (status === "Completed") patch.progress = 100;
-    return updateTask(id, patch);
+    const saved = await updateTask(id, patch);
+    if (saved) {
+      setCompletionTimes(previous => {
+        const next = { ...previous };
+        if (status === "Completed") next[id] = new Date().toISOString();
+        else delete next[id];
+        return next;
+      });
+    }
+    return saved;
   };
   // "Remove" only hides a task from the board (archived = true); the row stays in the database.
   const archiveTask = async (task, archived = true) => {
@@ -847,7 +880,7 @@ export default function App() {
 
         <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         <main className="mb-main" style={{ flex: 1, minWidth: 0, padding: "26px 34px 60px", overflowY: "auto", backgroundColor: C.paper, backgroundImage: `linear-gradient(${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}, ${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}), url("${motherbaseBackground}")`, backgroundSize: "cover, min(1100px, 94vw) auto", backgroundPosition: "center, center 42%", backgroundRepeat: "no-repeat" }}>
-          {page === "dashboard" && <Dashboard tasks={tasks} viewerEmp={viewerEmp} isManager={isManager} isExec={isExec} setPage={setPage} setTaskDetail={setTaskDetail} />}
+          {page === "dashboard" && <Dashboard tasks={tasks} completionTimes={completionTimes} viewerEmp={viewerEmp} isManager={isManager} isExec={isExec} setPage={setPage} setTaskDetail={setTaskDetail} />}
           {page === "organization" && (
             <Organization orgView={orgView} setOrgView={setOrgView} setSelectedEmp={setSelectedEmp}
               search={search} setSearch={setSearch} onAdd={() => setEditingEmp(null)} onEdit={setEditingEmp} />
@@ -911,7 +944,7 @@ function FullScreenMsg({ text }) {
 /* ---------------------------------------------------------------
    DASHBOARD
 ----------------------------------------------------------------*/
-function Dashboard({ tasks, viewerEmp, isManager, isExec, setPage, setTaskDetail }) {
+function Dashboard({ tasks, completionTimes = {}, viewerEmp, isManager, isExec, setPage, setTaskDetail }) {
   const { employees, directReports, onlineIds } = useEmp();
   const goToTask = (id) => { setTaskDetail(id); setPage("tasks"); };
   const scoped = isExec ? tasks : isManager
@@ -921,6 +954,14 @@ function Dashboard({ tasks, viewerEmp, isManager, isExec, setPage, setTaskDetail
   const overdue = scoped.filter(t => statusMeta(t).label === "Overdue");
   const dueToday = scoped.filter(t => statusMeta(t).label === "Due today");
   const completed = scoped.filter(t => t.status === "Completed");
+  const recentCompleted = [...completed].sort((a, b) => {
+    const aTime = completionTimes[a.id] || a.updatedAt;
+    const bTime = completionTimes[b.id] || b.updatedAt;
+    if (aTime && bTime) return String(bTime).localeCompare(String(aTime));
+    if (aTime) return -1;
+    if (bTime) return 1;
+    return (b.due || "").localeCompare(a.due || "");
+  }).slice(0, 3);
 
   const byDept = DEPARTMENTS.map(dep => ({
     ...dep, count: scoped.filter(t => t.dept === dep.id && t.status !== "Completed").length,
@@ -952,7 +993,7 @@ function Dashboard({ tasks, viewerEmp, isManager, isExec, setPage, setTaskDetail
         <Panel title="Management alerts">
           <AlertRow icon={CircleAlert} color={C.coral} label="Overdue" items={overdue} onOpen={goToTask} />
           <AlertRow icon={Clock} color={C.amber} label="Due today" items={dueToday} onOpen={goToTask} />
-          <AlertRow icon={CheckCircle2} color={C.completed} label="Recently completed" items={completed.slice(-3)} onOpen={goToTask} />
+          <AlertRow icon={CheckCircle2} color={C.completed} label="Recently completed" items={recentCompleted} onOpen={goToTask} />
         </Panel>
 
         {isExec && (
@@ -1622,8 +1663,8 @@ function GroupHolder({ group, onOpen, dark, checkedTaskIds, onToggleGroup, selec
         onClick={e => e.stopPropagation()} onChange={onToggleGroup} aria-label={allChecked ? `Deselect all tasks for ${group.name}` : `Select all ${group.cards.length} tasks for ${group.name}`}
         style={{ position: "absolute", zIndex: 2, top: 15, right: 48, width: 18, height: 18, cursor: "pointer" }} />
       <button type="button" onClick={onOpen} aria-label={`Open ${group.cards.length} tasks for ${group.name}`}
-      style={{ display: "block", width: "100%", textAlign: "left", fontFamily: "inherit", color: C.ink, cursor: "pointer", background: dark ? "linear-gradient(180deg, rgba(34,25,52,0.96), rgba(22,18,34,0.96))" : "var(--mb-glass-surface)", border: `1px solid ${dark ? "rgba(179, 154, 255, 0.25)" : "var(--mb-glass-border)"}`, borderRadius: 16, padding: 12, marginBottom: 8, backdropFilter: "blur(12px) saturate(140%)",
-        boxShadow: dark ? "0 16px 32px rgba(14, 10, 24, 0.42), inset 0 1px 0 rgba(255,255,255,0.08)" : "0 14px 28px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255,255,255,0.18)" }}>
+      style={{ display: "block", width: "100%", textAlign: "left", fontFamily: "inherit", color: C.ink, cursor: "pointer", background: dark ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))" : "var(--mb-glass-surface)", border: `1px solid ${checkedCount ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`, borderRadius: 16, padding: 12, marginBottom: 8, backdropFilter: "blur(14px) saturate(140%)",
+        boxShadow: checkedCount ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)" : dark ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)" : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <Avatar name={group.name} size={34} color={deptById[emp?.dept]?.color} online={onlineIds?.has(group.assignee)} />
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -1698,7 +1739,7 @@ function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, r
           </div>
         )}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12, maxHeight: "62vh", overflowY: "auto", padding: 2 }}>
+      <div className="mb-group-task-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16, maxHeight: "62vh", overflowY: "auto", padding: 6 }}>
         {group.cards.map(t => (
           <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)} dark={dark} isChecked={checkedTaskIds.has(t.id)} onToggleChecked={() => onToggleChecked(t.id)} selectionMode={selectionMode}>{renderActions(t)}</TaskCard>
         ))}
@@ -1839,6 +1880,7 @@ function TaskCard({ t, children, onOpen, dark, isChecked = false, onToggleChecke
   const meta = statusMeta(t);
   const emp = byId[t.assignee] || { name: "Unassigned" };
   const subtaskProgress = t.subtasks?.length ? `${t.subtasks.filter(s=>s.done).length}/${t.subtasks.length}` : null;
+  const progressPercent = taskProgress(t);
   const flagColor = priorityFlagColor(t);
   const flagLabel = t.status === "Completed" ? "Completed" : t.priority;
   return (
@@ -1860,7 +1902,7 @@ function TaskCard({ t, children, onOpen, dark, isChecked = false, onToggleChecke
       </div>
       <div style={{ fontSize: 11, color: C.slate, marginBottom: 10 }}>{deptById[t.dept]?.name}</div>
       <div style={{ height: 4, background: "var(--mb-glass-border)", borderRadius: 4, overflow: "hidden", marginBottom: 10 }}>
-        <div style={{ height: "100%", width: `${t.progress}%`, background: C.amber }} />
+        <div style={{ height: "100%", width: `${progressPercent}%`, background: C.amber, transition: "width 0.22s ease" }} />
       </div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10.5, fontWeight: 700, color: "#fff", background: flagColor, borderRadius: 999, padding: "4px 9px 4px 7px", boxShadow: "0 8px 16px rgba(15, 23, 42, 0.12)" }}>
@@ -1868,7 +1910,7 @@ function TaskCard({ t, children, onOpen, dark, isChecked = false, onToggleChecke
         </span>
         <TeamAvatars ids={taskTeam(t)} />
       </div>
-      {subtaskProgress && <div style={{ fontSize: 10.5, color: C.slate, marginTop: 7 }}>{subtaskProgress} subtasks</div>}
+      {subtaskProgress && <div style={{ fontSize: 10.5, color: C.slate, marginTop: 7 }}>{subtaskProgress} subtasks · {progressPercent}%</div>}
       {children}
     </div>
   );
@@ -2017,8 +2059,8 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
   const canEditTask = viewerEmp.role !== "employee";
   // Same rule as the board: managers/execs can move anything, an employee only their own open tasks.
   const canMove = !task.archived && (viewerEmp.role !== "employee" || (isOnTask(task, viewerEmp.id) && task.status !== "Completed"));
-  // Anyone on the task can tick subtasks off; so can whoever a subtask is given to, and managers.
-  const canTickSub = (st) => canEditTask || isOnTask(task, viewerEmp.id) || st.assignee === viewerEmp.id;
+  const canTickSub = (st) => canEditTask || st.assignee === viewerEmp.id;
+  const progressPercent = taskProgress(task);
   const addSub = async () => {
     if (!newSub.trim()) return;
     const who = team.includes(newSubWho) ? newSubWho : "";
@@ -2083,8 +2125,8 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
         {task.backup && <Field label="Backup assignee" value={byId[task.backup]?.name || "—"} />}
         <Field label="Created by" value={byId[task.createdBy]?.name || "—"} />
       </div>
-      <SectionLabel>Progress</SectionLabel>
-      <div style={{ height: 8, background: C.paper, borderRadius: 4, overflow: "hidden", margin: "8px 0 18px" }}><div style={{ height: "100%", width: `${task.progress}%`, background: C.amber }} /></div>
+      <SectionLabel>Progress · {progressPercent}%{task.subtasks?.length ? ` (${task.subtasks.filter(st => st.done).length}/${task.subtasks.length} subtasks)` : ""}</SectionLabel>
+      <div style={{ height: 8, background: C.paper, borderRadius: 4, overflow: "hidden", margin: "8px 0 18px" }}><div style={{ height: "100%", width: `${progressPercent}%`, background: C.amber, transition: "width 0.22s ease" }} /></div>
       <SectionLabel>Team — {team.length}</SectionLabel>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "8px 0 6px" }}>
         {team.map(id => (
@@ -2110,16 +2152,18 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
           <div style={{ margin: "8px 0 18px" }}>
             {task.subtasks.length === 0 && <div style={{ fontSize: 12.5, color: C.slate, padding: "2px 0 6px" }}>No subtasks yet.</div>}
             {task.subtasks.map(st => (
-              <div key={st.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, padding: "4px 0" }}>
-                <input type="checkbox" checked={st.done} disabled={!canTickSub(st)} onChange={e => taskOps.toggleSubtask(st.id, e.target.checked)} aria-label={`Mark "${st.title}" done`} />
+              <div key={st.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, padding: "7px 9px", marginBottom: 6, background: st.assignee === viewerEmp.id ? "rgba(130, 106, 214, 0.12)" : "var(--mb-glass-surface)", border: `1px solid ${st.assignee === viewerEmp.id ? "rgba(130, 106, 214, 0.28)" : "var(--mb-glass-border)"}`, borderLeft: `3px solid ${st.assignee === viewerEmp.id ? C.amber : st.assignee ? C.line : C.slate}`, borderRadius: 8 }}>
+                <input type="checkbox" checked={st.done} disabled={!canTickSub(st)} onChange={e => taskOps.toggleSubtask(st.id, e.target.checked)} aria-label={`Mark "${st.title}" done${st.assignee ? `, assigned to ${byId[st.assignee]?.name || st.assignee}` : ", unassigned"}`} />
                 <span style={{ flex: 1, minWidth: 0, textDecoration: st.done ? "line-through" : "none", color: st.done ? C.slate : C.ink }}>{st.title}</span>
                 {canEditTask ? (
                   <select value={team.includes(st.assignee) ? st.assignee : ""} onChange={e => taskOps.setSubtaskAssignee(st.id, e.target.value)} aria-label={`Who has "${st.title}"`} style={{ ...inputStyle, width: 132, flexShrink: 0, padding: "4px 6px", fontSize: 11.5 }}>
                     <option value="">Unassigned</option>
                     {team.map(id => <option key={id} value={id}>{byId[id]?.name}</option>)}
                   </select>
-                ) : st.assignee && (
-                  <span style={{ fontSize: 11, color: C.slate, whiteSpace: "nowrap" }}>{byId[st.assignee]?.name}</span>
+                ) : (
+                  <span style={{ fontSize: 10.5, color: st.assignee === viewerEmp.id ? C.amber : C.slate, fontWeight: st.assignee === viewerEmp.id ? 700 : 500, whiteSpace: "nowrap" }}>
+                    {st.assignee === viewerEmp.id ? "Yours" : st.assignee ? `Assigned to ${byId[st.assignee]?.name || "another employee"}` : "Unassigned · manager only"}
+                  </span>
                 )}
                 {canEditTask && <button type="button" onClick={() => taskOps.deleteSubtask(st.id)} aria-label={`Delete "${st.title}"`} style={{ background: "none", border: "none", cursor: "pointer", color: C.slate, padding: 2, display: "flex" }}><Trash2 size={13} /></button>}
               </div>
