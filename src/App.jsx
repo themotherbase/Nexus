@@ -5,7 +5,7 @@ import {
   Search, Plus, X, CircleAlert, Clock, CheckCircle2,
   Table2, CalendarDays, KanbanSquare, ShieldCheck, Pencil, Trash2,
   Repeat, TriangleAlert, ListTree, LogOut, Undo2,
-  ArrowRightLeft, ChevronDown, ChevronLeft, ChevronRight, Check, Archive, ArchiveRestore, MessageSquare, Flag
+  ArrowRightLeft, ChevronDown, ChevronLeft, ChevronRight, Check, Minus, Archive, ArchiveRestore, MessageSquare, Flag
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import motherbaseBackground from "../images/The Motherbase (Transparent).png";
@@ -1647,64 +1647,27 @@ function Chip({ children, color, bg }) {
   return <span style={{ fontSize: 10.5, fontWeight: 700, color, background: bg, borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>{children}</span>;
 }
 
+function TaskSelectButton({ checked, indeterminate = false, dark, label, onClick, className }) {
+  const active = checked || indeterminate;
+  return (
+    <button className={className} type="button" role="checkbox" aria-checked={indeterminate ? "mixed" : checked} aria-label={label}
+      onClick={e => { e.stopPropagation(); onClick(); }}
+      style={{ width: 20, height: 20, flexShrink: 0, borderRadius: 6, border: `1px solid ${active ? "rgba(166, 144, 255, 0.9)" : dark ? "rgba(255,255,255,0.12)" : C.line}`, background: active ? "linear-gradient(180deg, #8a7aff, #6552d6)" : dark ? "rgba(255,255,255,0.02)" : C.paper, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", cursor: "pointer", padding: 0 }}>
+      {checked ? <Check size={12} /> : indeterminate ? <Minus size={12} /> : null}
+    </button>
+  );
+}
+
 // A stack-of-cards tile that stands for everything one person has in a column.
-function GroupHolder({ group, onOpen, dark, checkedTaskIds, onToggleGroup, selectionMode }) {
+function GroupHolder({ group, dark, checkedTaskIds, onToggleGroup, selectionMode, bulkUpdateTasks, canBulkEdit, children }) {
   const { byId, onlineIds } = useEmp();
   const emp = byId[group.assignee];
   const overdue = group.cards.filter(t => statusMeta(t).label === "Overdue").length;
   const high = group.cards.filter(t => t.priority === "High" && t.status !== "Completed").length;
   const checkedCount = group.cards.filter(t => checkedTaskIds.has(t.id)).length;
   const allChecked = checkedCount === group.cards.length;
-  const shown = group.cards.slice(0, 2);
-  const more = group.cards.length - shown.length;
-  return (
-    <div className={`mb-group-select-wrap${selectionMode ? " is-selection-mode" : ""}${checkedCount ? " has-checked" : ""}`} style={{ position: "relative" }}>
-      <input className="mb-group-select-control" type="checkbox" checked={allChecked} aria-checked={checkedCount > 0 && !allChecked ? "mixed" : allChecked}
-        onClick={e => e.stopPropagation()} onChange={onToggleGroup} aria-label={allChecked ? `Deselect all tasks for ${group.name}` : `Select all ${group.cards.length} tasks for ${group.name}`}
-        style={{ position: "absolute", zIndex: 2, top: 15, right: 48, width: 18, height: 18, cursor: "pointer" }} />
-      <button type="button" onClick={onOpen} aria-label={`Open ${group.cards.length} tasks for ${group.name}`}
-      style={{ display: "block", width: "100%", textAlign: "left", fontFamily: "inherit", color: C.ink, cursor: "pointer", background: dark ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))" : "var(--mb-glass-surface)", border: `1px solid ${checkedCount ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`, borderRadius: 16, padding: 12, marginBottom: 8, backdropFilter: "blur(14px) saturate(140%)",
-        boxShadow: checkedCount ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)" : dark ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)" : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <Avatar name={group.name} size={34} color={deptById[emp?.dept]?.color} online={onlineIds?.has(group.assignee)} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13.5, fontWeight: 700, ...ellipsis }}>{group.name}</div>
-          <div style={{ fontSize: 11, color: C.slate, ...ellipsis }}>{emp?.position || "No assignee"}</div>
-        </div>
-        <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", background: C.navySoft, borderRadius: 20, padding: "2px 9px" }}>{checkedCount ? `${checkedCount}/${group.cards.length}` : group.cards.length}</span>
-      </div>
-      <div style={{ marginTop: 10, borderTop: `1px solid ${C.line}`, paddingTop: 8 }}>
-        {shown.map(t => <div key={t.id} style={{ fontSize: 12, color: C.slate, padding: "1px 0", ...ellipsis }}>• {t.title}</div>)}
-        {more > 0 && <div style={{ fontSize: 11.5, color: C.slate, fontWeight: 600, paddingTop: 2 }}>+ {more} more</div>}
-      </div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8, gap: 6 }}>
-        <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {overdue > 0 && <Chip color={C.coral} bg={C.coralSoft}>{overdue} overdue</Chip>}
-          {high > 0 && <Chip color={C.coral} bg={C.coralSoft}>{high} high</Chip>}
-        </span>
-        <span style={{ display: "flex", alignItems: "center", fontSize: 11.5, fontWeight: 600, color: C.ink, whiteSpace: "nowrap" }}>View all <ChevronRight size={14} /></span>
-      </div>
-      </button>
-    </div>
-  );
-}
-
-// Everything one person has in one column, as a responsive grid, with arrows to hop to the next person.
-function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, renderActions, dark, checkedTaskIds, onToggleChecked, selectionMode, bulkUpdateTasks, canBulkEdit }) {
-  const { byId, onlineIds } = useEmp();
-  const people = groupByAssignee(source.filter(t => t.status === col), byId);
-  const idx = people.findIndex(p => p.assignee === assignee);
-  const group = people[idx];
-  const [moving, setMoving] = useState(false);
-  useEffect(() => { if (!group) onClose(); }, [!group]);
-  if (!group) return null;
-  const go = (d) => onSwitch(people[(idx + d + people.length) % people.length].assignee);
-  const n = group.cards.length;
   const selectedCards = group.cards.filter(task => checkedTaskIds.has(task.id));
-  const toggleAll = () => {
-    const allChecked = selectedCards.length === group.cards.length;
-    group.cards.filter(task => checkedTaskIds.has(task.id) === allChecked).forEach(task => onToggleChecked(task.id));
-  };
+  const [moving, setMoving] = useState(false);
   const moveSelected = async (status) => {
     if (!status || !selectedCards.length || moving) return;
     const patch = { status };
@@ -1714,43 +1677,32 @@ function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, r
     setMoving(false);
   };
   return (
-    <ModalShell onClose={onClose} width={780}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, paddingRight: 44, marginBottom: 14, flexWrap: "wrap" }}>
-        <Avatar name={group.name} size={42} color={deptById[byId[assignee]?.dept]?.color} online={onlineIds?.has(assignee)} />
-        <div style={{ flex: 1, minWidth: 150 }}>
-          <div className="mb-display" style={{ fontSize: 19, fontWeight: 600 }}>{group.name}</div>
-          <div style={{ fontSize: 12, color: C.slate }}>
-            {byId[assignee]?.position ? `${byId[assignee].position} · ` : ""}{n} task{n === 1 ? "" : "s"} in <b style={{ color: stageColor(col) }}>{col}</b>
-          </div>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 11.5, color: C.slate, cursor: "pointer" }}>
-            <input type="checkbox" checked={selectedCards.length === group.cards.length} onChange={toggleAll} />
-            Select all tasks for {group.name}
-          </label>
+    <section className={`mb-group-select-wrap${selectionMode ? " is-selection-mode" : ""}${checkedCount ? " has-checked" : ""}`} style={{ position: "relative", paddingTop: 9, marginBottom: 8, borderTop: `1px solid ${dark ? "rgba(179, 154, 255, 0.16)" : C.line}` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9, minHeight: 38, padding: "0 4px" }}>
+        <Avatar name={group.name} size={28} color={deptById[emp?.dept]?.color} online={onlineIds?.has(group.assignee)} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, ...ellipsis }}>{group.name}</div>
+          <div style={{ fontSize: 10.5, color: C.slate, ...ellipsis }}>{emp?.position || "No assignee"}</div>
         </div>
-        {canBulkEdit && selectedCards.length > 0 && <select aria-label="Move checked employee tasks to another status" value="" disabled={moving} onChange={e => moveSelected(e.target.value)} style={{ ...inputStyle, width: "auto", maxWidth: "100%", fontSize: 12, padding: "7px 8px" }}>
-          <option value="">{moving ? "Moving tasks…" : `Move ${selectedCards.length} checked to…`}</option>
+        {(overdue > 0 || high > 0) && <span style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+          {overdue > 0 && <Chip color={C.coral} bg={C.coralSoft}>{overdue} overdue</Chip>}
+          {high > 0 && <Chip color={C.coral} bg={C.coralSoft}>{high} high</Chip>}
+        </span>}
+        <span style={{ fontSize: 11, fontWeight: 700, color: checkedCount ? "#fff" : C.slate, background: checkedCount ? C.navySoft : "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 999, padding: "3px 8px" }}>{checkedCount ? `${checkedCount}/${group.cards.length}` : group.cards.length}</span>
+        <TaskSelectButton className="mb-group-select-control" checked={allChecked} indeterminate={checkedCount > 0 && !allChecked} dark={dark}
+          onClick={onToggleGroup} label={allChecked ? `Deselect all tasks for ${group.name}` : `Select all ${group.cards.length} tasks for ${group.name}`} />
+        {canBulkEdit && checkedCount > 0 && <select aria-label={`Move ${checkedCount} checked tasks for ${group.name}`} value="" disabled={moving} onChange={e => moveSelected(e.target.value)} style={{ ...inputStyle, width: "auto", maxWidth: 150, fontSize: 11.5, padding: "5px 6px" }}>
+          <option value="">{moving ? "Moving…" : "Move checked…"}</option>
           {COLUMNS.map(stage => <option key={stage} value={stage}>{stage}</option>)}
         </select>}
-        {people.length > 1 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <IconBtn onClick={() => go(-1)} title="Previous person"><ChevronLeft size={16} /></IconBtn>
-            <span style={{ fontSize: 12, color: C.slate, minWidth: 40, textAlign: "center" }}>{idx + 1} / {people.length}</span>
-            <IconBtn onClick={() => go(1)} title="Next person"><ChevronRight size={16} /></IconBtn>
-          </div>
-        )}
       </div>
-      <div className="mb-group-task-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16, maxHeight: "62vh", overflowY: "auto", padding: 6 }}>
-        {group.cards.map(t => (
-          <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)} dark={dark} isChecked={checkedTaskIds.has(t.id)} onToggleChecked={() => onToggleChecked(t.id)} selectionMode={selectionMode}>{renderActions(t)}</TaskCard>
-        ))}
-      </div>
-    </ModalShell>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "8px 4px 4px" }}>{children}</div>
+    </section>
   );
 }
 
 function KanbanView({ tasks, archivedTasks = [], setTaskStatus, bulkUpdateTasks, viewerEmp, setTaskDetail, onRepeat, onArchive, dark, checkedTaskIds, onToggleChecked, selectionMode }) {
   const { byId } = useEmp();
-  const [openGroup, setOpenGroup] = useState(null); // { col, assignee }
   const [showArchived, setShowArchived] = useState(false);
   const [mobileStage, setMobileStage] = useState("To Do");
   const canManage = viewerEmp.role !== "employee";
@@ -1825,7 +1777,9 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, bulkUpdateTasks,
                         <div style={{ fontSize: 12, color: C.slate, padding: "10px 4px" }}>{archivedView ? "Nothing removed." : "No tasks."}</div>
                       ) : (
                         laneGroups.map(g => g.cards.length > 1 ? (
-                          <GroupHolder key={`g-${col}-${laneIndex}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} dark={dark} checkedTaskIds={checkedTaskIds} selectionMode={selectionMode} onToggleGroup={() => toggleGroup(g)} />
+                          <GroupHolder key={`g-${col}-${laneIndex}-${g.assignee}`} group={g} dark={dark} checkedTaskIds={checkedTaskIds} selectionMode={selectionMode} onToggleGroup={() => toggleGroup(g)} bulkUpdateTasks={bulkUpdateTasks} canBulkEdit={canManage}>
+                            {g.cards.map(task => <TaskCard key={task.id} t={task} onOpen={() => setTaskDetail(task.id)} dark={dark} isChecked={checkedTaskIds.has(task.id)} onToggleChecked={() => onToggleChecked(task.id)} selectionMode={selectionMode}>{actions(task)}</TaskCard>)}
+                          </GroupHolder>
                         ) : (
                           <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)} dark={dark} isChecked={checkedTaskIds.has(g.cards[0].id)} onToggleChecked={() => onToggleChecked(g.cards[0].id)} selectionMode={selectionMode}>{actions(g.cards[0])}</TaskCard>
                         ))
@@ -1838,11 +1792,6 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, bulkUpdateTasks,
           );
         })}
       </div>
-      {openGroup && (
-        <GroupModal col={openGroup.col} assignee={openGroup.assignee} source={sourceFor(openGroup.col)}
-          onClose={() => setOpenGroup(null)} onSwitch={(a) => setOpenGroup({ col: openGroup.col, assignee: a })}
-          setTaskDetail={setTaskDetail} renderActions={actions} dark={dark} checkedTaskIds={checkedTaskIds} onToggleChecked={onToggleChecked} selectionMode={selectionMode} bulkUpdateTasks={bulkUpdateTasks} canBulkEdit={canManage} />
-      )}
     </>
   );
 }
@@ -1886,11 +1835,8 @@ function TaskCard({ t, children, onOpen, dark, isChecked = false, onToggleChecke
   return (
     <div className={`mb-task-card${isChecked ? " is-checked" : ""}${selectionMode ? " is-selection-mode" : ""}`} onClick={onOpen} style={{ background: dark ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))" : "var(--mb-glass-surface)", border: `1px solid ${isChecked ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`, borderRadius: 16, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(14px) saturate(140%)", boxShadow: isChecked ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)" : dark ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)" : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-        {onToggleChecked ? (
-          <button className="mb-task-select-control" type="button" onClick={(e) => { e.stopPropagation(); onToggleChecked(); }} aria-label={isChecked ? "Uncheck task" : "Check task"} aria-pressed={isChecked} style={{ width: 20, height: 20, borderRadius: 6, border: `1px solid ${isChecked ? "rgba(166, 144, 255, 0.9)" : dark ? "rgba(255,255,255,0.12)" : C.line}`, background: isChecked ? "linear-gradient(180deg, #8a7aff, #6552d6)" : dark ? "rgba(255,255,255,0.02)" : C.paper, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", cursor: "pointer", padding: 0 }}>
-            {isChecked && <Check size={12} />}
-          </button>
-        ) : <span style={{ width: 20, height: 20 }} />}
+        {onToggleChecked ? <TaskSelectButton className="mb-task-select-control" checked={isChecked} dark={dark}
+          onClick={onToggleChecked} label={isChecked ? "Uncheck task" : "Check task"} /> : <span style={{ width: 20, height: 20 }} />}
         {t.recurring && (
           <span title="Recurring" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", marginLeft: "auto" }}><Repeat size={12} color={C.slate} /></span>
         )}
