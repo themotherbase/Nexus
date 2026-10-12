@@ -1422,6 +1422,14 @@ function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTa
   }, [checkedTaskIds]);
 
   const boardTasks = useMemo(() => deptFilter === "all" ? tasks : tasks.filter(t => t.dept === deptFilter), [tasks, deptFilter]);
+  const checkedTasks = boardTasks.filter(task => checkedTaskIds.has(task.id));
+  const toggleCheckedTask = (taskId) => {
+    setCheckedTaskIds(previous => {
+      const next = new Set(previous);
+      if (next.has(taskId)) next.delete(taskId); else next.add(taskId);
+      return next;
+    });
+  };
 
   return (
     <div style={{ position: "relative", minHeight: "calc(100vh - 112px)", overflow: "hidden", borderRadius: 16, padding: 18, margin: -8 }}>
@@ -1436,7 +1444,7 @@ function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTa
                 Export Report
               </button>
             )}
-            {canCreate && <button onClick={() => setShowBulkEdit(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.card, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 8, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><Pencil size={14} /> Bulk edit</button>}
+            {canCreate && <button onClick={() => setShowBulkEdit(true)} disabled={!checkedTasks.length} style={{ display: "flex", alignItems: "center", gap: 6, background: C.card, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 8, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: checkedTasks.length ? "pointer" : "not-allowed", opacity: checkedTasks.length ? 1 : 0.55 }}><Pencil size={14} /> Bulk edit{checkedTasks.length ? ` (${checkedTasks.length})` : ""}</button>}
             {canCreate && <button onClick={() => setShowAddTask(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}><Plus size={15} /> Add Task</button>}
           </div>
         } />
@@ -1449,14 +1457,14 @@ function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTa
             </select>
           </div>
           <div style={{ fontSize: 11.5, color: C.slate, background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 999, padding: "6px 10px" }}>
-            {checkedTaskIds.size} checked
+            {checkedTasks.length} checked
           </div>
         </div>
         {!canCreate && <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 14 }}>Viewing as {viewerEmp.name} ({ROLE_LABEL[viewerEmp.role]}) — you can update status and progress on your own tasks. Completion needs your supervisor's sign-off.</div>}
-        {taskView === "kanban" && <KanbanView tasks={boardTasks} archivedTasks={archivedTasks} setTaskStatus={setTaskStatus} viewerEmp={viewerEmp} setTaskDetail={setTaskDetail} onRepeat={onRepeat} onArchive={onArchive} dark={dark} checkedTaskIds={checkedTaskIds} setCheckedTaskIds={setCheckedTaskIds} />}
-        {taskView === "list" && <ListView tasks={boardTasks} setTaskDetail={setTaskDetail} dark={dark} />}
-        {taskView === "calendar" && <CalendarView tasks={boardTasks} setTaskDetail={setTaskDetail} dark={dark} />}
-        {showBulkEdit && <BulkEditModal tasks={boardTasks} onClose={() => setShowBulkEdit(false)} onApply={bulkUpdateTasks} />}
+        {taskView === "kanban" && <KanbanView tasks={boardTasks} archivedTasks={archivedTasks} setTaskStatus={setTaskStatus} viewerEmp={viewerEmp} setTaskDetail={setTaskDetail} onRepeat={onRepeat} onArchive={onArchive} dark={dark} checkedTaskIds={checkedTaskIds} onToggleChecked={toggleCheckedTask} />}
+        {taskView === "list" && <ListView tasks={boardTasks} setTaskDetail={setTaskDetail} dark={dark} checkedTaskIds={checkedTaskIds} onToggleChecked={toggleCheckedTask} />}
+        {taskView === "calendar" && <CalendarView tasks={boardTasks} setTaskDetail={setTaskDetail} dark={dark} checkedTaskIds={checkedTaskIds} onToggleChecked={toggleCheckedTask} />}
+        {showBulkEdit && <BulkEditModal tasks={checkedTasks} checkedTaskIds={checkedTaskIds} onToggleChecked={toggleCheckedTask} onClose={() => setShowBulkEdit(false)} onApply={bulkUpdateTasks} />}
       </div>
     </div>
   );
@@ -1624,7 +1632,7 @@ function GroupHolder({ group, onOpen, dark }) {
 }
 
 // Everything one person has in one column, as a responsive grid, with arrows to hop to the next person.
-function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, renderActions, dark }) {
+function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, renderActions, dark, checkedTaskIds, onToggleChecked }) {
   const { byId, onlineIds } = useEmp();
   const people = groupByAssignee(source.filter(t => t.status === col), byId);
   const idx = people.findIndex(p => p.assignee === assignee);
@@ -1653,14 +1661,14 @@ function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, r
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12, maxHeight: "62vh", overflowY: "auto", padding: 2 }}>
         {group.cards.map(t => (
-          <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)} dark={dark}>{renderActions(t)}</TaskCard>
+          <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)} dark={dark} isChecked={checkedTaskIds.has(t.id)} onToggleChecked={() => onToggleChecked(t.id)}>{renderActions(t)}</TaskCard>
         ))}
       </div>
     </ModalShell>
   );
 }
 
-function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTaskDetail, onRepeat, onArchive, dark, checkedTaskIds, setCheckedTaskIds }) {
+function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTaskDetail, onRepeat, onArchive, dark, checkedTaskIds, onToggleChecked }) {
   const { byId } = useEmp();
   const [openGroup, setOpenGroup] = useState(null); // { col, assignee }
   const [showArchived, setShowArchived] = useState(false);
@@ -1668,14 +1676,6 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
   const canManage = viewerEmp.role !== "employee";
   const sourceFor = (col) => (col === "Completed" && showArchived ? archivedTasks : tasks);
   const actions = (t) => <TaskCardActions t={t} viewerEmp={viewerEmp} setTaskStatus={setTaskStatus} onRepeat={onRepeat} onArchive={onArchive} />;
-  const toggleChecked = (taskId) => {
-    setCheckedTaskIds(prev => {
-      const next = new Set(prev);
-      if (next.has(taskId)) next.delete(taskId); else next.add(taskId);
-      return next;
-    });
-  };
-
   return (
     <>
       <div className="mb-kanban-mobile" style={{ marginBottom: 14 }}>
@@ -1700,7 +1700,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {sourceFor(mobileStage).filter(t => t.status === mobileStage).map(t => (
-            <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)} dark={dark} isChecked={checkedTaskIds.has(t.id)} onToggleChecked={() => toggleChecked(t.id)}>{actions(t)}</TaskCard>
+            <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)} dark={dark} isChecked={checkedTaskIds.has(t.id)} onToggleChecked={() => onToggleChecked(t.id)}>{actions(t)}</TaskCard>
           ))}
           {sourceFor(mobileStage).filter(t => t.status === mobileStage).length === 0 && (
             <Empty text={showArchived && mobileStage === "Completed" ? "Nothing removed." : "No tasks in this stage."} />
@@ -1743,7 +1743,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
                         laneGroups.map(g => g.cards.length > 1 ? (
                           <GroupHolder key={`g-${col}-${laneIndex}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} dark={dark} />
                         ) : (
-                          <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)} dark={dark} isChecked={checkedTaskIds.has(g.cards[0].id)} onToggleChecked={() => toggleChecked(g.cards[0].id)}>{actions(g.cards[0])}</TaskCard>
+                          <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)} dark={dark} isChecked={checkedTaskIds.has(g.cards[0].id)} onToggleChecked={() => onToggleChecked(g.cards[0].id)}>{actions(g.cards[0])}</TaskCard>
                         ))
                       )}
                     </div>
@@ -1757,7 +1757,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
       {openGroup && (
         <GroupModal col={openGroup.col} assignee={openGroup.assignee} source={sourceFor(openGroup.col)}
           onClose={() => setOpenGroup(null)} onSwitch={(a) => setOpenGroup({ col: openGroup.col, assignee: a })}
-          setTaskDetail={setTaskDetail} renderActions={actions} dark={dark} />
+          setTaskDetail={setTaskDetail} renderActions={actions} dark={dark} checkedTaskIds={checkedTaskIds} onToggleChecked={onToggleChecked} />
       )}
     </>
   );
@@ -1831,18 +1831,19 @@ function TaskCard({ t, children, onOpen, dark, isChecked = false, onToggleChecke
   );
 }
 
-function ListView({ tasks, setTaskDetail, dark }) {
+function ListView({ tasks, setTaskDetail, dark, checkedTaskIds, onToggleChecked }) {
   const { byId } = useEmp();
   return (
     <div style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 16, overflow: "hidden", boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)" }}>
       <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
-        <thead><tr style={{ background: C.paper, textAlign: "left" }}>{["Task","Employee","Department","Priority","Due","Status"].map(h => <th key={h} style={{ padding: "10px 16px", fontSize: 11.5, color: C.slate, fontWeight: 600 }}>{h}</th>)}</tr></thead>
+        <thead><tr style={{ background: C.paper, textAlign: "left" }}><th aria-label="Checked" style={{ width: 36 }} />{["Task","Employee","Department","Priority","Due","Status"].map(h => <th key={h} style={{ padding: "10px 16px", fontSize: 11.5, color: C.slate, fontWeight: 600 }}>{h}</th>)}</tr></thead>
         <tbody>
           {tasks.map(t => {
             const meta = statusMeta(t);
             return (
               <tr key={t.id} onClick={() => setTaskDetail(t.id)} style={{ borderTop: `1px solid ${C.line}`, cursor: "pointer" }}>
+                <td style={{ padding: "8px 10px" }}><input type="checkbox" checked={checkedTaskIds.has(t.id)} onClick={e => e.stopPropagation()} onChange={() => onToggleChecked(t.id)} aria-label={`Select ${t.title} for bulk edit`} /></td>
                 <td style={{ padding: "10px 16px", fontWeight: 600 }}>{t.title}</td>
                 <td style={{ padding: "10px 16px" }}>{byId[t.assignee]?.name || "Unassigned"}</td>
                 <td style={{ padding: "10px 16px" }}><DeptTag id={t.dept} /></td>
@@ -1859,7 +1860,7 @@ function ListView({ tasks, setTaskDetail, dark }) {
   );
 }
 
-function CalendarView({ tasks, setTaskDetail, dark }) {
+function CalendarView({ tasks, setTaskDetail, dark, checkedTaskIds, onToggleChecked }) {
   const { byId } = useEmp();
   const grouped = {};
   tasks.forEach(t => { grouped[t.due] = grouped[t.due] || []; grouped[t.due].push(t); });
@@ -1872,7 +1873,8 @@ function CalendarView({ tasks, setTaskDetail, dark }) {
           <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 8, color: dt < today() ? C.coral : dt === today() ? C.amber : C.ink }}>{dt} {dt === today() && "· Today"}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {grouped[dt].map(t => (
-              <div key={t.id} onClick={() => setTaskDetail(t.id)} style={{ display: "flex", gap: 10, fontSize: 13, cursor: "pointer" }}>
+              <div key={t.id} onClick={() => setTaskDetail(t.id)} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer" }}>
+                <input type="checkbox" checked={checkedTaskIds.has(t.id)} onClick={e => e.stopPropagation()} onChange={() => onToggleChecked(t.id)} aria-label={`Select ${t.title} for bulk edit`} />
                 <span style={{ fontWeight: 600, color: priColor(t.priority) }}>{t.priority}</span><span>{t.title}</span><span style={{ color: C.slate }}>— {byId[t.assignee]?.name || "Unassigned"}</span>
               </div>
             ))}
@@ -1883,22 +1885,14 @@ function CalendarView({ tasks, setTaskDetail, dark }) {
   );
 }
 
-function BulkEditModal({ tasks, onClose, onApply }) {
-  const [selectedIds, setSelectedIds] = useState(() => new Set());
+function BulkEditModal({ tasks, checkedTaskIds, onToggleChecked, onClose, onApply }) {
   const [status, setStatus] = useState("");
   const [priority, setPriority] = useState("");
   const [due, setDue] = useState("");
   const [category, setCategory] = useState("");
   const [saving, setSaving] = useState(false);
-  const allSelected = tasks.length > 0 && selectedIds.size === tasks.length;
-  const toggleAll = () => setSelectedIds(allSelected ? new Set() : new Set(tasks.map(task => task.id)));
-  const toggleTask = (id) => setSelectedIds(previous => {
-    const next = new Set(previous);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
   const apply = async () => {
-    if (!selectedIds.size || saving) return;
+    if (!tasks.length || saving) return;
     const patch = {};
     if (status) {
       patch.status = status;
@@ -1909,7 +1903,7 @@ function BulkEditModal({ tasks, onClose, onApply }) {
     if (category.trim()) patch.category = category.trim();
     if (!Object.keys(patch).length) return;
     setSaving(true);
-    const succeeded = await onApply([...selectedIds], patch);
+    const succeeded = await onApply(tasks.map(task => task.id), patch);
     setSaving(false);
     if (succeeded) onClose();
   };
@@ -1917,15 +1911,11 @@ function BulkEditModal({ tasks, onClose, onApply }) {
   return (
     <ModalShell onClose={onClose} width={560}>
       <div className="mb-display" style={{ fontSize: 19, fontWeight: 600, marginBottom: 4 }}>Bulk edit tasks</div>
-      <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 14 }}>Choose tasks and set only the fields you want to change.</div>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 2px", borderBottom: `1px solid ${C.line}`, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
-        <input type="checkbox" checked={allSelected} onChange={toggleAll} />
-        Select all filtered tasks ({tasks.length})
-      </label>
-      <div style={{ maxHeight: 190, overflowY: "auto", borderBottom: `1px solid ${C.line}`, marginBottom: 14 }}>
+      <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 10 }}>Only checked tasks are included. Uncheck any you want to leave out.</div>
+      <div style={{ maxHeight: 150, overflowY: "auto", borderBottom: `1px solid ${C.line}`, marginBottom: 14 }}>
         {tasks.map(task => (
           <label key={task.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 2px", fontSize: 12.5, cursor: "pointer" }}>
-            <input type="checkbox" checked={selectedIds.has(task.id)} onChange={() => toggleTask(task.id)} />
+            <input type="checkbox" checked={checkedTaskIds.has(task.id)} onChange={() => onToggleChecked(task.id)} />
             <span style={{ flex: 1, minWidth: 0, ...ellipsis }}>{task.title}</span>
             <span style={{ color: C.slate, fontSize: 11 }}>{task.status}</span>
           </label>
@@ -1938,9 +1928,9 @@ function BulkEditModal({ tasks, onClose, onApply }) {
         <FormRow label="Due date"><input type="date" value={due} onChange={e => setDue(e.target.value)} style={inputStyle} /></FormRow>
         <FormRow label="Category"><input value={category} onChange={e => setCategory(e.target.value)} placeholder="No change" style={inputStyle} /></FormRow>
       </div>
-      <button type="button" onClick={apply} disabled={!selectedIds.size || saving || (!status && !priority && !due && !category.trim())}
-        style={{ marginTop: 8, width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: selectedIds.size && !saving ? "pointer" : "not-allowed", opacity: selectedIds.size && !saving ? 1 : 0.55 }}>
-        {saving ? "Applying changes…" : `Apply to ${selectedIds.size} task${selectedIds.size === 1 ? "" : "s"}`}
+      <button type="button" onClick={apply} disabled={!tasks.length || saving || (!status && !priority && !due && !category.trim())}
+        style={{ marginTop: 8, width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: tasks.length && !saving ? "pointer" : "not-allowed", opacity: tasks.length && !saving ? 1 : 0.55 }}>
+        {saving ? "Applying changes…" : `Apply to ${tasks.length} checked task${tasks.length === 1 ? "" : "s"}`}
       </button>
     </ModalShell>
   );
