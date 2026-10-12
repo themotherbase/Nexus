@@ -77,7 +77,7 @@ const deptById = Object.fromEntries(DEPARTMENTS.map(d => [d.id, d]));
 
 const STATUSES = ["Active", "On Leave", "Suspended", "Resigned", "Terminated"];
 const ROLE_LABEL = { superadmin: "Super Admin", executive: "Executive", manager: "Manager", employee: "Employee" };
-const COLUMNS = ["Backlog", "To Do", "In Progress", "For Review", "Waiting", "Completed"];
+const COLUMNS = ["Backlog", "To Do", "In Progress", "For Review", "Completed"];
 
 /* ---------------------------------------------------------------
    HELPERS
@@ -203,7 +203,7 @@ function Login() {
   }
 
   return (
-    <div className="mb-body" style={{ minHeight: "100vh", background: C.navy, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
+    <div className="mb-body" style={{ minHeight: "100vh", background: C.black, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
       <style>{FONT}</style>
       <AuthBackdrop />
       <form onSubmit={submit} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 32, width: 360, maxWidth: "calc(100% - 32px)", position: "relative", zIndex: 1 }}>
@@ -1427,8 +1427,8 @@ function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTa
 }
 
 const ellipsis = { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
-const STAGE_HINT = { "For Review": "Submit for sign-off", Waiting: "Paused until follow-up" };
-const stageColor = (s) => ({ Backlog: C.slate, "To Do": C.blue, "In Progress": C.amber, "For Review": "#7C6BD6", Waiting: C.slate, Completed: C.completed }[s] || C.slate);
+const STAGE_HINT = { "For Review": "Submit for sign-off" };
+const stageColor = (s) => ({ Backlog: C.slate, "To Do": C.blue, "In Progress": C.amber, "For Review": "#7C6BD6", Completed: C.completed }[s] || C.slate);
 
 // One entry per person, alphabetical, "Unassigned" last.
 function groupByAssignee(items, byId) {
@@ -1664,7 +1664,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
           )}
         </div>
       </div>
-      <div className="mb-kanban-desktop" style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(220px, 1fr))", gap: 12, alignItems: "start", paddingBottom: 8 }}>
+      <div className="mb-kanban-desktop" style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(220px, 1fr)) 24px", gap: 12, alignItems: "start", paddingBottom: 8 }}>
         {COLUMNS.map(col => {
           const items = sourceFor(col).filter(t => t.status === col);
           const groups = groupByAssignee(items, byId);
@@ -1698,6 +1698,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
             </div>
           );
         })}
+        <div aria-hidden="true" style={{ minHeight: 1 }} />
       </div>
       {openGroup && (
         <GroupModal col={openGroup.col} assignee={openGroup.assignee} source={sourceFor(openGroup.col)}
