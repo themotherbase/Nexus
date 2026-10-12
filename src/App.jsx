@@ -1215,7 +1215,7 @@ function OrgChartPyramid({ onSelect, onEdit }) {
                 <div style={{ fontSize: 11.5, fontWeight: 700, lineHeight: 1.25 }}>{e.name}</div>
                 <div style={{ fontSize: 10, color: C.slate, lineHeight: 1.3, marginTop: 1 }}>{e.position}</div>
                 <span style={{ fontSize: 9, fontWeight: 500, marginTop: 4, padding: "1px 6px", borderRadius: 8, display: "inline-block", background: dep.color + "18", color: dep.color }}>{dep.name}</span>
-                {e.secondary && <div style={{ fontSize: 8.5, padding: "1px 5px", borderRadius: 6, background: C.amberSoft, color: "#633806", border: "1px solid #EF9F27", marginTop: 3, display: "inline-block" }}>{e.secondary}</div>}
+                {e.secondary && <div style={{ fontSize: 8.5, padding: "1px 5px", borderRadius: 6, background: C.amberSoft, color: "#8f5512", border: "1px solid #EF9F27", marginTop: 3, display: "inline-block" }}>{e.secondary}</div>}
               </div>
               {canEditOrg && (
                 <div style={{ display: "flex", gap: 6, marginTop: 6, borderTop: `1px solid ${C.line}`, paddingTop: 5 }}>
@@ -2211,7 +2211,7 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
         {(task.attachments || []).map(a => {
           const { data } = supabase.storage.from("app-task-attachment").getPublicUrl(a.path);
           return (
-            <a key={a.id} href={data?.publicUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: C.navy, display: "flex", justifyContent: "space-between", background: C.card, border: `1px solid ${C.line}`, borderRadius: 8, padding: "6px 10px", textDecoration: "none" }}>
+            <a key={a.id} href={data?.publicUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: C.white, display: "flex", justifyContent: "space-between", background: C.card, border: `1px solid ${C.line}`, borderRadius: 8, padding: "6px 10px", textDecoration: "none" }}>
               <span>{a.name}</span><span style={{ color: C.slate, fontSize: 11 }}>{byId[a.uploadedBy]?.name || a.uploadedBy} · {a.time}</span>
             </a>
           );
