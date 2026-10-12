@@ -1344,8 +1344,27 @@ function exportTaskReport(employees, tasks) {
   URL.revokeObjectURL(url);
 }
 
-function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTaskStatus, viewerEmp, canCreate, setShowAddTask, setTaskDetail, onRepeat, onArchive, dark }) {
+function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTaskStatus, setTasksStatus, viewerEmp, canCreate, setShowAddTask, setTaskDetail, onRepeat, onArchive, dark }) {
   const { employees } = useEmp();
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState([]);
+  const [reviewNote, setReviewNote] = useState("");
+  const selectableTasks = tasks.filter(task => !task.archived && task.status !== "Completed");
+  const selectedTasks = selectableTasks.filter(task => selectedTaskIds.includes(task.id));
+  const reviewTasks = selectedTasks.filter(task => task.status === "For Review" && task.assignee !== viewerEmp.id);
+  const toggleTaskSelection = (id) => setSelectedTaskIds(ids => ids.includes(id) ? ids.filter(taskId => taskId !== id) : [...ids, id]);
+  const toggleSelectionMode = () => {
+    setSelectionMode(value => !value);
+    setSelectedTaskIds([]);
+    setReviewNote("");
+  };
+  const selectAllTasks = () => setSelectedTaskIds(selectedTasks.length === selectableTasks.length ? [] : selectableTasks.map(task => task.id));
+  const runBulkStatus = async (ids, status, note = "") => {
+    if (await setTasksStatus(ids, status, note)) {
+      setSelectedTaskIds([]);
+      setReviewNote("");
+    }
+  };
   return (
     <div style={{ position: "relative", minHeight: "calc(100vh - 112px)", overflow: "hidden", borderRadius: 16, padding: 18, margin: -8 }}>
       <div style={{ position: "relative", zIndex: 1 }}>
@@ -1354,6 +1373,9 @@ function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTa
             <ToggleBtn active={taskView==="kanban"} onClick={()=>setTaskView("kanban")} icon={KanbanSquare} label="Kanban" />
             <ToggleBtn active={taskView==="list"} onClick={()=>setTaskView("list")} icon={Table2} label="List" />
             <ToggleBtn active={taskView==="calendar"} onClick={()=>setTaskView("calendar")} icon={CalendarDays} label="Calendar" />
+            <button type="button" onClick={toggleSelectionMode} style={{ display: "flex", alignItems: "center", gap: 6, background: selectionMode ? C.navySoft : C.card, color: selectionMode ? "#fff" : C.ink, border: `1px solid ${selectionMode ? C.navySoft : C.line}`, borderRadius: 8, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
+              <Check size={14} /> {selectionMode ? "Done selecting" : "Select tasks"}
+            </button>
             {canCreate && (
               <button onClick={() => exportTaskReport(employees, reportTasks || tasks)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.card, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 8, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", marginLeft: 6 }}>
                 Export Report
@@ -1362,10 +1384,39 @@ function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTa
             {canCreate && <button onClick={() => setShowAddTask(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}><Plus size={15} /> Add Task</button>}
           </div>
         } />
+        {selectionMode && (
+          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, margin: "-4px 0 14px", padding: 10, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10 }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700, marginRight: 4 }}>{selectedTasks.length} selected</span>
+            <button type="button" onClick={selectAllTasks} style={{ background: "none", border: "none", color: C.blue, font: "inherit", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+              {selectedTasks.length === selectableTasks.length ? "Clear selection" : "Select all open"}
+            </button>
+            {[["To Do", C.blue], ["In Progress", C.amber], ["For Review", "#7C6BD6"]].map(([status, color]) => (
+              <button key={status} type="button" disabled={!selectedTasks.length} onClick={() => runBulkStatus(selectedTasks.map(task => task.id), status)}
+                style={{ background: color, color: "#fff", border: "none", borderRadius: 7, padding: "7px 10px", fontSize: 12, fontWeight: 700, cursor: selectedTasks.length ? "pointer" : "not-allowed", opacity: selectedTasks.length ? 1 : 0.45 }}>
+                {status}
+              </button>
+            ))}
+            {viewerEmp.role !== "employee" && reviewTasks.length > 0 && <>
+              <span style={{ width: "100%", fontSize: 11.5, color: C.slate }}>{reviewTasks.length} selected review task{reviewTasks.length === 1 ? "" : "s"} eligible for sign-off</span>
+              <input value={reviewNote} onChange={event => setReviewNote(event.target.value)} placeholder="Optional approval note; required to send back"
+                style={{ flex: "1 1 240px", minWidth: 180, border: `1px solid ${C.line}`, borderRadius: 7, padding: "7px 9px", font: "inherit", fontSize: 12, color: C.ink, background: C.card }} />
+              <button type="button" onClick={() => runBulkStatus(reviewTasks.map(task => task.id), "Completed", reviewNote)}
+                style={{ display: "flex", alignItems: "center", gap: 5, background: C.sage, color: "#fff", border: "none", borderRadius: 7, padding: "7px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                <CheckCircle2 size={14} /> Approve &amp; mark done
+              </button>
+              <button type="button" onClick={() => reviewNote.trim()
+                ? runBulkStatus(reviewTasks.map(task => task.id), "In Progress", reviewNote)
+                : alert("Add a short note explaining what still needs to be done before sending tasks back.")}
+                style={{ display: "flex", alignItems: "center", gap: 5, background: C.coral, color: "#fff", border: "none", borderRadius: 7, padding: "7px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                <Undo2 size={14} /> Send back to In Progress
+              </button>
+            </>}
+          </div>
+        )}
         {!canCreate && <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 14 }}>Viewing as {viewerEmp.name} ({ROLE_LABEL[viewerEmp.role]}) — you can update status and progress on your own tasks. Completion needs your supervisor's sign-off.</div>}
-        {taskView === "kanban" && <KanbanView tasks={tasks} archivedTasks={archivedTasks} setTaskStatus={setTaskStatus} viewerEmp={viewerEmp} setTaskDetail={setTaskDetail} onRepeat={onRepeat} onArchive={onArchive} dark={dark} />}
-        {taskView === "list" && <ListView tasks={tasks} setTaskDetail={setTaskDetail} dark={dark} />}
-        {taskView === "calendar" && <CalendarView tasks={tasks} setTaskDetail={setTaskDetail} dark={dark} />}
+        {taskView === "kanban" && <KanbanView tasks={tasks} archivedTasks={archivedTasks} setTaskStatus={setTaskStatus} viewerEmp={viewerEmp} setTaskDetail={setTaskDetail} onRepeat={onRepeat} onArchive={onArchive} dark={dark} selectionMode={selectionMode} selectedTaskIds={selectedTaskIds} onToggleSelect={toggleTaskSelection} />}
+        {taskView === "list" && <ListView tasks={tasks} setTaskDetail={setTaskDetail} dark={dark} selectionMode={selectionMode} selectedTaskIds={selectedTaskIds} onToggleSelect={toggleTaskSelection} />}
+        {taskView === "calendar" && <CalendarView tasks={tasks} setTaskDetail={setTaskDetail} dark={dark} selectionMode={selectionMode} selectedTaskIds={selectedTaskIds} onToggleSelect={toggleTaskSelection} />}
       </div>
     </div>
   );
