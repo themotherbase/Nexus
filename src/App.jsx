@@ -122,7 +122,7 @@ const mapTask = (row) => ({
   id: row.id, title: row.title, description: row.description, dept: row.dept_id,
   assignee: row.assignee_id, supervisor: row.supervisor_id, backup: row.backup_id,
   priority: row.priority, status: row.status, progress: row.progress, category: row.category,
-  recurring: row.recurring, recurringCustomDays: row.recurring_custom_days, due: row.due_date, needsSignoff: row.needs_signoff, createdBy: row.created_by, archived: !!row.archived,
+  recurring: row.recurring, recurringCustomDays: row.recurring_custom_days, due: row.due_date, updatedAt: row.updated_at, needsSignoff: row.needs_signoff, createdBy: row.created_by, archived: !!row.archived,
   subtasks: (row.subtasks || []).map(s => ({ id: s.id, title: s.title, done: s.done })),
   comments: (row.task_comments || [])
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
@@ -568,6 +568,31 @@ export default function App() {
     if (status === "Completed") patch.progress = 100;
     return updateTask(id, patch);
   };
+  const setTasksStatus = async (ids, status, note = "") => {
+    if (!ids.length) return false;
+    const patch = { status };
+    if (status === "Completed") patch.progress = 100;
+    const { error } = await supabase.from("tasks").update(patch).in("id", ids);
+    if (error) { alert(error.message); return false; }
+
+    if (note.trim()) {
+      const prefix = status === "Completed" ? "Approved" : "Sent back";
+      const commentTasks = tasks.filter(task => ids.includes(task.id));
+      const commentRows = commentTasks.map(task => ({
+        task_id: task.id, author_id: viewerEmp.id, body: `${prefix} by ${viewerEmp.name}: ${note.trim()}`,
+      }));
+      const { error: commentError } = await supabase.from("task_comments").insert(commentRows);
+      if (commentError) alert(`Tasks were updated, but the review note couldn't be saved: ${commentError.message}`);
+      else {
+        const notifications = commentTasks.flatMap(task => [...new Set([task.assignee, task.supervisor].filter(Boolean))]
+          .filter(employeeId => employeeId !== viewerEmp.id)
+          .map(employee_id => ({ employee_id, type: "comment", message: `${viewerEmp.name} commented on "${task.title}"`, task_id: task.id, read: false })));
+        if (notifications.length) await supabase.from("notifications").insert(notifications);
+      }
+    }
+    await refetchTasks();
+    return true;
+  };
   // "Remove" only hides a task from the board (archived = true); the row stays in the database.
   const archiveTask = async (task, archived = true) => {
     const { error } = await supabase.from("tasks").update({ archived }).eq("id", task.id);
@@ -758,7 +783,7 @@ export default function App() {
           {page === "tasks" && (
             <Tasks tasks={boardTasks} archivedTasks={archivedTasks} reportTasks={visibleTasks} dark={dark}
               taskView={taskView} setTaskView={setTaskView}
-              setTaskStatus={setTaskStatus} viewerEmp={viewerEmp}
+              setTaskStatus={setTaskStatus} setTasksStatus={setTasksStatus} viewerEmp={viewerEmp}
               canCreate={isManager} setShowAddTask={setShowAddTask} setTaskDetail={setTaskDetail}
               onRepeat={setRepeatTask} onArchive={archiveTask} />
           )}
@@ -820,7 +845,9 @@ function Dashboard({ tasks, viewerEmp, isManager, isExec, setPage, setTaskDetail
 
   const overdue = scoped.filter(t => statusMeta(t).label === "Overdue");
   const dueToday = scoped.filter(t => statusMeta(t).label === "Due today");
-  const completed = scoped.filter(t => t.status === "Completed");
+  const completed = scoped
+    .filter(t => t.status === "Completed")
+    .sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
 
   const byDept = DEPARTMENTS.map(dep => ({
     ...dep, count: scoped.filter(t => t.dept === dep.id && t.status !== "Completed").length,
@@ -852,7 +879,7 @@ function Dashboard({ tasks, viewerEmp, isManager, isExec, setPage, setTaskDetail
         <Panel title="Management alerts">
           <AlertRow icon={CircleAlert} color={C.coral} label="Overdue" items={overdue} onOpen={goToTask} />
           <AlertRow icon={Clock} color={C.amber} label="Due today" items={dueToday} onOpen={goToTask} />
-          <AlertRow icon={CheckCircle2} color={C.completed} label="Recently completed" items={completed.slice(-3)} onOpen={goToTask} />
+          <AlertRow icon={CheckCircle2} color={C.completed} label="Recently completed" items={completed.slice(0, 3)} onOpen={goToTask} />
         </Panel>
 
         {isExec && (
@@ -1429,7 +1456,7 @@ function StageMenu({ current, onSelect, canComplete, variant = "card" }) {
                   <span style={{ width: 9, height: 9, borderRadius: 9, background: stageColor(stage), flexShrink: 0 }} />
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ display: "block", fontSize: 13, fontWeight: 600 }}>{stage}</span>
-                    {hint && <span style={{ display: "block", fontSize: 11, color: C.slate }}>{hint}</span>}
+                          {hint && <span style={{ display: "block", fontSize: 11, color: C.slate }}>{hint}</span>}
                   </span>
                   {stage === current && <Check size={14} color={C.sage} />}
                 </button>
@@ -1542,7 +1569,7 @@ function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, r
   );
 }
 
-function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTaskDetail, onRepeat, onArchive, dark }) {
+function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTaskDetail, onRepeat, onArchive, dark, selectionMode, selectedTaskIds, onToggleSelect }) {
   const { byId } = useEmp();
   const [openGroup, setOpenGroup] = useState(null); // { col, assignee }
   const [showArchived, setShowArchived] = useState(false);
@@ -1575,7 +1602,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {sourceFor(mobileStage).filter(t => t.status === mobileStage).map(t => (
-            <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)}>{actions(t)}</TaskCard>
+            <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)} selectionMode={selectionMode} selected={selectedTaskIds.includes(t.id)} selectable={!t.archived && t.status !== "Completed"} onToggleSelect={onToggleSelect}>{actions(t)}</TaskCard>
           ))}
           {sourceFor(mobileStage).filter(t => t.status === mobileStage).length === 0 && (
             <Empty text={showArchived && mobileStage === "Completed" ? "Nothing removed." : "No tasks in this stage."} />
@@ -1606,10 +1633,10 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
                 </button>
               )}
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {groups.map(g => g.cards.length > 1 ? (
+                {groups.map(g => g.cards.length > 1 && !selectionMode ? (
                   <GroupHolder key={`g-${col}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} dark={dark} />
                 ) : (
-                  <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)}>{actions(g.cards[0])}</TaskCard>
+                  g.cards.map(t => <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)} selectionMode={selectionMode} selected={selectedTaskIds.includes(t.id)} selectable={!t.archived && t.status !== "Completed"} onToggleSelect={onToggleSelect}>{actions(t)}</TaskCard>)
                 ))}
                 {items.length === 0 && <div style={{ fontSize: 12, color: C.slate, padding: "10px 4px" }}>{archivedView ? "Nothing removed." : "No tasks."}</div>}
               </div>
@@ -1634,7 +1661,7 @@ function priorityFlagColor(t) {
   return C.blue; // Low
 }
 
-function TaskCard({ t, children, onOpen }) {
+function TaskCard({ t, children, onOpen, selectionMode = false, selected = false, selectable = true, onToggleSelect }) {
   const { byId, onlineIds } = useEmp();
   const meta = statusMeta(t);
   const emp = byId[t.assignee] || { name: "Unassigned" };
@@ -1642,13 +1669,18 @@ function TaskCard({ t, children, onOpen }) {
   const flagColor = priorityFlagColor(t);
   const flagLabel = t.status === "Completed" ? "Completed" : t.priority;
   return (
-    <div onClick={onOpen} style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 12, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(14px) saturate(140%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.38), 0 6px 16px rgba(20,28,48,0.10)" }}>
+    <div onClick={() => selectionMode && selectable ? onToggleSelect(t.id) : onOpen?.()} style={{ background: "var(--mb-glass-surface)", border: `1px solid ${selected ? C.blue : "var(--mb-glass-border)"}`, borderRadius: 12, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(14px) saturate(140%)", boxShadow: selected ? `0 0 0 2px ${C.blue}40` : "inset 0 1px 0 rgba(255,255,255,0.38), 0 6px 16px rgba(20,28,48,0.10)" }}>
       {t.recurring && (
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: -2 }}>
           <span title="Recurring"><Repeat size={12} color={C.slate} /></span>
         </div>
       )}
-      <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6, lineHeight: 1.3 }}>{t.title}</div>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
+        {selectionMode && <input type="checkbox" aria-label={`Select ${t.title}`} checked={selected} disabled={!selectable}
+          onClick={event => event.stopPropagation()} onChange={() => selectable && onToggleSelect(t.id)}
+          style={{ width: 16, height: 16, flexShrink: 0, margin: "1px 0 0", accentColor: C.blue, cursor: selectable ? "pointer" : "not-allowed" }} />}
+        <div style={{ fontSize: 13.5, fontWeight: 600, lineHeight: 1.3 }}>{t.title}</div>
+      </div>
       <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: meta.color, fontWeight: 600, marginBottom: 3 }}>
         <CalendarDays size={12} /> {t.due}
         {meta.label !== "On track" && meta.label !== "Completed" && <span>· {meta.label}</span>}
@@ -1669,7 +1701,7 @@ function TaskCard({ t, children, onOpen }) {
   );
 }
 
-function ListView({ tasks, setTaskDetail, dark }) {
+function ListView({ tasks, setTaskDetail, dark, selectionMode = false, selectedTaskIds = [], onToggleSelect }) {
   const { byId } = useEmp();
   return (
     <div style={{ background: dark ? "rgba(22, 28, 46, 0.72)" : "rgba(255, 255, 255, 0.70)", border: `1px solid ${dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.72)"}`, borderRadius: 14, overflow: "hidden", backdropFilter: "blur(14px) saturate(140%)" }}>
@@ -1680,8 +1712,14 @@ function ListView({ tasks, setTaskDetail, dark }) {
           {tasks.map(t => {
             const meta = statusMeta(t);
             return (
-              <tr key={t.id} onClick={() => setTaskDetail(t.id)} style={{ borderTop: `1px solid ${C.line}`, cursor: "pointer" }}>
-                <td style={{ padding: "10px 16px", fontWeight: 600 }}>{t.title}</td>
+              <tr key={t.id} onClick={() => selectionMode && t.status !== "Completed" ? onToggleSelect(t.id) : setTaskDetail(t.id)} style={{ borderTop: `1px solid ${C.line}`, cursor: "pointer", background: selectedTaskIds.includes(t.id) ? `${C.blue}18` : "transparent" }}>
+                <td style={{ padding: "10px 16px", fontWeight: 600 }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {selectionMode && <input type="checkbox" aria-label={`Select ${t.title}`} checked={selectedTaskIds.includes(t.id)} disabled={t.status === "Completed" || t.archived}
+                      onClick={event => event.stopPropagation()} onChange={() => onToggleSelect(t.id)} style={{ accentColor: C.blue }} />}
+                    {t.title}
+                  </span>
+                </td>
                 <td style={{ padding: "10px 16px" }}>{byId[t.assignee]?.name || "Unassigned"}</td>
                 <td style={{ padding: "10px 16px" }}><DeptTag id={t.dept} /></td>
                 <td style={{ padding: "10px 16px", color: priColor(t.priority), fontWeight: 600 }}>{t.priority}</td>
@@ -1697,7 +1735,7 @@ function ListView({ tasks, setTaskDetail, dark }) {
   );
 }
 
-function CalendarView({ tasks, setTaskDetail, dark }) {
+function CalendarView({ tasks, setTaskDetail, dark, selectionMode = false, selectedTaskIds = [], onToggleSelect }) {
   const { byId } = useEmp();
   const grouped = {};
   tasks.forEach(t => { grouped[t.due] = grouped[t.due] || []; grouped[t.due].push(t); });
@@ -1710,7 +1748,9 @@ function CalendarView({ tasks, setTaskDetail, dark }) {
           <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 8, color: dt < today() ? C.coral : dt === today() ? C.amber : C.ink }}>{dt} {dt === today() && "· Today"}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {grouped[dt].map(t => (
-              <div key={t.id} onClick={() => setTaskDetail(t.id)} style={{ display: "flex", gap: 10, fontSize: 13, cursor: "pointer" }}>
+              <div key={t.id} onClick={() => selectionMode && t.status !== "Completed" ? onToggleSelect(t.id) : setTaskDetail(t.id)} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer", background: selectedTaskIds.includes(t.id) ? `${C.blue}18` : "transparent" }}>
+                {selectionMode && <input type="checkbox" aria-label={`Select ${t.title}`} checked={selectedTaskIds.includes(t.id)} disabled={t.status === "Completed" || t.archived}
+                  onClick={event => event.stopPropagation()} onChange={() => onToggleSelect(t.id)} style={{ accentColor: C.blue }} />}
                 <span style={{ fontWeight: 600, color: priColor(t.priority) }}>{t.priority}</span><span>{t.title}</span><span style={{ color: C.slate }}>— {byId[t.assignee]?.name || "Unassigned"}</span>
               </div>
             ))}
