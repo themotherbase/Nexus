@@ -21,10 +21,10 @@ const C = {
 };
 const LIGHT_THEME = { ...C };
 const DARK_THEME = {
-  navy: "#000000", navySoft: "#0A0A0A", ink: "#F5F5F5", paper: "#000000", card: "#0B0B0B",
-  line: "#1A1A1A", amber: "#E5A94A", amberSoft: "#3D2E12", coral: "#E3766B", coralSoft: "#3B1D1B",
-  sage: "#63B085", sageSoft: "#1C3226", slate: "#A7A7A7", blue: "#6FA8E0", blueSoft: "#182B41",
-  yellow: "#E3CB55", yellowSoft: "#332D10",
+  navy: "#110D1E", navySoft: "#1C1532", ink: "#F3ECFF", paper: "#090611", card: "#141022",
+  line: "#2B2140", amber: "#E2B95E", amberSoft: "#3A2B15", coral: "#E68F90", coralSoft: "#3A2126",
+  sage: "#73C7A6", sageSoft: "#1C342A", slate: "#B7ABCC", blue: "#8AA8FF", blueSoft: "#1C274A",
+  yellow: "#EBCB7B", yellowSoft: "#362C1C",
 };
 const FONT = `
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap');
@@ -203,7 +203,7 @@ function Login() {
   }
 
   return (
-    <div className="mb-body" style={{ minHeight: "100vh", background: C.black, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
+    <div className="mb-body" style={{ minHeight: "100vh", background: C.navy, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
       <style>{FONT}</style>
       <AuthBackdrop />
       <form onSubmit={submit} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 32, width: 360, maxWidth: "calc(100% - 32px)", position: "relative", zIndex: 1 }}>
@@ -231,7 +231,7 @@ function Login() {
           <FormRow label="Bundy account number"><input type="text" inputMode="numeric" required value={bundyId} onChange={e=>setBundyId(e.target.value)} placeholder="e.g. 20240029" style={inputStyle} /></FormRow>
         )}
         <FormRow label="Password"><input type="password" required value={password} onChange={e=>setPassword(e.target.value)} style={inputStyle} /></FormRow>
-        {error && <div style={{ color: C.coral, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
+        {error && <div style={{ color: C.purple, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
         <button type="submit" disabled={loading} style={{ width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
           {loading ? "Signing in…" : "Sign in"}
         </button>
