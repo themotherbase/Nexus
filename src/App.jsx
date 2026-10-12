@@ -586,6 +586,16 @@ export default function App() {
     if (error) alert(error.message);
     await refetchTasks();
   };
+  const bulkUpdateTasks = async (ids, patch) => {
+    const { error } = await supabase.from("tasks").update(patch).in("id", ids);
+    if (error) {
+      alert(error.message);
+      await refetchTasks();
+      return false;
+    }
+    await refetchTasks();
+    return true;
+  };
   const setTaskStatus = (id, status) => {
     const patch = { status };
     if (status === "Completed") patch.progress = 100;
@@ -840,7 +850,7 @@ export default function App() {
           {page === "tasks" && (
             <Tasks tasks={boardTasks} archivedTasks={archivedTasks} reportTasks={visibleTasks} dark={dark}
               taskView={taskView} setTaskView={setTaskView}
-              setTaskStatus={setTaskStatus} viewerEmp={viewerEmp}
+              setTaskStatus={setTaskStatus} bulkUpdateTasks={bulkUpdateTasks} viewerEmp={viewerEmp}
               canCreate={isManager} setShowAddTask={setShowAddTask} setTaskDetail={setTaskDetail}
               onRepeat={setRepeatTask} onArchive={archiveTask} />
           )}
@@ -1399,9 +1409,10 @@ function exportTaskReport(employees, tasks) {
   URL.revokeObjectURL(url);
 }
 
-function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTaskStatus, viewerEmp, canCreate, setShowAddTask, setTaskDetail, onRepeat, onArchive, dark }) {
+function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTaskStatus, bulkUpdateTasks, viewerEmp, canCreate, setShowAddTask, setTaskDetail, onRepeat, onArchive, dark }) {
   const { employees } = useEmp();
   const [deptFilter, setDeptFilter] = useState("all");
+  const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [checkedTaskIds, setCheckedTaskIds] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem("mb-checked-tasks") || "[]")); } catch { return new Set(); }
   });
@@ -1425,6 +1436,7 @@ function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTa
                 Export Report
               </button>
             )}
+            {canCreate && <button onClick={() => setShowBulkEdit(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.card, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 8, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><Pencil size={14} /> Bulk edit</button>}
             {canCreate && <button onClick={() => setShowAddTask(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}><Plus size={15} /> Add Task</button>}
           </div>
         } />
@@ -1442,8 +1454,9 @@ function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTa
         </div>
         {!canCreate && <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 14 }}>Viewing as {viewerEmp.name} ({ROLE_LABEL[viewerEmp.role]}) — you can update status and progress on your own tasks. Completion needs your supervisor's sign-off.</div>}
         {taskView === "kanban" && <KanbanView tasks={boardTasks} archivedTasks={archivedTasks} setTaskStatus={setTaskStatus} viewerEmp={viewerEmp} setTaskDetail={setTaskDetail} onRepeat={onRepeat} onArchive={onArchive} dark={dark} checkedTaskIds={checkedTaskIds} setCheckedTaskIds={setCheckedTaskIds} />}
-        {taskView === "list" && <ListView tasks={tasks} setTaskDetail={setTaskDetail} dark={dark} />}
-        {taskView === "calendar" && <CalendarView tasks={tasks} setTaskDetail={setTaskDetail} dark={dark} />}
+        {taskView === "list" && <ListView tasks={boardTasks} setTaskDetail={setTaskDetail} dark={dark} />}
+        {taskView === "calendar" && <CalendarView tasks={boardTasks} setTaskDetail={setTaskDetail} dark={dark} />}
+        {showBulkEdit && <BulkEditModal tasks={boardTasks} onClose={() => setShowBulkEdit(false)} onApply={bulkUpdateTasks} />}
       </div>
     </div>
   );
@@ -1867,6 +1880,69 @@ function CalendarView({ tasks, setTaskDetail, dark }) {
         </div>
       ))}
     </div>
+  );
+}
+
+function BulkEditModal({ tasks, onClose, onApply }) {
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [status, setStatus] = useState("");
+  const [priority, setPriority] = useState("");
+  const [due, setDue] = useState("");
+  const [category, setCategory] = useState("");
+  const [saving, setSaving] = useState(false);
+  const allSelected = tasks.length > 0 && selectedIds.size === tasks.length;
+  const toggleAll = () => setSelectedIds(allSelected ? new Set() : new Set(tasks.map(task => task.id)));
+  const toggleTask = (id) => setSelectedIds(previous => {
+    const next = new Set(previous);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const apply = async () => {
+    if (!selectedIds.size || saving) return;
+    const patch = {};
+    if (status) {
+      patch.status = status;
+      if (status === "Completed") patch.progress = 100;
+    }
+    if (priority) patch.priority = priority;
+    if (due) patch.due_date = due;
+    if (category.trim()) patch.category = category.trim();
+    if (!Object.keys(patch).length) return;
+    setSaving(true);
+    const succeeded = await onApply([...selectedIds], patch);
+    setSaving(false);
+    if (succeeded) onClose();
+  };
+
+  return (
+    <ModalShell onClose={onClose} width={560}>
+      <div className="mb-display" style={{ fontSize: 19, fontWeight: 600, marginBottom: 4 }}>Bulk edit tasks</div>
+      <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 14 }}>Choose tasks and set only the fields you want to change.</div>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 2px", borderBottom: `1px solid ${C.line}`, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+        <input type="checkbox" checked={allSelected} onChange={toggleAll} />
+        Select all filtered tasks ({tasks.length})
+      </label>
+      <div style={{ maxHeight: 190, overflowY: "auto", borderBottom: `1px solid ${C.line}`, marginBottom: 14 }}>
+        {tasks.map(task => (
+          <label key={task.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 2px", fontSize: 12.5, cursor: "pointer" }}>
+            <input type="checkbox" checked={selectedIds.has(task.id)} onChange={() => toggleTask(task.id)} />
+            <span style={{ flex: 1, minWidth: 0, ...ellipsis }}>{task.title}</span>
+            <span style={{ color: C.slate, fontSize: 11 }}>{task.status}</span>
+          </label>
+        ))}
+        {tasks.length === 0 && <Empty text="No tasks match this department." />}
+      </div>
+      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <FormRow label="Status"><select value={status} onChange={e => setStatus(e.target.value)} style={inputStyle}><option value="">No change</option>{COLUMNS.map(stage => <option key={stage}>{stage}</option>)}</select></FormRow>
+        <FormRow label="Priority"><select value={priority} onChange={e => setPriority(e.target.value)} style={inputStyle}><option value="">No change</option><option>High</option><option>Medium</option><option>Low</option></select></FormRow>
+        <FormRow label="Due date"><input type="date" value={due} onChange={e => setDue(e.target.value)} style={inputStyle} /></FormRow>
+        <FormRow label="Category"><input value={category} onChange={e => setCategory(e.target.value)} placeholder="No change" style={inputStyle} /></FormRow>
+      </div>
+      <button type="button" onClick={apply} disabled={!selectedIds.size || saving || (!status && !priority && !due && !category.trim())}
+        style={{ marginTop: 8, width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: selectedIds.size && !saving ? "pointer" : "not-allowed", opacity: selectedIds.size && !saving ? 1 : 0.55 }}>
+        {saving ? "Applying changes…" : `Apply to ${selectedIds.size} task${selectedIds.size === 1 ? "" : "s"}`}
+      </button>
+    </ModalShell>
   );
 }
 
