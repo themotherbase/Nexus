@@ -1664,13 +1664,15 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
           )}
         </div>
       </div>
-      <div className="mb-kanban-desktop" style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(220px, 1fr)) 24px", gap: 12, alignItems: "start", paddingBottom: 8 }}>
+      <div className="mb-kanban-desktop" style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8 }}>
         {COLUMNS.map(col => {
           const items = sourceFor(col).filter(t => t.status === col);
           const groups = groupByAssignee(items, byId);
+          const laneCount = ["Backlog", "For Review"].includes(col) ? 1 : 2;
+          const lanes = Array.from({ length: laneCount }, (_, laneIndex) => groups.filter((_, index) => index % laneCount === laneIndex));
           const archivedView = col === "Completed" && showArchived;
           return (
-            <div key={col} style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+            <div key={col} style={{ minWidth: laneCount === 1 ? 250 : 510, flex: `0 0 ${laneCount === 1 ? 250 : 510}px`, display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2, padding: "0 2px" }}>
                 <span style={{
                   display: "inline-flex", alignItems: "center", fontSize: 11.5, fontWeight: 700, letterSpacing: 0.2, color: "#fff",
@@ -1687,18 +1689,27 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
                   {showArchived ? <><ChevronLeft size={13} /> Back to completed</> : <><Archive size={12} /> Removed from board ({archivedTasks.length})</>}
                 </button>
               )}
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {groups.map(g => g.cards.length > 1 ? (
-                  <GroupHolder key={`g-${col}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} dark={dark} />
-                ) : (
-                  <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)} dark={dark}>{actions(g.cards[0])}</TaskCard>
-                ))}
-                {items.length === 0 && <div style={{ fontSize: 12, color: C.slate, padding: "10px 4px" }}>{archivedView ? "Nothing removed." : "No tasks."}</div>}
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${laneCount}, minmax(210px, 1fr))`, gap: 8 }}>
+                {Array.from({ length: laneCount }).map((_, laneIndex) => {
+                  const laneGroups = lanes[laneIndex] || [];
+                  return (
+                    <div key={`${col}-lane-${laneIndex}`} style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+                      {laneGroups.length === 0 ? (
+                        <div style={{ fontSize: 12, color: C.slate, padding: "10px 4px" }}>{archivedView ? "Nothing removed." : "No tasks."}</div>
+                      ) : (
+                        laneGroups.map(g => g.cards.length > 1 ? (
+                          <GroupHolder key={`g-${col}-${laneIndex}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} dark={dark} />
+                        ) : (
+                          <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)} dark={dark}>{actions(g.cards[0])}</TaskCard>
+                        ))
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );
         })}
-        <div aria-hidden="true" style={{ minHeight: 1 }} />
       </div>
       {openGroup && (
         <GroupModal col={openGroup.col} assignee={openGroup.assignee} source={sourceFor(openGroup.col)}
