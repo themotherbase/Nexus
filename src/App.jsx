@@ -1401,6 +1401,17 @@ function exportTaskReport(employees, tasks) {
 
 function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTaskStatus, viewerEmp, canCreate, setShowAddTask, setTaskDetail, onRepeat, onArchive, dark }) {
   const { employees } = useEmp();
+  const [deptFilter, setDeptFilter] = useState("all");
+  const [checkedTaskIds, setCheckedTaskIds] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("mb-checked-tasks") || "[]")); } catch { return new Set(); }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem("mb-checked-tasks", JSON.stringify(Array.from(checkedTaskIds))); } catch {}
+  }, [checkedTaskIds]);
+
+  const boardTasks = useMemo(() => deptFilter === "all" ? tasks : tasks.filter(t => t.dept === deptFilter), [tasks, deptFilter]);
+
   return (
     <div style={{ position: "relative", minHeight: "calc(100vh - 112px)", overflow: "hidden", borderRadius: 16, padding: 18, margin: -8 }}>
       <div style={{ position: "relative", zIndex: 1 }}>
@@ -1417,8 +1428,20 @@ function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTa
             {canCreate && <button onClick={() => setShowAddTask(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}><Plus size={15} /> Add Task</button>}
           </div>
         } />
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 14, alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 10, padding: "7px 10px" }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: C.slate }}>Department</span>
+            <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} style={{ background: "transparent", border: "none", color: C.ink, fontSize: 12.5, fontFamily: "inherit", outline: "none" }}>
+              <option value="all">All departments</option>
+              {DEPARTMENTS.map(dep => <option key={dep.id} value={dep.id}>{dep.name}</option>)}
+            </select>
+          </div>
+          <div style={{ fontSize: 11.5, color: C.slate, background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 999, padding: "6px 10px" }}>
+            {checkedTaskIds.size} checked
+          </div>
+        </div>
         {!canCreate && <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 14 }}>Viewing as {viewerEmp.name} ({ROLE_LABEL[viewerEmp.role]}) — you can update status and progress on your own tasks. Completion needs your supervisor's sign-off.</div>}
-        {taskView === "kanban" && <KanbanView tasks={tasks} archivedTasks={archivedTasks} setTaskStatus={setTaskStatus} viewerEmp={viewerEmp} setTaskDetail={setTaskDetail} onRepeat={onRepeat} onArchive={onArchive} dark={dark} />}
+        {taskView === "kanban" && <KanbanView tasks={boardTasks} archivedTasks={archivedTasks} setTaskStatus={setTaskStatus} viewerEmp={viewerEmp} setTaskDetail={setTaskDetail} onRepeat={onRepeat} onArchive={onArchive} dark={dark} checkedTaskIds={checkedTaskIds} setCheckedTaskIds={setCheckedTaskIds} />}
         {taskView === "list" && <ListView tasks={tasks} setTaskDetail={setTaskDetail} dark={dark} />}
         {taskView === "calendar" && <CalendarView tasks={tasks} setTaskDetail={setTaskDetail} dark={dark} />}
       </div>
@@ -1624,7 +1647,7 @@ function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, r
   );
 }
 
-function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTaskDetail, onRepeat, onArchive, dark }) {
+function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTaskDetail, onRepeat, onArchive, dark, checkedTaskIds, setCheckedTaskIds }) {
   const { byId } = useEmp();
   const [openGroup, setOpenGroup] = useState(null); // { col, assignee }
   const [showArchived, setShowArchived] = useState(false);
@@ -1632,6 +1655,13 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
   const canManage = viewerEmp.role !== "employee";
   const sourceFor = (col) => (col === "Completed" && showArchived ? archivedTasks : tasks);
   const actions = (t) => <TaskCardActions t={t} viewerEmp={viewerEmp} setTaskStatus={setTaskStatus} onRepeat={onRepeat} onArchive={onArchive} />;
+  const toggleChecked = (taskId) => {
+    setCheckedTaskIds(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId); else next.add(taskId);
+      return next;
+    });
+  };
 
   return (
     <>
@@ -1657,7 +1687,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {sourceFor(mobileStage).filter(t => t.status === mobileStage).map(t => (
-            <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)} dark={dark}>{actions(t)}</TaskCard>
+            <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)} dark={dark} isChecked={checkedTaskIds.has(t.id)} onToggleChecked={() => toggleChecked(t.id)}>{actions(t)}</TaskCard>
           ))}
           {sourceFor(mobileStage).filter(t => t.status === mobileStage).length === 0 && (
             <Empty text={showArchived && mobileStage === "Completed" ? "Nothing removed." : "No tasks in this stage."} />
@@ -1700,7 +1730,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
                         laneGroups.map(g => g.cards.length > 1 ? (
                           <GroupHolder key={`g-${col}-${laneIndex}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} dark={dark} />
                         ) : (
-                          <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)} dark={dark}>{actions(g.cards[0])}</TaskCard>
+                          <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)} dark={dark} isChecked={checkedTaskIds.has(g.cards[0].id)} onToggleChecked={() => toggleChecked(g.cards[0].id)}>{actions(g.cards[0])}</TaskCard>
                         ))
                       )}
                     </div>
@@ -1748,7 +1778,7 @@ function priorityFlagColor(t) {
   return C.blue; // Low
 }
 
-function TaskCard({ t, children, onOpen, dark }) {
+function TaskCard({ t, children, onOpen, dark, isChecked = false, onToggleChecked }) {
   const { byId, onlineIds } = useEmp();
   const meta = statusMeta(t);
   const emp = byId[t.assignee] || { name: "Unassigned" };
@@ -1756,13 +1786,18 @@ function TaskCard({ t, children, onOpen, dark }) {
   const flagColor = priorityFlagColor(t);
   const flagLabel = t.status === "Completed" ? "Completed" : t.priority;
   return (
-    <div onClick={onOpen} style={{ background: dark ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))" : "var(--mb-glass-surface)", border: `1px solid ${dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`, borderRadius: 16, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(14px) saturate(140%)", boxShadow: dark ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)" : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)" }}>
-      {t.recurring && (
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: -2 }}>
-          <span title="Recurring"><Repeat size={12} color={C.slate} /></span>
-        </div>
-      )}
-      <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6, lineHeight: 1.3 }}>{t.title}</div>
+    <div onClick={onOpen} style={{ background: dark ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))" : "var(--mb-glass-surface)", border: `1px solid ${isChecked ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`, borderRadius: 16, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(14px) saturate(140%)", boxShadow: isChecked ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)" : dark ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)" : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+        {onToggleChecked ? (
+          <button type="button" onClick={(e) => { e.stopPropagation(); onToggleChecked(); }} aria-label={isChecked ? "Uncheck task" : "Check task"} style={{ width: 20, height: 20, borderRadius: 6, border: `1px solid ${isChecked ? "rgba(166, 144, 255, 0.9)" : dark ? "rgba(255,255,255,0.12)" : C.line}`, background: isChecked ? "linear-gradient(180deg, #8a7aff, #6552d6)" : dark ? "rgba(255,255,255,0.02)" : C.paper, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", cursor: "pointer", padding: 0 }}>
+            {isChecked && <Check size={12} />}
+          </button>
+        ) : <span style={{ width: 20, height: 20 }} />}
+        {t.recurring && (
+          <span title="Recurring" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", marginLeft: "auto" }}><Repeat size={12} color={C.slate} /></span>
+        )}
+      </div>
+      <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6, lineHeight: 1.3, textDecoration: isChecked ? "line-through" : "none", opacity: isChecked ? 0.82 : 1 }}>{t.title}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: meta.color, fontWeight: 600, marginBottom: 3 }}>
         <CalendarDays size={12} /> {t.due}
         {meta.label !== "On track" && meta.label !== "Completed" && <span>· {meta.label}</span>}
