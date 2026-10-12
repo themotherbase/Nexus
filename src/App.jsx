@@ -763,10 +763,10 @@ export default function App() {
 
   return (
     <EmpContext.Provider value={{ employees, byId, directReports, addEmployee, updateEmployee, deleteEmployee, canEditOrg, onlineIds }}>
-      <div className="mb-body" style={{ background: C.paper, minHeight: "100vh", color: C.ink, display: "flex", flexDirection: "column", colorScheme: dark ? "dark" : "light", "--mb-control-bg": C.card, "--mb-control-fg": C.ink, "--mb-control-border": C.line, "--mb-glass-surface": dark ? "rgba(25, 30, 47, 0.76)" : "rgba(255, 255, 255, 0.70)", "--mb-glass-border": dark ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.72)", "--mb-glass-header": dark ? "rgba(33, 39, 58, 0.84)" : "rgba(237, 240, 244, 0.78)", "--mb-glass-node": dark ? "rgba(24, 30, 47, 0.82)" : "rgba(255, 255, 255, 0.78)", "--mb-glass-chart": dark ? "rgba(21, 27, 43, 0.48)" : "rgba(255, 255, 255, 0.42)" }}>
+      <div className="mb-body" style={{ background: C.paper, minHeight: "100vh", color: C.ink, display: "flex", flexDirection: "column", colorScheme: dark ? "dark" : "light", "--mb-control-bg": C.card, "--mb-control-fg": C.ink, "--mb-control-border": C.line, "--mb-glass-surface": dark ? "rgba(18, 18, 18, 0.88)" : "rgba(255, 255, 255, 0.82)", "--mb-glass-border": dark ? "rgba(255,255,255,0.08)" : "rgba(15, 23, 42, 0.08)", "--mb-glass-header": dark ? "rgba(16, 16, 16, 0.9)" : "rgba(255, 255, 255, 0.8)", "--mb-glass-node": dark ? "rgba(17, 17, 17, 0.9)" : "rgba(255, 255, 255, 0.8)", "--mb-glass-chart": dark ? "rgba(15, 15, 15, 0.64)" : "rgba(255, 255, 255, 0.58)" }}>
         <style>{FONT}{RESPONSIVE_CSS}</style>
 
-        <header style={{ position: "sticky", top: 0, zIndex: 60, background: C.navy, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+        <header style={{ position: "sticky", top: 0, zIndex: 60, background: "rgba(12, 12, 12, 0.88)", borderBottom: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(12px)" }}>
           <div className="mb-header-inner" style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 18px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 9, flexShrink: 0 }}>
               <img
@@ -828,7 +828,7 @@ export default function App() {
         </nav>
 
         <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-        <main className="mb-main" style={{ flex: 1, minWidth: 0, padding: "26px 34px 60px", overflowY: "auto", backgroundColor: C.paper, backgroundImage: `linear-gradient(${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}, ${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}), url("${motherbaseBackground}")`, backgroundSize: "cover, min(1100px, 94vw) auto", backgroundPosition: "center, center 42%", backgroundRepeat: "no-repeat" }}>
+        <main className="mb-main" style={{ flex: 1, minWidth: 0, padding: "26px 34px 60px", overflowY: "auto", background: dark ? "radial-gradient(circle at top, rgba(255,255,255,0.04), transparent 32%), #000000" : "radial-gradient(circle at top, rgba(148,163,184,0.08), transparent 32%), #F5F5F4" }}>
           {page === "dashboard" && <Dashboard tasks={tasks} viewerEmp={viewerEmp} isManager={isManager} isExec={isExec} setPage={setPage} setTaskDetail={setTaskDetail} />}
           {page === "organization" && (
             <Organization orgView={orgView} setOrgView={setOrgView} setSelectedEmp={setSelectedEmp}
@@ -2428,17 +2428,17 @@ function PageHeader({ eyebrow, title, actions }) {
   return <div className="mb-page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 20 }}><div><div style={{ fontSize: 11.5, color: C.slate, fontWeight: 600, marginBottom: 3 }}>{eyebrow}</div><div className="mb-display" style={{ fontSize: 26, fontWeight: 600 }}>{title}</div></div>{actions && <div className="mb-page-actions" style={{ display: "flex", justifyContent: "flex-end" }}>{actions}</div>}</div>;
 }
 function StatCard({ label, value, sub, accent }) {
-  return <div style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 12, padding: "14px 16px", backdropFilter: "blur(14px) saturate(140%)", boxShadow: "0 8px 22px rgba(22,30,55,0.09)" }}><div style={{ fontSize: 11.5, color: C.slate, marginBottom: 4 }}>{label}</div><div className="mb-display" style={{ fontSize: 26, fontWeight: 600, color: accent || C.ink }}>{value}</div><div style={{ fontSize: 11, color: C.slate, marginTop: 2 }}>{sub}</div></div>;
+  return <div style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 16, padding: "14px 16px", boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)" }}><div style={{ fontSize: 11.5, color: C.slate, marginBottom: 4 }}>{label}</div><div className="mb-display" style={{ fontSize: 26, fontWeight: 600, color: accent || C.ink }}>{value}</div><div style={{ fontSize: 11, color: C.slate, marginTop: 2 }}>{sub}</div></div>;
 }
 function Panel({ title, children, style }) {
-  return <div style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 14, padding: 18, backdropFilter: "blur(14px) saturate(140%)", boxShadow: "0 8px 22px rgba(22,30,55,0.08)", ...style }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>{title}</div>{children}</div>;
+  return <div style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 16, padding: 18, boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)", ...style }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>{title}</div>{children}</div>;
 }
 function SectionLabel({ children }) { return <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 14 }}>{children}</div>; }
 function ToggleBtn({ active, onClick, icon: Icon, label }) {
-  return <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 8, border: `1px solid ${active ? C.navy : C.line}`, background: active ? C.navy : C.card, color: active ? "#fff" : C.ink, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><Icon size={14} /> {label}</button>;
+  return <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 10, border: `1px solid ${active ? C.navy : C.line}`, background: active ? C.navy : C.card, color: active ? "#fff" : C.ink, fontSize: 12.5, fontWeight: 600, cursor: "pointer", boxShadow: active ? "0 8px 18px rgba(17,24,39,0.08)" : "none" }}><Icon size={14} /> {label}</button>;
 }
 function SearchBar({ value, onChange, placeholder }) {
-  return <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 10, padding: "8px 12px", marginBottom: 16, maxWidth: 420, backdropFilter: "blur(12px) saturate(140%)" }}><Search size={15} color={C.slate} /><input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ background: "transparent", color: C.ink, border: "none", outline: "none", fontSize: 13.5, flex: 1, fontFamily: "inherit" }} /></div>;
+  return <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 12, padding: "8px 12px", marginBottom: 16, maxWidth: 420, boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)" }}><Search size={15} color={C.slate} /><input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ background: "transparent", color: C.ink, border: "none", outline: "none", fontSize: 13.5, flex: 1, fontFamily: "inherit" }} /></div>;
 }
 function Avatar({ name, size = 32, online, color = C.navySoft }) {
   return (
@@ -2451,9 +2451,9 @@ function Avatar({ name, size = 32, online, color = C.navySoft }) {
 function Empty({ text }) { return <div style={{ fontSize: 13, color: C.slate, padding: "10px 0" }}>{text}</div>; }
 function ModalShell({ children, onClose, width = 500 }) {
   return (
-    <div onClick={onClose} className="mb-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(20,22,35,0.45)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "60px 20px", zIndex: 200, overflowY: "auto" }}>
-      <div onClick={e => e.stopPropagation()} className="mb-body mb-modal-card" style={{ background: C.card, border: `1.5px solid ${C.line}`, borderRadius: 10, padding: 26, width, maxWidth: "100%", position: "relative", boxShadow: `0 4px 0 -1px ${C.card}, 0 5px 0 -1px ${C.line}` }}>
-        <button onClick={onClose} aria-label="Close" style={{ position: "absolute", top: 12, right: 12, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: C.slate }}><X size={18} /></button>
+    <div onClick={onClose} className="mb-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(9, 12, 18, 0.52)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "60px 20px", zIndex: 200, overflowY: "auto" }}>
+      <div onClick={e => e.stopPropagation()} className="mb-body mb-modal-card" style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 18, padding: 26, width, maxWidth: "100%", position: "relative", boxShadow: "0 20px 55px rgba(15, 23, 42, 0.14)" }}>
+        <button onClick={onClose} aria-label="Close" style={{ position: "absolute", top: 12, right: 12, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(148,163,184,0.08)", border: "none", borderRadius: 8, cursor: "pointer", color: C.slate }}><X size={18} /></button>
         {children}
       </div>
     </div>
