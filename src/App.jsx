@@ -21,8 +21,8 @@ const C = {
 };
 const LIGHT_THEME = { ...C };
 const DARK_THEME = {
-  navy: "#110D1E", navySoft: "#1C1532", ink: "#F3ECFF", paper: "#090611", card: "#141022",
-  line: "#2B2140", amber: "#E2B95E", amberSoft: "#3A2B15", coral: "#E68F90", coralSoft: "#3A2126",
+  navy: "#110D1E", navySoft: "#1C1532", ink: "#F3ECFF", paper: "#090611", card: "#171224",
+  line: "#352A4D", amber: "#E2B95E", amberSoft: "#3A2B15", coral: "#E68F90", coralSoft: "#3A2126",
   sage: "#73C7A6", sageSoft: "#1C342A", slate: "#B7ABCC", blue: "#8AA8FF", blueSoft: "#1C274A",
   yellow: "#EBCB7B", yellowSoft: "#362C1C",
 };
@@ -763,7 +763,7 @@ export default function App() {
 
   return (
     <EmpContext.Provider value={{ employees, byId, directReports, addEmployee, updateEmployee, deleteEmployee, canEditOrg, onlineIds }}>
-      <div className="mb-body" style={{ background: C.paper, minHeight: "100vh", color: C.ink, display: "flex", flexDirection: "column", colorScheme: dark ? "dark" : "light", "--mb-control-bg": C.card, "--mb-control-fg": C.ink, "--mb-control-border": C.line, "--mb-glass-surface": dark ? "rgba(18, 18, 18, 0.88)" : "rgba(255, 255, 255, 0.82)", "--mb-glass-border": dark ? "rgba(255,255,255,0.08)" : "rgba(15, 23, 42, 0.08)", "--mb-glass-header": dark ? "rgba(16, 16, 16, 0.9)" : "rgba(255, 255, 255, 0.8)", "--mb-glass-node": dark ? "rgba(17, 17, 17, 0.9)" : "rgba(255, 255, 255, 0.8)", "--mb-glass-chart": dark ? "rgba(15, 15, 15, 0.64)" : "rgba(255, 255, 255, 0.58)" }}>
+      <div className="mb-body" style={{ background: C.paper, minHeight: "100vh", color: C.ink, display: "flex", flexDirection: "column", colorScheme: dark ? "dark" : "light", "--mb-control-bg": C.card, "--mb-control-fg": C.ink, "--mb-control-border": C.line, "--mb-glass-surface": dark ? "rgba(27, 20, 39, 0.9)" : "rgba(255, 255, 255, 0.82)", "--mb-glass-border": dark ? "rgba(181, 156, 255, 0.18)" : "rgba(15, 23, 42, 0.08)", "--mb-glass-header": dark ? "rgba(22, 17, 34, 0.96)" : "rgba(255, 255, 255, 0.8)", "--mb-glass-node": dark ? "rgba(24, 19, 35, 0.9)" : "rgba(255, 255, 255, 0.8)", "--mb-glass-chart": dark ? "rgba(20, 15, 30, 0.72)" : "rgba(255, 255, 255, 0.58)" }}>
         <style>{FONT}{RESPONSIVE_CSS}</style>
 
         <header style={{ position: "sticky", top: 0, zIndex: 60, background: "rgba(12, 12, 12, 0.88)", borderBottom: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(12px)" }}>
@@ -1562,8 +1562,8 @@ function GroupHolder({ group, onOpen, dark }) {
   const more = group.cards.length - shown.length;
   return (
     <button type="button" onClick={onOpen} aria-label={`Open ${group.cards.length} tasks for ${group.name}`}
-      style={{ display: "block", width: "100%", textAlign: "left", fontFamily: "inherit", color: C.ink, cursor: "pointer", background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 16, padding: 12, marginBottom: 8, backdropFilter: "blur(12px) saturate(140%)",
-        boxShadow: "0 14px 28px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255,255,255,0.18)" }}>
+      style={{ display: "block", width: "100%", textAlign: "left", fontFamily: "inherit", color: C.ink, cursor: "pointer", background: dark ? "linear-gradient(180deg, rgba(34,25,52,0.96), rgba(22,18,34,0.96))" : "var(--mb-glass-surface)", border: `1px solid ${dark ? "rgba(179, 154, 255, 0.25)" : "var(--mb-glass-border)"}`, borderRadius: 16, padding: 12, marginBottom: 8, backdropFilter: "blur(12px) saturate(140%)",
+        boxShadow: dark ? "0 16px 32px rgba(14, 10, 24, 0.42), inset 0 1px 0 rgba(255,255,255,0.08)" : "0 14px 28px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255,255,255,0.18)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <Avatar name={group.name} size={34} color={deptById[emp?.dept]?.color} online={onlineIds?.has(group.assignee)} />
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -1588,7 +1588,7 @@ function GroupHolder({ group, onOpen, dark }) {
 }
 
 // Everything one person has in one column, as a responsive grid, with arrows to hop to the next person.
-function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, renderActions }) {
+function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, renderActions, dark }) {
   const { byId, onlineIds } = useEmp();
   const people = groupByAssignee(source.filter(t => t.status === col), byId);
   const idx = people.findIndex(p => p.assignee === assignee);
@@ -1617,7 +1617,7 @@ function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, r
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12, maxHeight: "62vh", overflowY: "auto", padding: 2 }}>
         {group.cards.map(t => (
-          <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)}>{renderActions(t)}</TaskCard>
+          <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)} dark={dark}>{renderActions(t)}</TaskCard>
         ))}
       </div>
     </ModalShell>
@@ -1657,7 +1657,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {sourceFor(mobileStage).filter(t => t.status === mobileStage).map(t => (
-            <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)}>{actions(t)}</TaskCard>
+            <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)} dark={dark}>{actions(t)}</TaskCard>
           ))}
           {sourceFor(mobileStage).filter(t => t.status === mobileStage).length === 0 && (
             <Empty text={showArchived && mobileStage === "Completed" ? "Nothing removed." : "No tasks in this stage."} />
@@ -1691,7 +1691,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
                 {groups.map(g => g.cards.length > 1 ? (
                   <GroupHolder key={`g-${col}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} dark={dark} />
                 ) : (
-                  <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)}>{actions(g.cards[0])}</TaskCard>
+                  <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)} dark={dark}>{actions(g.cards[0])}</TaskCard>
                 ))}
                 {items.length === 0 && <div style={{ fontSize: 12, color: C.slate, padding: "10px 4px" }}>{archivedView ? "Nothing removed." : "No tasks."}</div>}
               </div>
@@ -1703,7 +1703,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
       {openGroup && (
         <GroupModal col={openGroup.col} assignee={openGroup.assignee} source={sourceFor(openGroup.col)}
           onClose={() => setOpenGroup(null)} onSwitch={(a) => setOpenGroup({ col: openGroup.col, assignee: a })}
-          setTaskDetail={setTaskDetail} renderActions={actions} />
+          setTaskDetail={setTaskDetail} renderActions={actions} dark={dark} />
       )}
     </>
   );
@@ -1737,7 +1737,7 @@ function priorityFlagColor(t) {
   return C.blue; // Low
 }
 
-function TaskCard({ t, children, onOpen }) {
+function TaskCard({ t, children, onOpen, dark }) {
   const { byId, onlineIds } = useEmp();
   const meta = statusMeta(t);
   const emp = byId[t.assignee] || { name: "Unassigned" };
@@ -1745,7 +1745,7 @@ function TaskCard({ t, children, onOpen }) {
   const flagColor = priorityFlagColor(t);
   const flagLabel = t.status === "Completed" ? "Completed" : t.priority;
   return (
-    <div onClick={onOpen} style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 16, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(14px) saturate(140%)", boxShadow: "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)" }}>
+    <div onClick={onOpen} style={{ background: dark ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))" : "var(--mb-glass-surface)", border: `1px solid ${dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`, borderRadius: 16, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(14px) saturate(140%)", boxShadow: dark ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)" : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)" }}>
       {t.recurring && (
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: -2 }}>
           <span title="Recurring"><Repeat size={12} color={C.slate} /></span>
