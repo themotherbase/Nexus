@@ -122,8 +122,12 @@ const mapTask = (row) => ({
   id: row.id, title: row.title, description: row.description, dept: row.dept_id,
   assignee: row.assignee_id, supervisor: row.supervisor_id, backup: row.backup_id,
   priority: row.priority, status: row.status, progress: row.progress, category: row.category,
-  recurring: row.recurring, recurringCustomDays: row.recurring_custom_days, due: row.due_date, updatedAt: row.updated_at, needsSignoff: row.needs_signoff, createdBy: row.created_by, archived: !!row.archived,
-  subtasks: (row.subtasks || []).map(s => ({ id: s.id, title: s.title, done: s.done })),
+  recurring: row.recurring, recurringCustomDays: row.recurring_custom_days, due: row.due_date, needsSignoff: row.needs_signoff, createdBy: row.created_by, archived: !!row.archived,
+  // Everyone on the task, lead first. The lead (assignee_id) is always included even if the
+  // multi-assignee migration hasn't been run yet, so the app behaves exactly as before until then.
+  assignees: [...new Set([row.assignee_id, ...(row.task_assignees || [])
+    .sort((a, b) => new Date(a.added_at) - new Date(b.added_at)).map(a => a.employee_id)].filter(Boolean))],
+  subtasks: (row.subtasks || []).sort((a, b) => a.id - b.id).map(s => ({ id: s.id, title: s.title, done: !!s.done, assignee: s.assignee_id || null })),
   comments: (row.task_comments || [])
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
     .map(c => ({ id: c.id, parent: c.parent_comment_id, author: c.author_id, text: c.body, time: new Date(c.created_at).toLocaleString() })),
@@ -131,6 +135,11 @@ const mapTask = (row) => ({
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
     .map(a => ({ id: a.id, name: a.file_name, path: a.file_path, uploadedBy: a.uploaded_by, time: new Date(a.created_at).toLocaleString() })),
 });
+
+// A task has one lead (task.assignee — drives the board column grouping, sign-off and defaults)
+// plus an optional wider team (task.assignees, lead included).
+const isOnTask = (t, empId) => !!empId && (t.assignee === empId || (t.assignees || []).includes(empId));
+const taskTeam = (t) => [...new Set([t.assignee, ...(t.assignees || [])].filter(Boolean))];
 
 const EmpContext = createContext(null);
 const useEmp = () => useContext(EmpContext);
@@ -412,16 +421,17 @@ export default function App() {
     if (!error) setEmployees((data || []).map(mapEmployee));
   };
   const refetchTasks = async () => {
-    let { data, error } = await supabase
-      .from("tasks")
-      .select("*, subtasks(*), task_comments(*), task_attachments(*)")
-      .order("due_date");
-    if (error) {
-      // task_attachments table may not exist yet — fall back so the task list still loads
-      ({ data, error } = await supabase
-        .from("tasks")
-        .select("*, subtasks(*), task_comments(*)")
-        .order("due_date"));
+    // Newer tables may not exist yet (their migrations not run) — step down through the
+    // older shapes so the task list always loads.
+    const shapes = [
+      "*, subtasks(*), task_comments(*), task_attachments(*), task_assignees(*)",
+      "*, subtasks(*), task_comments(*), task_attachments(*)",
+      "*, subtasks(*), task_comments(*)",
+    ];
+    let data = null, error = null;
+    for (const shape of shapes) {
+      ({ data, error } = await supabase.from("tasks").select(shape).order("due_date"));
+      if (!error) break;
     }
     if (!error) {
       const todayDate = today();
@@ -521,6 +531,19 @@ export default function App() {
     return () => { clearTimeout(refetchTasksDebounced.current); supabase.removeChannel(ch); };
   }, [me?.id]);
 
+  // The team roster gets its own channel: if its migration hasn't been run yet, a failed
+  // subscription here can't take the main live-sync channel down with it.
+  useEffect(() => {
+    if (!me) return;
+    const ch = supabase.channel("task-assignees-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "task_assignees" }, () => {
+        clearTimeout(refetchTasksDebounced.current);
+        refetchTasksDebounced.current = setTimeout(() => refetchTasks(), 250);
+      })
+      .subscribe();
+    return () => supabase.removeChannel(ch);
+  }, [me?.id]);
+
   if (session === undefined) return <FullScreenMsg text="Loading…" />;
   if (authFlow && session) {
     return (
@@ -545,8 +568,8 @@ export default function App() {
 
   const visibleTasks = isExec ? tasks
     : viewerEmp.role === "manager"
-      ? tasks.filter(t => new Set([viewerEmp.id, ...collectDescendants(viewerEmp.id, employees)]).has(t.assignee) || t.supervisor === viewerEmp.id)
-      : tasks.filter(t => t.assignee === viewerEmp.id);
+      ? tasks.filter(t => taskTeam(t).some(id => new Set([viewerEmp.id, ...collectDescendants(viewerEmp.id, employees)]).has(id)) || t.supervisor === viewerEmp.id)
+      : tasks.filter(t => isOnTask(t, viewerEmp.id));
 
   const boardTasks = visibleTasks.filter(t => !t.archived);
   const archivedTasks = visibleTasks.filter(t => t.archived);
@@ -567,31 +590,6 @@ export default function App() {
     const patch = { status };
     if (status === "Completed") patch.progress = 100;
     return updateTask(id, patch);
-  };
-  const setTasksStatus = async (ids, status, note = "") => {
-    if (!ids.length) return false;
-    const patch = { status };
-    if (status === "Completed") patch.progress = 100;
-    const { error } = await supabase.from("tasks").update(patch).in("id", ids);
-    if (error) { alert(error.message); return false; }
-
-    if (note.trim()) {
-      const prefix = status === "Completed" ? "Approved" : "Sent back";
-      const commentTasks = tasks.filter(task => ids.includes(task.id));
-      const commentRows = commentTasks.map(task => ({
-        task_id: task.id, author_id: viewerEmp.id, body: `${prefix} by ${viewerEmp.name}: ${note.trim()}`,
-      }));
-      const { error: commentError } = await supabase.from("task_comments").insert(commentRows);
-      if (commentError) alert(`Tasks were updated, but the review note couldn't be saved: ${commentError.message}`);
-      else {
-        const notifications = commentTasks.flatMap(task => [...new Set([task.assignee, task.supervisor].filter(Boolean))]
-          .filter(employeeId => employeeId !== viewerEmp.id)
-          .map(employee_id => ({ employee_id, type: "comment", message: `${viewerEmp.name} commented on "${task.title}"`, task_id: task.id, read: false })));
-        if (notifications.length) await supabase.from("notifications").insert(notifications);
-      }
-    }
-    await refetchTasks();
-    return true;
   };
   // "Remove" only hides a task from the board (archived = true); the row stays in the database.
   const archiveTask = async (task, archived = true) => {
@@ -633,7 +631,7 @@ export default function App() {
     const task = tasks.find(t => t.id === id);
     if (task) {
       const repliedToAuthor = parentId ? task.comments?.find(c => c.id === parentId)?.author : null;
-      const recipients = [...new Set([task.assignee, task.supervisor, repliedToAuthor].filter(Boolean))]
+      const recipients = [...new Set([...taskTeam(task), task.supervisor, repliedToAuthor].filter(Boolean))]
         .filter(empId => empId !== viewerEmp.id);
       if (recipients.length) {
         const message = `${viewerEmp.name} commented on "${task.title}"`;
@@ -651,8 +649,67 @@ export default function App() {
       category: t.category, recurring: t.recurring, recurring_custom_days: t.recurringCustomDays ?? null, created_by: t.createdBy, needs_signoff: t.needsSignoff,
     }).select().single();
     if (error) { alert(error.message); return null; }
+    const id = data?.id ?? null;
+    if (id) {
+      // The lead is added to the roster automatically by the database; add everyone else.
+      const extras = [...new Set(t.extraAssignees || [])].filter(x => x && x !== t.assignee);
+      if (extras.length) {
+        const { error: rErr } = await supabase.from("task_assignees").insert(extras.map(employee_id => ({ task_id: id, employee_id })));
+        if (rErr) alert(`The task was created, but adding the extra people failed. Has migration_multi_assignee.sql been run in Supabase?\n\n${rErr.message}`);
+      }
+      const subs = (t.subtasks || []).filter(x => x.title.trim());
+      if (subs.length) {
+        const { error: sErr } = await supabase.from("subtasks").insert(subs.map(x => ({ task_id: id, title: x.title.trim(), assignee_id: x.assignee || null })));
+        if (sErr) {
+          // assignee_id column may not exist yet — keep the subtasks, drop who they're assigned to
+          const plain = await supabase.from("subtasks").insert(subs.map(x => ({ task_id: id, title: x.title.trim() })));
+          alert(plain.error ? "Subtasks didn't save: " + plain.error.message
+            : "The task and its subtasks were saved, but who each subtask is assigned to wasn't. Run migration_multi_assignee.sql in Supabase.");
+        }
+      }
+    }
     await refetchTasks();
-    return data?.id ?? null;
+    return id;
+  };
+
+  // Team + subtask operations used by the task detail view.
+  const taskOps = {
+    addAssignee: async (task, empId) => {
+      const { error } = await supabase.from("task_assignees").insert({ task_id: task.id, employee_id: empId });
+      if (error) alert("Couldn't add that person. Has migration_multi_assignee.sql been run in Supabase?\n\n" + error.message);
+      await refetchTasks();
+    },
+    removeAssignee: async (task, empId) => {
+      if (empId === task.assignee) return; // the lead is changed via Edit, not removed
+      const { error } = await supabase.from("task_assignees").delete().eq("task_id", task.id).eq("employee_id", empId);
+      if (error) { alert("Couldn't remove that person: " + error.message); return; }
+      await supabase.from("subtasks").update({ assignee_id: null }).eq("task_id", task.id).eq("assignee_id", empId); // un-assign their subtasks
+      await refetchTasks();
+    },
+    addSubtask: async (task, title, assignee) => {
+      let { error } = await supabase.from("subtasks").insert({ task_id: task.id, title, assignee_id: assignee || null });
+      if (error && assignee) {
+        ({ error } = await supabase.from("subtasks").insert({ task_id: task.id, title }));
+        alert("Saved without an assignee — run migration_multi_assignee.sql to assign subtasks to people.");
+      }
+      if (error) alert("Couldn't add that subtask: " + error.message);
+      await refetchTasks();
+    },
+    toggleSubtask: async (subtaskId, done) => {
+      const { error } = await supabase.from("subtasks").update({ done }).eq("id", subtaskId);
+      if (error) alert("Couldn't update that subtask: " + error.message);
+      await refetchTasks();
+    },
+    setSubtaskAssignee: async (subtaskId, empId) => {
+      const { error } = await supabase.from("subtasks").update({ assignee_id: empId || null }).eq("id", subtaskId);
+      if (error) alert("Couldn't assign that subtask. Has migration_multi_assignee.sql been run in Supabase?\n\n" + error.message);
+      await refetchTasks();
+    },
+    deleteSubtask: async (subtaskId) => {
+      const { error } = await supabase.from("subtasks").delete().eq("id", subtaskId);
+      if (error) alert("Couldn't delete that subtask: " + error.message);
+      await refetchTasks();
+    },
   };
   const attachFile = async (taskId, file) => {
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -783,7 +840,7 @@ export default function App() {
           {page === "tasks" && (
             <Tasks tasks={boardTasks} archivedTasks={archivedTasks} reportTasks={visibleTasks} dark={dark}
               taskView={taskView} setTaskView={setTaskView}
-              setTaskStatus={setTaskStatus} setTasksStatus={setTasksStatus} viewerEmp={viewerEmp}
+              setTaskStatus={setTaskStatus} viewerEmp={viewerEmp}
               canCreate={isManager} setShowAddTask={setShowAddTask} setTaskDetail={setTaskDetail}
               onRepeat={setRepeatTask} onArchive={archiveTask} />
           )}
@@ -812,7 +869,7 @@ export default function App() {
         {taskDetail && (
           <TaskDetailModal task={tasks.find(t=>t.id===taskDetail)} onClose={() => setTaskDetail(null)}
             addComment={addComment} viewerEmp={viewerEmp} setTaskStatus={setTaskStatus}
-            updateTask={updateTask} refetchTasks={refetchTasks}
+            updateTask={updateTask} refetchTasks={refetchTasks} taskOps={taskOps}
             onRepeat={setRepeatTask} onArchive={archiveTask} />
         )}
         {repeatTask && (
@@ -840,14 +897,12 @@ function Dashboard({ tasks, viewerEmp, isManager, isExec, setPage, setTaskDetail
   const { employees, directReports, onlineIds } = useEmp();
   const goToTask = (id) => { setTaskDetail(id); setPage("tasks"); };
   const scoped = isExec ? tasks : isManager
-    ? tasks.filter(t => [viewerEmp.id, ...collectDescendants(viewerEmp.id, employees)].includes(t.assignee))
-    : tasks.filter(t => t.assignee === viewerEmp.id);
+    ? tasks.filter(t => taskTeam(t).some(id => [viewerEmp.id, ...collectDescendants(viewerEmp.id, employees)].includes(id)))
+    : tasks.filter(t => isOnTask(t, viewerEmp.id));
 
   const overdue = scoped.filter(t => statusMeta(t).label === "Overdue");
   const dueToday = scoped.filter(t => statusMeta(t).label === "Due today");
-  const completed = scoped
-    .filter(t => t.status === "Completed")
-    .sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+  const completed = scoped.filter(t => t.status === "Completed");
 
   const byDept = DEPARTMENTS.map(dep => ({
     ...dep, count: scoped.filter(t => t.dept === dep.id && t.status !== "Completed").length,
@@ -855,8 +910,8 @@ function Dashboard({ tasks, viewerEmp, isManager, isExec, setPage, setTaskDetail
 
   const workload = employees.map(e => ({
     emp: e,
-    active: tasks.filter(t => t.assignee === e.id && t.status !== "Completed").length,
-    highPri: tasks.filter(t => t.assignee === e.id && t.priority === "High" && t.status !== "Completed").length,
+    active: tasks.filter(t => isOnTask(t, e.id) && t.status !== "Completed").length,
+    highPri: tasks.filter(t => isOnTask(t, e.id) && t.priority === "High" && t.status !== "Completed").length,
   })).filter(w => w.active > 0).sort((a,b) => b.active - a.active);
 
   return (
@@ -879,7 +934,7 @@ function Dashboard({ tasks, viewerEmp, isManager, isExec, setPage, setTaskDetail
         <Panel title="Management alerts">
           <AlertRow icon={CircleAlert} color={C.coral} label="Overdue" items={overdue} onOpen={goToTask} />
           <AlertRow icon={Clock} color={C.amber} label="Due today" items={dueToday} onOpen={goToTask} />
-          <AlertRow icon={CheckCircle2} color={C.completed} label="Recently completed" items={completed.slice(0, 3)} onOpen={goToTask} />
+          <AlertRow icon={CheckCircle2} color={C.completed} label="Recently completed" items={completed.slice(-3)} onOpen={goToTask} />
         </Panel>
 
         {isExec && (
@@ -1224,7 +1279,7 @@ function EmployeesList({ setSelectedEmp, search, setSearch, tasks, onAdd }) {
       <SearchBar value={search} onChange={setSearch} placeholder="Search employees…" />
       <div className="mb-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
         {filtered.map(e => {
-          const active = tasks.filter(t => t.assignee === e.id && t.status !== "Completed").length;
+          const active = tasks.filter(t => isOnTask(t, e.id) && t.status !== "Completed").length;
           return (
             <div key={e.id} onClick={() => setSelectedEmp(e.id)} style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 12, padding: 16, cursor: "pointer", backdropFilter: "blur(14px) saturate(140%)", boxShadow: "0 8px 22px rgba(22,30,55,0.09)" }}>
               <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
@@ -1246,7 +1301,7 @@ function EmployeeModal({ empId, tasks, onClose, setSelectedEmp, onEdit }) {
   const { byId, directReports, canEditOrg } = useEmp();
   const emp = byId[empId];
   if (!emp) return null;
-  const myTasks = tasks.filter(t => t.assignee === emp.id);
+  const myTasks = tasks.filter(t => isOnTask(t, emp.id));
   const activeTasks = myTasks
     .filter(t => t.status !== "Completed" && !t.archived)
     .sort((a, b) => (a.due || "").localeCompare(b.due || ""));
@@ -1323,7 +1378,7 @@ function exportTaskReport(employees, tasks) {
   const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const rows = [["Employee", "Department", "Completed Tasks", "Total Tasks", "Completion %"]];
   employees.forEach(e => {
-    const empTasks = tasks.filter(t => t.assignee === e.id);
+    const empTasks = tasks.filter(t => isOnTask(t, e.id)); // shared tasks count for everyone on them
     const completed = empTasks.filter(t => t.status === "Completed").length;
     const pct = empTasks.length ? Math.round((completed / empTasks.length) * 100) : 0;
     rows.push([e.name, deptById[e.dept]?.name || e.dept, completed, empTasks.length, `${pct}%`]);
@@ -1344,27 +1399,8 @@ function exportTaskReport(employees, tasks) {
   URL.revokeObjectURL(url);
 }
 
-function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTaskStatus, setTasksStatus, viewerEmp, canCreate, setShowAddTask, setTaskDetail, onRepeat, onArchive, dark }) {
+function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTaskStatus, viewerEmp, canCreate, setShowAddTask, setTaskDetail, onRepeat, onArchive, dark }) {
   const { employees } = useEmp();
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedTaskIds, setSelectedTaskIds] = useState([]);
-  const [reviewNote, setReviewNote] = useState("");
-  const selectableTasks = tasks.filter(task => !task.archived && task.status !== "Completed");
-  const selectedTasks = selectableTasks.filter(task => selectedTaskIds.includes(task.id));
-  const reviewTasks = selectedTasks.filter(task => task.status === "For Review" && task.assignee !== viewerEmp.id);
-  const toggleTaskSelection = (id) => setSelectedTaskIds(ids => ids.includes(id) ? ids.filter(taskId => taskId !== id) : [...ids, id]);
-  const toggleSelectionMode = () => {
-    setSelectionMode(value => !value);
-    setSelectedTaskIds([]);
-    setReviewNote("");
-  };
-  const selectAllTasks = () => setSelectedTaskIds(selectedTasks.length === selectableTasks.length ? [] : selectableTasks.map(task => task.id));
-  const runBulkStatus = async (ids, status, note = "") => {
-    if (await setTasksStatus(ids, status, note)) {
-      setSelectedTaskIds([]);
-      setReviewNote("");
-    }
-  };
   return (
     <div style={{ position: "relative", minHeight: "calc(100vh - 112px)", overflow: "hidden", borderRadius: 16, padding: 18, margin: -8 }}>
       <div style={{ position: "relative", zIndex: 1 }}>
@@ -1373,9 +1409,6 @@ function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTa
             <ToggleBtn active={taskView==="kanban"} onClick={()=>setTaskView("kanban")} icon={KanbanSquare} label="Kanban" />
             <ToggleBtn active={taskView==="list"} onClick={()=>setTaskView("list")} icon={Table2} label="List" />
             <ToggleBtn active={taskView==="calendar"} onClick={()=>setTaskView("calendar")} icon={CalendarDays} label="Calendar" />
-            <button type="button" onClick={toggleSelectionMode} style={{ display: "flex", alignItems: "center", gap: 6, background: selectionMode ? C.navySoft : C.card, color: selectionMode ? "#fff" : C.ink, border: `1px solid ${selectionMode ? C.navySoft : C.line}`, borderRadius: 8, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
-              <Check size={14} /> {selectionMode ? "Done selecting" : "Select tasks"}
-            </button>
             {canCreate && (
               <button onClick={() => exportTaskReport(employees, reportTasks || tasks)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.card, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 8, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", marginLeft: 6 }}>
                 Export Report
@@ -1384,39 +1417,10 @@ function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTa
             {canCreate && <button onClick={() => setShowAddTask(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}><Plus size={15} /> Add Task</button>}
           </div>
         } />
-        {selectionMode && (
-          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, margin: "-4px 0 14px", padding: 10, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10 }}>
-            <span style={{ fontSize: 12.5, fontWeight: 700, marginRight: 4 }}>{selectedTasks.length} selected</span>
-            <button type="button" onClick={selectAllTasks} style={{ background: "none", border: "none", color: C.blue, font: "inherit", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-              {selectedTasks.length === selectableTasks.length ? "Clear selection" : "Select all open"}
-            </button>
-            {[["To Do", C.blue], ["In Progress", C.amber], ["For Review", "#7C6BD6"]].map(([status, color]) => (
-              <button key={status} type="button" disabled={!selectedTasks.length} onClick={() => runBulkStatus(selectedTasks.map(task => task.id), status)}
-                style={{ background: color, color: "#fff", border: "none", borderRadius: 7, padding: "7px 10px", fontSize: 12, fontWeight: 700, cursor: selectedTasks.length ? "pointer" : "not-allowed", opacity: selectedTasks.length ? 1 : 0.45 }}>
-                {status}
-              </button>
-            ))}
-            {viewerEmp.role !== "employee" && reviewTasks.length > 0 && <>
-              <span style={{ width: "100%", fontSize: 11.5, color: C.slate }}>{reviewTasks.length} selected review task{reviewTasks.length === 1 ? "" : "s"} eligible for sign-off</span>
-              <input value={reviewNote} onChange={event => setReviewNote(event.target.value)} placeholder="Optional approval note; required to send back"
-                style={{ flex: "1 1 240px", minWidth: 180, border: `1px solid ${C.line}`, borderRadius: 7, padding: "7px 9px", font: "inherit", fontSize: 12, color: C.ink, background: C.card }} />
-              <button type="button" onClick={() => runBulkStatus(reviewTasks.map(task => task.id), "Completed", reviewNote)}
-                style={{ display: "flex", alignItems: "center", gap: 5, background: C.sage, color: "#fff", border: "none", borderRadius: 7, padding: "7px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                <CheckCircle2 size={14} /> Approve &amp; mark done
-              </button>
-              <button type="button" onClick={() => reviewNote.trim()
-                ? runBulkStatus(reviewTasks.map(task => task.id), "In Progress", reviewNote)
-                : alert("Add a short note explaining what still needs to be done before sending tasks back.")}
-                style={{ display: "flex", alignItems: "center", gap: 5, background: C.coral, color: "#fff", border: "none", borderRadius: 7, padding: "7px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                <Undo2 size={14} /> Send back to In Progress
-              </button>
-            </>}
-          </div>
-        )}
         {!canCreate && <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 14 }}>Viewing as {viewerEmp.name} ({ROLE_LABEL[viewerEmp.role]}) — you can update status and progress on your own tasks. Completion needs your supervisor's sign-off.</div>}
-        {taskView === "kanban" && <KanbanView tasks={tasks} archivedTasks={archivedTasks} setTaskStatus={setTaskStatus} viewerEmp={viewerEmp} setTaskDetail={setTaskDetail} onRepeat={onRepeat} onArchive={onArchive} dark={dark} selectionMode={selectionMode} selectedTaskIds={selectedTaskIds} onToggleSelect={toggleTaskSelection} />}
-        {taskView === "list" && <ListView tasks={tasks} setTaskDetail={setTaskDetail} dark={dark} selectionMode={selectionMode} selectedTaskIds={selectedTaskIds} onToggleSelect={toggleTaskSelection} />}
-        {taskView === "calendar" && <CalendarView tasks={tasks} setTaskDetail={setTaskDetail} dark={dark} selectionMode={selectionMode} selectedTaskIds={selectedTaskIds} onToggleSelect={toggleTaskSelection} />}
+        {taskView === "kanban" && <KanbanView tasks={tasks} archivedTasks={archivedTasks} setTaskStatus={setTaskStatus} viewerEmp={viewerEmp} setTaskDetail={setTaskDetail} onRepeat={onRepeat} onArchive={onArchive} dark={dark} />}
+        {taskView === "list" && <ListView tasks={tasks} setTaskDetail={setTaskDetail} dark={dark} />}
+        {taskView === "calendar" && <CalendarView tasks={tasks} setTaskDetail={setTaskDetail} dark={dark} />}
       </div>
     </div>
   );
@@ -1507,7 +1511,7 @@ function StageMenu({ current, onSelect, canComplete, variant = "card" }) {
                   <span style={{ width: 9, height: 9, borderRadius: 9, background: stageColor(stage), flexShrink: 0 }} />
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ display: "block", fontSize: 13, fontWeight: 600 }}>{stage}</span>
-                          {hint && <span style={{ display: "block", fontSize: 11, color: C.slate }}>{hint}</span>}
+                    {hint && <span style={{ display: "block", fontSize: 11, color: C.slate }}>{hint}</span>}
                   </span>
                   {stage === current && <Check size={14} color={C.sage} />}
                 </button>
@@ -1536,7 +1540,7 @@ function TaskCardActions({ t, viewerEmp, setTaskStatus, onRepeat, onArchive }) {
       </div>
     );
   }
-  if (isEmployee && t.assignee !== viewerEmp.id) return null;
+  if (isEmployee && !isOnTask(t, viewerEmp.id)) return null;
   return (
     <div style={{ marginTop: 8 }}>
       <StageMenu current={t.status} canComplete={!isEmployee} onSelect={(stage) => setTaskStatus(t.id, stage)} />
@@ -1620,7 +1624,7 @@ function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, r
   );
 }
 
-function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTaskDetail, onRepeat, onArchive, dark, selectionMode, selectedTaskIds, onToggleSelect }) {
+function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTaskDetail, onRepeat, onArchive, dark }) {
   const { byId } = useEmp();
   const [openGroup, setOpenGroup] = useState(null); // { col, assignee }
   const [showArchived, setShowArchived] = useState(false);
@@ -1653,7 +1657,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {sourceFor(mobileStage).filter(t => t.status === mobileStage).map(t => (
-            <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)} selectionMode={selectionMode} selected={selectedTaskIds.includes(t.id)} selectable={!t.archived && t.status !== "Completed"} onToggleSelect={onToggleSelect}>{actions(t)}</TaskCard>
+            <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)}>{actions(t)}</TaskCard>
           ))}
           {sourceFor(mobileStage).filter(t => t.status === mobileStage).length === 0 && (
             <Empty text={showArchived && mobileStage === "Completed" ? "Nothing removed." : "No tasks in this stage."} />
@@ -1684,10 +1688,10 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
                 </button>
               )}
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {groups.map(g => g.cards.length > 1 && !selectionMode ? (
+                {groups.map(g => g.cards.length > 1 ? (
                   <GroupHolder key={`g-${col}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} dark={dark} />
                 ) : (
-                  g.cards.map(t => <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)} selectionMode={selectionMode} selected={selectedTaskIds.includes(t.id)} selectable={!t.archived && t.status !== "Completed"} onToggleSelect={onToggleSelect}>{actions(t)}</TaskCard>)
+                  <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)}>{actions(g.cards[0])}</TaskCard>
                 ))}
                 {items.length === 0 && <div style={{ fontSize: 12, color: C.slate, padding: "10px 4px" }}>{archivedView ? "Nothing removed." : "No tasks."}</div>}
               </div>
@@ -1704,6 +1708,26 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
   );
 }
 
+// Overlapping avatars for everyone on a task (lead first), with a +N bubble past `max`.
+function TeamAvatars({ ids, size = 24, max = 3 }) {
+  const { byId, onlineIds } = useEmp();
+  if (!ids.length) return <Avatar name="Unassigned" size={size} />;
+  const shown = ids.slice(0, max), extra = ids.length - shown.length;
+  const ring = { border: `2px solid ${C.card}`, borderRadius: "50%", background: C.card };
+  return (
+    <div style={{ display: "flex", alignItems: "center" }} title={ids.map(id => byId[id]?.name || id).join(", ")}>
+      {shown.map((id, i) => (
+        <div key={id} style={{ ...ring, marginLeft: i ? -8 : 0, position: "relative", zIndex: max - i, display: "flex" }}>
+          <Avatar name={byId[id]?.name || id} size={size} color={deptById[byId[id]?.dept]?.color} online={i === 0 && onlineIds?.has(id)} />
+        </div>
+      ))}
+      {extra > 0 && (
+        <div style={{ ...ring, marginLeft: -8, width: size + 4, height: size + 4, display: "flex", alignItems: "center", justifyContent: "center", background: C.line, fontSize: 10, fontWeight: 700, color: C.ink, boxSizing: "border-box" }}>+{extra}</div>
+      )}
+    </div>
+  );
+}
+
 // Priority still reads as color — just as a small flag/tag now, not a tinted card.
 function priorityFlagColor(t) {
   if (t.status === "Completed") return C.completed;
@@ -1712,7 +1736,7 @@ function priorityFlagColor(t) {
   return C.blue; // Low
 }
 
-function TaskCard({ t, children, onOpen, selectionMode = false, selected = false, selectable = true, onToggleSelect }) {
+function TaskCard({ t, children, onOpen }) {
   const { byId, onlineIds } = useEmp();
   const meta = statusMeta(t);
   const emp = byId[t.assignee] || { name: "Unassigned" };
@@ -1720,18 +1744,13 @@ function TaskCard({ t, children, onOpen, selectionMode = false, selected = false
   const flagColor = priorityFlagColor(t);
   const flagLabel = t.status === "Completed" ? "Completed" : t.priority;
   return (
-    <div onClick={() => selectionMode && selectable ? onToggleSelect(t.id) : onOpen?.()} style={{ background: "var(--mb-glass-surface)", border: `1px solid ${selected ? C.blue : "var(--mb-glass-border)"}`, borderRadius: 12, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(14px) saturate(140%)", boxShadow: selected ? `0 0 0 2px ${C.blue}40` : "inset 0 1px 0 rgba(255,255,255,0.38), 0 6px 16px rgba(20,28,48,0.10)" }}>
+    <div onClick={onOpen} style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 12, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(14px) saturate(140%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.38), 0 6px 16px rgba(20,28,48,0.10)" }}>
       {t.recurring && (
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: -2 }}>
           <span title="Recurring"><Repeat size={12} color={C.slate} /></span>
         </div>
       )}
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
-        {selectionMode && <input type="checkbox" aria-label={`Select ${t.title}`} checked={selected} disabled={!selectable}
-          onClick={event => event.stopPropagation()} onChange={() => selectable && onToggleSelect(t.id)}
-          style={{ width: 16, height: 16, flexShrink: 0, margin: "1px 0 0", accentColor: C.blue, cursor: selectable ? "pointer" : "not-allowed" }} />}
-        <div style={{ fontSize: 13.5, fontWeight: 600, lineHeight: 1.3 }}>{t.title}</div>
-      </div>
+      <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6, lineHeight: 1.3 }}>{t.title}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: meta.color, fontWeight: 600, marginBottom: 3 }}>
         <CalendarDays size={12} /> {t.due}
         {meta.label !== "On track" && meta.label !== "Completed" && <span>· {meta.label}</span>}
@@ -1744,7 +1763,7 @@ function TaskCard({ t, children, onOpen, selectionMode = false, selected = false
         <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10.5, fontWeight: 700, color: "#fff", background: flagColor, borderRadius: 20, padding: "3px 9px 3px 7px" }}>
           <Flag size={10} fill="#fff" strokeWidth={0} /> {flagLabel}
         </span>
-        <Avatar name={emp.name} size={24} color={deptById[emp.dept]?.color} online={onlineIds?.has(t.assignee)} />
+        <TeamAvatars ids={taskTeam(t)} />
       </div>
       {subtaskProgress && <div style={{ fontSize: 10.5, color: C.slate, marginTop: 7 }}>{subtaskProgress} subtasks</div>}
       {children}
@@ -1752,7 +1771,7 @@ function TaskCard({ t, children, onOpen, selectionMode = false, selected = false
   );
 }
 
-function ListView({ tasks, setTaskDetail, dark, selectionMode = false, selectedTaskIds = [], onToggleSelect }) {
+function ListView({ tasks, setTaskDetail, dark }) {
   const { byId } = useEmp();
   return (
     <div style={{ background: dark ? "rgba(22, 28, 46, 0.72)" : "rgba(255, 255, 255, 0.70)", border: `1px solid ${dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.72)"}`, borderRadius: 14, overflow: "hidden", backdropFilter: "blur(14px) saturate(140%)" }}>
@@ -1763,14 +1782,8 @@ function ListView({ tasks, setTaskDetail, dark, selectionMode = false, selectedT
           {tasks.map(t => {
             const meta = statusMeta(t);
             return (
-              <tr key={t.id} onClick={() => selectionMode && t.status !== "Completed" ? onToggleSelect(t.id) : setTaskDetail(t.id)} style={{ borderTop: `1px solid ${C.line}`, cursor: "pointer", background: selectedTaskIds.includes(t.id) ? `${C.blue}18` : "transparent" }}>
-                <td style={{ padding: "10px 16px", fontWeight: 600 }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    {selectionMode && <input type="checkbox" aria-label={`Select ${t.title}`} checked={selectedTaskIds.includes(t.id)} disabled={t.status === "Completed" || t.archived}
-                      onClick={event => event.stopPropagation()} onChange={() => onToggleSelect(t.id)} style={{ accentColor: C.blue }} />}
-                    {t.title}
-                  </span>
-                </td>
+              <tr key={t.id} onClick={() => setTaskDetail(t.id)} style={{ borderTop: `1px solid ${C.line}`, cursor: "pointer" }}>
+                <td style={{ padding: "10px 16px", fontWeight: 600 }}>{t.title}</td>
                 <td style={{ padding: "10px 16px" }}>{byId[t.assignee]?.name || "Unassigned"}</td>
                 <td style={{ padding: "10px 16px" }}><DeptTag id={t.dept} /></td>
                 <td style={{ padding: "10px 16px", color: priColor(t.priority), fontWeight: 600 }}>{t.priority}</td>
@@ -1786,7 +1799,7 @@ function ListView({ tasks, setTaskDetail, dark, selectionMode = false, selectedT
   );
 }
 
-function CalendarView({ tasks, setTaskDetail, dark, selectionMode = false, selectedTaskIds = [], onToggleSelect }) {
+function CalendarView({ tasks, setTaskDetail, dark }) {
   const { byId } = useEmp();
   const grouped = {};
   tasks.forEach(t => { grouped[t.due] = grouped[t.due] || []; grouped[t.due].push(t); });
@@ -1799,9 +1812,7 @@ function CalendarView({ tasks, setTaskDetail, dark, selectionMode = false, selec
           <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 8, color: dt < today() ? C.coral : dt === today() ? C.amber : C.ink }}>{dt} {dt === today() && "· Today"}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {grouped[dt].map(t => (
-              <div key={t.id} onClick={() => selectionMode && t.status !== "Completed" ? onToggleSelect(t.id) : setTaskDetail(t.id)} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer", background: selectedTaskIds.includes(t.id) ? `${C.blue}18` : "transparent" }}>
-                {selectionMode && <input type="checkbox" aria-label={`Select ${t.title}`} checked={selectedTaskIds.includes(t.id)} disabled={t.status === "Completed" || t.archived}
-                  onClick={event => event.stopPropagation()} onChange={() => onToggleSelect(t.id)} style={{ accentColor: C.blue }} />}
+              <div key={t.id} onClick={() => setTaskDetail(t.id)} style={{ display: "flex", gap: 10, fontSize: 13, cursor: "pointer" }}>
                 <span style={{ fontWeight: 600, color: priColor(t.priority) }}>{t.priority}</span><span>{t.title}</span><span style={{ color: C.slate }}>— {byId[t.assignee]?.name || "Unassigned"}</span>
               </div>
             ))}
@@ -1827,7 +1838,7 @@ function CommentBubble({ c, byId, small }) {
   );
 }
 
-function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, updateTask, refetchTasks, onRepeat, onArchive }) {
+function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, updateTask, refetchTasks, taskOps, onRepeat, onArchive }) {
   const { byId, employees } = useEmp();
   const [draft, setDraft] = useState("");
   const [signoffNote, setSignoffNote] = useState("");
@@ -1835,8 +1846,11 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyDraft, setReplyDraft] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [newSub, setNewSub] = useState("");
+  const [newSubWho, setNewSubWho] = useState("");
   if (!task) return null;
   const emp = byId[task.assignee] || { name: "Unassigned" };
+  const team = taskTeam(task);
   const sup = byId[task.supervisor] || { name: "—" };
   const comments = task.comments || [];
   const topLevel = comments.filter(c => !c.parent);
@@ -1846,13 +1860,21 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
 
   const canEditTask = viewerEmp.role !== "employee";
   // Same rule as the board: managers/execs can move anything, an employee only their own open tasks.
-  const canMove = !task.archived && (viewerEmp.role !== "employee" || (task.assignee === viewerEmp.id && task.status !== "Completed"));
+  const canMove = !task.archived && (viewerEmp.role !== "employee" || (isOnTask(task, viewerEmp.id) && task.status !== "Completed"));
+  // Anyone on the task can tick subtasks off; so can whoever a subtask is given to, and managers.
+  const canTickSub = (st) => canEditTask || isOnTask(task, viewerEmp.id) || st.assignee === viewerEmp.id;
+  const addSub = async () => {
+    if (!newSub.trim()) return;
+    const who = team.includes(newSubWho) ? newSubWho : "";
+    setNewSub("");
+    await taskOps.addSubtask(task, newSub.trim(), who);
+  };
   const removeTask = async () => { if (await onArchive(task, true)) onClose(); };
   const restoreTask = async () => { await onArchive(task, false); };
 
   // The approver is whoever isn't the assignee and isn't a plain employee — i.e. the
   // supervisor, a manager up the chain, or an exec/admin reviewing someone else's work.
-  const isApprover = task.status === "For Review" && viewerEmp.id !== task.assignee && viewerEmp.role !== "employee";
+  const isApprover = task.status === "For Review" && !isOnTask(task, viewerEmp.id) && viewerEmp.role !== "employee";
   const approve = () => {
     if (signoffNote.trim()) addComment(task.id, `Approved by ${viewerEmp.name}: ${signoffNote.trim()}`);
     setTaskStatus(task.id, "Completed");
@@ -1899,7 +1921,7 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
         </div>
       </div>
       <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, margin: "16px 0" }}>
-        <Field label="Assigned to" value={emp.name} /><Field label="Supervisor" value={sup.name} />
+        <Field label={team.length > 1 ? "Lead" : "Assigned to"} value={emp.name} /><Field label="Supervisor" value={sup.name} />
         <Field label="Due date" value={task.due} /><Field label="Status" value={task.status} />
         <Field label="Category" value={task.category} /><Field label="Recurrence" value={recurrenceLabel} />
         {task.backup && <Field label="Backup assignee" value={byId[task.backup]?.name || "—"} />}
@@ -1907,10 +1929,56 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
       </div>
       <SectionLabel>Progress</SectionLabel>
       <div style={{ height: 8, background: C.paper, borderRadius: 4, overflow: "hidden", margin: "8px 0 18px" }}><div style={{ height: "100%", width: `${task.progress}%`, background: C.amber }} /></div>
-      {task.subtasks?.length > 0 && (
+      <SectionLabel>Team — {team.length}</SectionLabel>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "8px 0 6px" }}>
+        {team.map(id => (
+          <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 20, padding: "3px 6px 3px 4px", fontSize: 12 }}>
+            <Avatar name={byId[id]?.name || id} size={20} color={deptById[byId[id]?.dept]?.color} />
+            <span style={{ fontWeight: 600 }}>{byId[id]?.name || id}</span>
+            {id === task.assignee
+              ? <span style={{ fontSize: 9.5, fontWeight: 700, color: "#fff", background: C.navySoft, borderRadius: 20, padding: "1px 6px" }}>LEAD</span>
+              : canEditTask && <button type="button" onClick={() => taskOps.removeAssignee(task, id)} title={`Remove ${byId[id]?.name}`} aria-label={`Remove ${byId[id]?.name}`} style={{ background: "none", border: "none", cursor: "pointer", color: C.slate, padding: 0, display: "flex" }}><X size={12} /></button>}
+          </span>
+        ))}
+      </div>
+      {canEditTask && employees.some(e => !team.includes(e.id)) && (
+        <select value="" onChange={e => e.target.value && taskOps.addAssignee(task, e.target.value)} aria-label="Add a person" style={{ ...inputStyle, width: "auto", maxWidth: "100%", marginBottom: 14, fontSize: 12.5 }}>
+          <option value="">+ Add a person…</option>
+          {employees.filter(e => !team.includes(e.id)).map(e => <option key={e.id} value={e.id}>{e.name} — {e.position}</option>)}
+        </select>
+      )}
+
+      {(task.subtasks?.length > 0 || canEditTask) && (
         <>
-          <SectionLabel>Subtasks — {task.subtasks.filter(s=>s.done).length}/{task.subtasks.length} completed</SectionLabel>
-          <div style={{ margin: "8px 0 18px" }}>{task.subtasks.map(s => <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, padding: "4px 0" }}><input type="checkbox" checked={s.done} readOnly /><span style={{ textDecoration: s.done ? "line-through" : "none", color: s.done ? C.slate : C.ink }}>{s.title}</span></div>)}</div>
+          <SectionLabel>Subtasks{task.subtasks.length ? ` — ${task.subtasks.filter(s=>s.done).length}/${task.subtasks.length} completed` : ""}</SectionLabel>
+          <div style={{ margin: "8px 0 18px" }}>
+            {task.subtasks.length === 0 && <div style={{ fontSize: 12.5, color: C.slate, padding: "2px 0 6px" }}>No subtasks yet.</div>}
+            {task.subtasks.map(st => (
+              <div key={st.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, padding: "4px 0" }}>
+                <input type="checkbox" checked={st.done} disabled={!canTickSub(st)} onChange={e => taskOps.toggleSubtask(st.id, e.target.checked)} aria-label={`Mark "${st.title}" done`} />
+                <span style={{ flex: 1, minWidth: 0, textDecoration: st.done ? "line-through" : "none", color: st.done ? C.slate : C.ink }}>{st.title}</span>
+                {canEditTask ? (
+                  <select value={team.includes(st.assignee) ? st.assignee : ""} onChange={e => taskOps.setSubtaskAssignee(st.id, e.target.value)} aria-label={`Who has "${st.title}"`} style={{ ...inputStyle, width: 132, flexShrink: 0, padding: "4px 6px", fontSize: 11.5 }}>
+                    <option value="">Unassigned</option>
+                    {team.map(id => <option key={id} value={id}>{byId[id]?.name}</option>)}
+                  </select>
+                ) : st.assignee && (
+                  <span style={{ fontSize: 11, color: C.slate, whiteSpace: "nowrap" }}>{byId[st.assignee]?.name}</span>
+                )}
+                {canEditTask && <button type="button" onClick={() => taskOps.deleteSubtask(st.id)} aria-label={`Delete "${st.title}"`} style={{ background: "none", border: "none", cursor: "pointer", color: C.slate, padding: 2, display: "flex" }}><Trash2 size={13} /></button>}
+              </div>
+            ))}
+            {canEditTask && (
+              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                <input value={newSub} onChange={e => setNewSub(e.target.value)} placeholder="Add a subtask…" onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addSub(); } }} style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
+                <select value={team.includes(newSubWho) ? newSubWho : ""} onChange={e => setNewSubWho(e.target.value)} aria-label="New subtask assignee" style={{ ...inputStyle, width: 132, flexShrink: 0 }}>
+                  <option value="">Unassigned</option>
+                  {team.map(id => <option key={id} value={id}>{byId[id]?.name}</option>)}
+                </select>
+                <IconBtn onClick={addSub} title="Add subtask"><Plus size={15} /></IconBtn>
+              </div>
+            )}
+          </div>
         </>
       )}
       {task.needsSignoff && task.status !== "Completed" && !isApprover && (
@@ -1919,7 +1987,7 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
       {isApprover && (
         <div style={{ marginBottom: 16, background: C.paper, borderRadius: 10, padding: 12 }}>
           <SectionLabel>Sign-off decision</SectionLabel>
-          <div style={{ fontSize: 12, color: C.slate, margin: "6px 0 10px" }}>{emp.name} submitted this for your review. Approve it if it's genuinely done, or send it back if it isn't — a note is required when sending back.</div>
+          <div style={{ fontSize: 12, color: C.slate, margin: "6px 0 10px" }}>{team.length > 1 ? `${emp.name} and the team submitted` : `${emp.name} submitted`} this for your review. Approve it if it's genuinely done, or send it back if it isn't — a note is required when sending back.</div>
           <textarea placeholder="Note for the assignee (required if sending back)" value={signoffNote} onChange={e=>setSignoffNote(e.target.value)}
             style={{ ...inputStyle, minHeight: 60, marginBottom: 10, resize: "vertical" }} />
           <div style={{ display: "flex", gap: 8 }}>
@@ -2064,10 +2132,29 @@ function Field({ label, value }) {
   return <div><div style={{ fontSize: 10.5, color: C.slate, marginBottom: 2 }}>{label}</div><div style={{ fontSize: 13.5, fontWeight: 600 }}>{value}</div></div>;
 }
 
+// A scrollable checklist of people, used to pick extra assignees.
+function PeoplePicker({ options, selected, onToggle }) {
+  return (
+    <div style={{ border: `1px solid var(--mb-control-border, ${C.line})`, borderRadius: 8, maxHeight: 142, overflowY: "auto", padding: "4px 6px", background: "var(--mb-control-bg, transparent)" }}>
+      {options.map(e => (
+        <label key={e.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 4px", fontSize: 12.5, cursor: "pointer" }}>
+          <input type="checkbox" checked={selected.includes(e.id)} onChange={() => onToggle(e.id)} />
+          <span style={{ flex: 1, minWidth: 0, ...ellipsis }}>{e.name}</span>
+          <span style={{ fontSize: 11, color: C.slate, ...ellipsis, maxWidth: 140 }}>{e.position}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
 function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
   const { employees, byId } = useEmp();
   const [title, setTitle] = useState("");
   const [assignee, setAssignee] = useState(employees[0]?.id || "");
+  const [extra, setExtra] = useState([]);       // additional people besides the lead
+  const [subs, setSubs] = useState([]);         // [{ title, assignee }]
+  const [subDraft, setSubDraft] = useState("");
+  const [subWho, setSubWho] = useState("");
   const [priority, setPriority] = useState("Medium");
   const [due, setDue] = useState(today());
   const [category, setCategory] = useState("General");
@@ -2076,24 +2163,37 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
   const [file, setFile] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  const team = [assignee, ...extra].filter(Boolean);
+  const subWhoValid = team.includes(subWho) ? subWho : "";
+  const changeLead = (id) => { setAssignee(id); setExtra(x => x.filter(i => i !== id)); };
+  const toggleExtra = (id) => setExtra(x => x.includes(id) ? x.filter(i => i !== id) : [...x, id]);
+  const addSub = () => { if (!subDraft.trim()) return; setSubs(x => [...x, { title: subDraft.trim(), assignee: subWhoValid }]); setSubDraft(""); };
+
   const submit = async () => {
     if (!title.trim() || !assignee || saving) return;
     setSaving(true);
     const assigneeEmp = byId[assignee];
-    const taskId = await onCreate({ title, assignee, dept: assigneeEmp.dept, supervisor: assigneeEmp.sup || createdBy, priority, status: due < today() ? "Backlog" : "To Do", due, progress: 0, category, recurring: recurring || null, recurringCustomDays: recurring === "Custom" ? Number(customDays) || 7 : null, createdBy, needsSignoff: true });
+    const taskId = await onCreate({
+      title, assignee, extraAssignees: extra, dept: assigneeEmp.dept, supervisor: assigneeEmp.sup || createdBy, priority, status: due < today() ? "Backlog" : "To Do", due, progress: 0, category,
+      recurring: recurring || null, recurringCustomDays: recurring === "Custom" ? Number(customDays) || 7 : null, createdBy, needsSignoff: true,
+      subtasks: subs.map(x => ({ title: x.title, assignee: team.includes(x.assignee) ? x.assignee : "" })), // drop owners who were un-ticked
+    });
     if (taskId && file) await onAttach(taskId, file);
     setSaving(false);
     onClose();
   };
 
   return (
-    <ModalShell onClose={onClose} width={460}>
+    <ModalShell onClose={onClose} width={500}>
       <div className="mb-display" style={{ fontSize: 19, fontWeight: 600, marginBottom: 16 }}>Create Task</div>
       <FormRow label="Task title"><input value={title} onChange={e=>setTitle(e.target.value)} style={inputStyle} /></FormRow>
-      <FormRow label="Assign to">
-        <select value={assignee} onChange={e=>setAssignee(e.target.value)} style={inputStyle}>
+      <FormRow label="Lead assignee (owns the task and its sign-off)">
+        <select value={assignee} onChange={e=>changeLead(e.target.value)} style={inputStyle}>
           {employees.map(e => <option key={e.id} value={e.id}>{e.name} — {e.position}</option>)}
         </select>
+      </FormRow>
+      <FormRow label={`Also assign (optional)${extra.length ? ` — ${extra.length} selected` : ""}`}>
+        <PeoplePicker options={employees.filter(e => e.id !== assignee)} selected={extra} onToggle={toggleExtra} />
       </FormRow>
       <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <FormRow label="Priority"><select value={priority} onChange={e=>setPriority(e.target.value)} style={inputStyle}><option>High</option><option>Medium</option><option>Low</option></select></FormRow>
@@ -2112,6 +2212,26 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
           <input type="number" min={1} value={customDays} onChange={e=>setCustomDays(e.target.value)} style={inputStyle} />
         </FormRow>
       )}
+
+      <FormRow label="Subtasks (optional) — each can be given to one person on the task">
+        {subs.map((x, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", fontSize: 12.5 }}>
+            <span style={{ flex: 1, minWidth: 0, ...ellipsis }}>• {x.title}</span>
+            <span style={{ fontSize: 11, color: C.slate, whiteSpace: "nowrap" }}>{team.includes(x.assignee) ? byId[x.assignee]?.name : "Unassigned"}</span>
+            <button type="button" onClick={() => setSubs(list => list.filter((_, j) => j !== i))} aria-label="Remove subtask" style={{ background: "none", border: "none", cursor: "pointer", color: C.slate, padding: 2 }}><X size={13} /></button>
+          </div>
+        ))}
+        <div style={{ display: "flex", gap: 6, marginTop: subs.length ? 4 : 0 }}>
+          <input value={subDraft} onChange={e=>setSubDraft(e.target.value)} placeholder="Add a subtask…"
+            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addSub(); } }} style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
+          <select value={subWhoValid} onChange={e=>setSubWho(e.target.value)} style={{ ...inputStyle, width: 130, flexShrink: 0 }} aria-label="Subtask assignee">
+            <option value="">Unassigned</option>
+            {team.map(id => <option key={id} value={id}>{byId[id]?.name}</option>)}
+          </select>
+          <IconBtn onClick={addSub} title="Add subtask"><Plus size={15} /></IconBtn>
+        </div>
+      </FormRow>
+
       <FormRow label="Attach a file (optional)">
         <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} style={{ fontSize: 12.5 }} />
       </FormRow>
@@ -2167,7 +2287,7 @@ function Notifications({ tasks, byId, notifications = [], onMarkRead, setPage, s
         </span>
         <div style={{ fontSize: 13.5, flex: 1, minWidth: 0 }}>
           <div>{label}</div>
-          {item.type === "overdue" && <div style={{ fontSize: 11.5, color: C.slate, marginTop: 3 }}>Assigned to {byId[item.t.assignee]?.name || "Unassigned"}</div>}
+          {item.type === "overdue" && <div style={{ fontSize: 11.5, color: C.slate, marginTop: 3 }}>Assigned to {taskTeam(item.t).map(id => byId[id]?.name).filter(Boolean).join(", ") || "Unassigned"}</div>}
         </div>
         <span style={{ fontSize: 11.5, color: C.slate, whiteSpace: "nowrap" }}>{when}</span>
         {clickable && <ChevronRight size={14} color={C.slate} style={{ flexShrink: 0, marginTop: 2 }} />}
