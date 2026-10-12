@@ -77,7 +77,7 @@ const deptById = Object.fromEntries(DEPARTMENTS.map(d => [d.id, d]));
 
 const STATUSES = ["Active", "On Leave", "Suspended", "Resigned", "Terminated"];
 const ROLE_LABEL = { superadmin: "Super Admin", executive: "Executive", manager: "Manager", employee: "Employee" };
-const COLUMNS = ["Backlog", "To Do", "In Progress", "For Review", "Completed"];
+const COLUMNS = ["Backlog", "To Do", "In Progress", "For Review", "Waiting", "Completed"];
 
 /* ---------------------------------------------------------------
    HELPERS
@@ -828,7 +828,7 @@ export default function App() {
         </nav>
 
         <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-        <main className="mb-main" style={{ flex: 1, minWidth: 0, padding: "26px 34px 60px", overflowY: "auto", background: dark ? "radial-gradient(circle at top, rgba(255,255,255,0.04), transparent 32%), #000000" : "radial-gradient(circle at top, rgba(148,163,184,0.08), transparent 32%), #F5F5F4" }}>
+        <main className="mb-main" style={{ flex: 1, minWidth: 0, padding: "26px 34px 60px", overflowY: "auto", backgroundColor: C.paper, backgroundImage: `linear-gradient(${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}, ${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}), url("${motherbaseBackground}")`, backgroundSize: "cover, min(1100px, 94vw) auto", backgroundPosition: "center, center 42%", backgroundRepeat: "no-repeat" }}>
           {page === "dashboard" && <Dashboard tasks={tasks} viewerEmp={viewerEmp} isManager={isManager} isExec={isExec} setPage={setPage} setTaskDetail={setTaskDetail} />}
           {page === "organization" && (
             <Organization orgView={orgView} setOrgView={setOrgView} setSelectedEmp={setSelectedEmp}
@@ -1427,8 +1427,8 @@ function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTa
 }
 
 const ellipsis = { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
-const STAGE_HINT = { "For Review": "Submit for sign-off" };
-const stageColor = (s) => ({ Backlog: C.slate, "To Do": C.blue, "In Progress": C.amber, "For Review": "#7C6BD6", Completed: C.completed }[s] || C.slate);
+const STAGE_HINT = { "For Review": "Submit for sign-off", Waiting: "Paused until follow-up" };
+const stageColor = (s) => ({ Backlog: C.slate, "To Do": C.blue, "In Progress": C.amber, "For Review": "#7C6BD6", Waiting: C.slate, Completed: C.completed }[s] || C.slate);
 
 // One entry per person, alphabetical, "Unassigned" last.
 function groupByAssignee(items, byId) {
@@ -1562,8 +1562,8 @@ function GroupHolder({ group, onOpen, dark }) {
   const more = group.cards.length - shown.length;
   return (
     <button type="button" onClick={onOpen} aria-label={`Open ${group.cards.length} tasks for ${group.name}`}
-      style={{ display: "block", width: "100%", textAlign: "left", fontFamily: "inherit", color: C.ink, cursor: "pointer", background: dark ? "rgba(28, 33, 51, 0.78)" : "rgba(255, 255, 255, 0.78)", border: `1px solid ${dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.72)"}`, borderRadius: 12, padding: 12, marginBottom: 8, backdropFilter: "blur(12px) saturate(140%)",
-        boxShadow: `0 4px 0 -1px ${C.card}, 0 5px 0 -1px ${C.line}, 0 9px 0 -3px ${C.card}, 0 10px 0 -3px ${C.line}` }}>
+      style={{ display: "block", width: "100%", textAlign: "left", fontFamily: "inherit", color: C.ink, cursor: "pointer", background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 16, padding: 12, marginBottom: 8, backdropFilter: "blur(12px) saturate(140%)",
+        boxShadow: "0 14px 28px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255,255,255,0.18)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <Avatar name={group.name} size={34} color={deptById[emp?.dept]?.color} online={onlineIds?.has(group.assignee)} />
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -1664,26 +1664,26 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
           )}
         </div>
       </div>
-      <div className="mb-kanban-desktop" style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 8 }}>
+      <div className="mb-kanban-desktop" style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(220px, 1fr))", gap: 12, alignItems: "start", paddingBottom: 8 }}>
         {COLUMNS.map(col => {
           const items = sourceFor(col).filter(t => t.status === col);
           const groups = groupByAssignee(items, byId);
           const archivedView = col === "Completed" && showArchived;
           return (
-            <div key={col} style={{ minWidth: 250, flex: "0 0 250px", padding: 12, borderRadius: 14, border: `1px solid ${dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.72)"}`, background: dark ? "rgba(22, 28, 46, 0.68)" : "rgba(255, 255, 255, 0.60)", backdropFilter: "blur(14px) saturate(140%)", boxShadow: "0 10px 28px rgba(22, 30, 55, 0.12)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div key={col} style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2, padding: "0 2px" }}>
                 <span style={{
                   display: "inline-flex", alignItems: "center", fontSize: 11.5, fontWeight: 700, letterSpacing: 0.2, color: "#fff",
-                  background: archivedView ? C.slate : stageColor(col), borderRadius: 20, padding: "5px 13px",
-                  boxShadow: `0 3px 10px ${(archivedView ? C.slate : stageColor(col))}4D`,
+                  background: archivedView ? C.slate : stageColor(col), borderRadius: 999, padding: "6px 11px",
+                  boxShadow: `0 8px 18px ${(archivedView ? C.slate : stageColor(col))}55`,
                 }}>
                   {archivedView ? "Removed" : col}
                 </span>
-                <span style={{ fontSize: 11.5, fontWeight: 700, color: C.ink, background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 20, minWidth: 26, textAlign: "center", padding: "3px 8px" }}>{items.length}</span>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: C.ink, background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 999, minWidth: 26, textAlign: "center", padding: "5px 8px", boxShadow: "0 4px 10px rgba(15, 23, 42, 0.04)" }}>{items.length}</span>
               </div>
               {col === "Completed" && canManage && (archivedTasks.length > 0 || showArchived) && (
                 <button type="button" onClick={() => setShowArchived(v => !v)}
-                  style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", padding: "0 0 10px", fontSize: 11.5, fontWeight: 600, color: C.slate, cursor: "pointer", fontFamily: "inherit" }}>
+                  style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", padding: "0 2px 4px", fontSize: 11.5, fontWeight: 600, color: C.slate, cursor: "pointer", fontFamily: "inherit" }}>
                   {showArchived ? <><ChevronLeft size={13} /> Back to completed</> : <><Archive size={12} /> Removed from board ({archivedTasks.length})</>}
                 </button>
               )}
@@ -1744,7 +1744,7 @@ function TaskCard({ t, children, onOpen }) {
   const flagColor = priorityFlagColor(t);
   const flagLabel = t.status === "Completed" ? "Completed" : t.priority;
   return (
-    <div onClick={onOpen} style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 12, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(14px) saturate(140%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.38), 0 6px 16px rgba(20,28,48,0.10)" }}>
+    <div onClick={onOpen} style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 16, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(14px) saturate(140%)", boxShadow: "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)" }}>
       {t.recurring && (
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: -2 }}>
           <span title="Recurring"><Repeat size={12} color={C.slate} /></span>
@@ -1760,7 +1760,7 @@ function TaskCard({ t, children, onOpen }) {
         <div style={{ height: "100%", width: `${t.progress}%`, background: C.amber }} />
       </div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10.5, fontWeight: 700, color: "#fff", background: flagColor, borderRadius: 20, padding: "3px 9px 3px 7px" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10.5, fontWeight: 700, color: "#fff", background: flagColor, borderRadius: 999, padding: "4px 9px 4px 7px", boxShadow: "0 8px 16px rgba(15, 23, 42, 0.12)" }}>
           <Flag size={10} fill="#fff" strokeWidth={0} /> {flagLabel}
         </span>
         <TeamAvatars ids={taskTeam(t)} />
@@ -1774,7 +1774,7 @@ function TaskCard({ t, children, onOpen }) {
 function ListView({ tasks, setTaskDetail, dark }) {
   const { byId } = useEmp();
   return (
-    <div style={{ background: dark ? "rgba(22, 28, 46, 0.72)" : "rgba(255, 255, 255, 0.70)", border: `1px solid ${dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.72)"}`, borderRadius: 14, overflow: "hidden", backdropFilter: "blur(14px) saturate(140%)" }}>
+    <div style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 16, overflow: "hidden", boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)" }}>
       <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
         <thead><tr style={{ background: C.paper, textAlign: "left" }}>{["Task","Employee","Department","Priority","Due","Status"].map(h => <th key={h} style={{ padding: "10px 16px", fontSize: 11.5, color: C.slate, fontWeight: 600 }}>{h}</th>)}</tr></thead>
@@ -1808,7 +1808,7 @@ function CalendarView({ tasks, setTaskDetail, dark }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {dates.length === 0 && <Empty text="No tasks scheduled." />}
       {dates.map(dt => (
-        <div key={dt} style={{ background: dark ? "rgba(22, 28, 46, 0.72)" : "rgba(255, 255, 255, 0.70)", border: `1px solid ${dark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.72)"}`, borderRadius: 12, padding: 14, backdropFilter: "blur(14px) saturate(140%)", boxShadow: "0 8px 24px rgba(22,30,55,0.1)" }}>
+        <div key={dt} style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 14, padding: 14, boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)" }}>
           <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 8, color: dt < today() ? C.coral : dt === today() ? C.amber : C.ink }}>{dt} {dt === today() && "· Today"}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {grouped[dt].map(t => (
