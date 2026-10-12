@@ -36,6 +36,14 @@ const RESPONSIVE_CSS = `
   .mb-topnav { scrollbar-width: none; }
   .mb-kanban-mobile { display: none; }
   .mb-mobile-nav { display: none; }
+  .mb-task-select-control, .mb-group-select-control { opacity: 0; transform: scale(0.8); transition: opacity 0.14s ease, transform 0.14s ease; }
+  .mb-task-card:hover .mb-task-select-control, .mb-task-card:focus-within .mb-task-select-control,
+  .mb-task-card.is-checked .mb-task-select-control, .mb-task-row:hover .mb-task-select-control,
+  .mb-task-row:focus-within .mb-task-select-control, .mb-task-row.is-checked .mb-task-select-control,
+  .mb-group-select-wrap:hover .mb-group-select-control,
+  .mb-group-select-wrap:focus-within .mb-group-select-control, .mb-group-select-wrap.has-checked .mb-group-select-control,
+  .mb-selection-mode .mb-task-select-control, .mb-selection-mode .mb-group-select-control,
+  .mb-task-card.is-selection-mode .mb-task-select-control, .mb-group-select-wrap.is-selection-mode .mb-group-select-control { opacity: 1; transform: scale(1); }
   @media (max-width: 860px) {
     .mb-main { padding: 16px 14px 60px !important; }
     .mb-grid-2, .mb-grid-3, .mb-grid-4 { grid-template-columns: 1fr !important; }
@@ -1413,6 +1421,7 @@ function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTa
   const { employees } = useEmp();
   const [deptFilter, setDeptFilter] = useState("all");
   const [showBulkEdit, setShowBulkEdit] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
   const [checkedTaskIds, setCheckedTaskIds] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem("mb-checked-tasks") || "[]")); } catch { return new Set(); }
   });
@@ -1432,7 +1441,7 @@ function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTa
   };
 
   return (
-    <div style={{ position: "relative", minHeight: "calc(100vh - 112px)", overflow: "hidden", borderRadius: 16, padding: 18, margin: -8 }}>
+    <div className={selectionMode ? "mb-selection-mode" : undefined} style={{ position: "relative", minHeight: "calc(100vh - 112px)", overflow: "hidden", borderRadius: 16, padding: 18, margin: -8 }}>
       <div style={{ position: "relative", zIndex: 1 }}>
         <PageHeader eyebrow="Task Management" title="Tasks" actions={
           <div className="mb-task-toolbar" style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -1444,6 +1453,7 @@ function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTa
                 Export Report
               </button>
             )}
+            <button type="button" aria-pressed={selectionMode} onClick={() => setSelectionMode(mode => !mode)} style={{ display: "flex", alignItems: "center", gap: 6, background: selectionMode ? C.navySoft : C.card, border: `1px solid ${selectionMode ? C.navySoft : C.line}`, color: selectionMode ? "#fff" : C.ink, borderRadius: 8, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><Check size={14} /> {selectionMode ? "Done selecting" : "Select tasks"}</button>
             {canCreate && <button onClick={() => setShowBulkEdit(true)} disabled={!checkedTasks.length} style={{ display: "flex", alignItems: "center", gap: 6, background: C.card, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 8, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: checkedTasks.length ? "pointer" : "not-allowed", opacity: checkedTasks.length ? 1 : 0.55 }}><Pencil size={14} /> Bulk edit{checkedTasks.length ? ` (${checkedTasks.length})` : ""}</button>}
             {canCreate && <button onClick={() => setShowAddTask(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}><Plus size={15} /> Add Task</button>}
           </div>
@@ -1461,7 +1471,7 @@ function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTa
           </div>
         </div>
         {!canCreate && <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 14 }}>Viewing as {viewerEmp.name} ({ROLE_LABEL[viewerEmp.role]}) — you can update status and progress on your own tasks. Completion needs your supervisor's sign-off.</div>}
-        {taskView === "kanban" && <KanbanView tasks={boardTasks} archivedTasks={archivedTasks} setTaskStatus={setTaskStatus} viewerEmp={viewerEmp} setTaskDetail={setTaskDetail} onRepeat={onRepeat} onArchive={onArchive} dark={dark} checkedTaskIds={checkedTaskIds} onToggleChecked={toggleCheckedTask} />}
+        {taskView === "kanban" && <KanbanView tasks={boardTasks} archivedTasks={archivedTasks} setTaskStatus={setTaskStatus} bulkUpdateTasks={bulkUpdateTasks} viewerEmp={viewerEmp} setTaskDetail={setTaskDetail} onRepeat={onRepeat} onArchive={onArchive} dark={dark} checkedTaskIds={checkedTaskIds} onToggleChecked={toggleCheckedTask} selectionMode={selectionMode} />}
         {taskView === "list" && <ListView tasks={boardTasks} setTaskDetail={setTaskDetail} dark={dark} checkedTaskIds={checkedTaskIds} onToggleChecked={toggleCheckedTask} />}
         {taskView === "calendar" && <CalendarView tasks={boardTasks} setTaskDetail={setTaskDetail} dark={dark} checkedTaskIds={checkedTaskIds} onToggleChecked={toggleCheckedTask} />}
         {showBulkEdit && <BulkEditModal tasks={checkedTasks} checkedTaskIds={checkedTaskIds} onToggleChecked={toggleCheckedTask} onClose={() => setShowBulkEdit(false)} onApply={bulkUpdateTasks} />}
@@ -1597,15 +1607,21 @@ function Chip({ children, color, bg }) {
 }
 
 // A stack-of-cards tile that stands for everything one person has in a column.
-function GroupHolder({ group, onOpen, dark }) {
+function GroupHolder({ group, onOpen, dark, checkedTaskIds, onToggleGroup, selectionMode }) {
   const { byId, onlineIds } = useEmp();
   const emp = byId[group.assignee];
   const overdue = group.cards.filter(t => statusMeta(t).label === "Overdue").length;
   const high = group.cards.filter(t => t.priority === "High" && t.status !== "Completed").length;
+  const checkedCount = group.cards.filter(t => checkedTaskIds.has(t.id)).length;
+  const allChecked = checkedCount === group.cards.length;
   const shown = group.cards.slice(0, 2);
   const more = group.cards.length - shown.length;
   return (
-    <button type="button" onClick={onOpen} aria-label={`Open ${group.cards.length} tasks for ${group.name}`}
+    <div className={`mb-group-select-wrap${selectionMode ? " is-selection-mode" : ""}${checkedCount ? " has-checked" : ""}`} style={{ position: "relative" }}>
+      <input className="mb-group-select-control" type="checkbox" checked={allChecked} aria-checked={checkedCount > 0 && !allChecked ? "mixed" : allChecked}
+        onClick={e => e.stopPropagation()} onChange={onToggleGroup} aria-label={allChecked ? `Deselect all tasks for ${group.name}` : `Select all ${group.cards.length} tasks for ${group.name}`}
+        style={{ position: "absolute", zIndex: 2, top: 15, right: 48, width: 18, height: 18, cursor: "pointer" }} />
+      <button type="button" onClick={onOpen} aria-label={`Open ${group.cards.length} tasks for ${group.name}`}
       style={{ display: "block", width: "100%", textAlign: "left", fontFamily: "inherit", color: C.ink, cursor: "pointer", background: dark ? "linear-gradient(180deg, rgba(34,25,52,0.96), rgba(22,18,34,0.96))" : "var(--mb-glass-surface)", border: `1px solid ${dark ? "rgba(179, 154, 255, 0.25)" : "var(--mb-glass-border)"}`, borderRadius: 16, padding: 12, marginBottom: 8, backdropFilter: "blur(12px) saturate(140%)",
         boxShadow: dark ? "0 16px 32px rgba(14, 10, 24, 0.42), inset 0 1px 0 rgba(255,255,255,0.08)" : "0 14px 28px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255,255,255,0.18)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1614,7 +1630,7 @@ function GroupHolder({ group, onOpen, dark }) {
           <div style={{ fontSize: 13.5, fontWeight: 700, ...ellipsis }}>{group.name}</div>
           <div style={{ fontSize: 11, color: C.slate, ...ellipsis }}>{emp?.position || "No assignee"}</div>
         </div>
-        <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", background: C.navySoft, borderRadius: 20, padding: "2px 9px" }}>{group.cards.length}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", background: C.navySoft, borderRadius: 20, padding: "2px 9px" }}>{checkedCount ? `${checkedCount}/${group.cards.length}` : group.cards.length}</span>
       </div>
       <div style={{ marginTop: 10, borderTop: `1px solid ${C.line}`, paddingTop: 8 }}>
         {shown.map(t => <div key={t.id} style={{ fontSize: 12, color: C.slate, padding: "1px 0", ...ellipsis }}>• {t.title}</div>)}
@@ -1627,20 +1643,35 @@ function GroupHolder({ group, onOpen, dark }) {
         </span>
         <span style={{ display: "flex", alignItems: "center", fontSize: 11.5, fontWeight: 600, color: C.ink, whiteSpace: "nowrap" }}>View all <ChevronRight size={14} /></span>
       </div>
-    </button>
+      </button>
+    </div>
   );
 }
 
 // Everything one person has in one column, as a responsive grid, with arrows to hop to the next person.
-function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, renderActions, dark, checkedTaskIds, onToggleChecked }) {
+function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, renderActions, dark, checkedTaskIds, onToggleChecked, selectionMode, bulkUpdateTasks, canBulkEdit }) {
   const { byId, onlineIds } = useEmp();
   const people = groupByAssignee(source.filter(t => t.status === col), byId);
   const idx = people.findIndex(p => p.assignee === assignee);
   const group = people[idx];
+  const [moving, setMoving] = useState(false);
   useEffect(() => { if (!group) onClose(); }, [!group]);
   if (!group) return null;
   const go = (d) => onSwitch(people[(idx + d + people.length) % people.length].assignee);
   const n = group.cards.length;
+  const selectedCards = group.cards.filter(task => checkedTaskIds.has(task.id));
+  const toggleAll = () => {
+    const allChecked = selectedCards.length === group.cards.length;
+    group.cards.filter(task => checkedTaskIds.has(task.id) === allChecked).forEach(task => onToggleChecked(task.id));
+  };
+  const moveSelected = async (status) => {
+    if (!status || !selectedCards.length || moving) return;
+    const patch = { status };
+    if (status === "Completed") patch.progress = 100;
+    setMoving(true);
+    await bulkUpdateTasks(selectedCards.map(task => task.id), patch);
+    setMoving(false);
+  };
   return (
     <ModalShell onClose={onClose} width={780}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, paddingRight: 44, marginBottom: 14, flexWrap: "wrap" }}>
@@ -1650,7 +1681,15 @@ function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, r
           <div style={{ fontSize: 12, color: C.slate }}>
             {byId[assignee]?.position ? `${byId[assignee].position} · ` : ""}{n} task{n === 1 ? "" : "s"} in <b style={{ color: stageColor(col) }}>{col}</b>
           </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 11.5, color: C.slate, cursor: "pointer" }}>
+            <input type="checkbox" checked={selectedCards.length === group.cards.length} onChange={toggleAll} />
+            Select all tasks for {group.name}
+          </label>
         </div>
+        {canBulkEdit && selectedCards.length > 0 && <select aria-label="Move checked employee tasks to another status" value="" disabled={moving} onChange={e => moveSelected(e.target.value)} style={{ ...inputStyle, width: "auto", maxWidth: "100%", fontSize: 12, padding: "7px 8px" }}>
+          <option value="">{moving ? "Moving tasks…" : `Move ${selectedCards.length} checked to…`}</option>
+          {COLUMNS.map(stage => <option key={stage} value={stage}>{stage}</option>)}
+        </select>}
         {people.length > 1 && (
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <IconBtn onClick={() => go(-1)} title="Previous person"><ChevronLeft size={16} /></IconBtn>
@@ -1661,14 +1700,14 @@ function GroupModal({ col, assignee, source, onClose, onSwitch, setTaskDetail, r
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12, maxHeight: "62vh", overflowY: "auto", padding: 2 }}>
         {group.cards.map(t => (
-          <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)} dark={dark} isChecked={checkedTaskIds.has(t.id)} onToggleChecked={() => onToggleChecked(t.id)}>{renderActions(t)}</TaskCard>
+          <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)} dark={dark} isChecked={checkedTaskIds.has(t.id)} onToggleChecked={() => onToggleChecked(t.id)} selectionMode={selectionMode}>{renderActions(t)}</TaskCard>
         ))}
       </div>
     </ModalShell>
   );
 }
 
-function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTaskDetail, onRepeat, onArchive, dark, checkedTaskIds, onToggleChecked }) {
+function KanbanView({ tasks, archivedTasks = [], setTaskStatus, bulkUpdateTasks, viewerEmp, setTaskDetail, onRepeat, onArchive, dark, checkedTaskIds, onToggleChecked, selectionMode }) {
   const { byId } = useEmp();
   const [openGroup, setOpenGroup] = useState(null); // { col, assignee }
   const [showArchived, setShowArchived] = useState(false);
@@ -1676,6 +1715,10 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
   const canManage = viewerEmp.role !== "employee";
   const sourceFor = (col) => (col === "Completed" && showArchived ? archivedTasks : tasks);
   const actions = (t) => <TaskCardActions t={t} viewerEmp={viewerEmp} setTaskStatus={setTaskStatus} onRepeat={onRepeat} onArchive={onArchive} />;
+  const toggleGroup = (group) => {
+    const allChecked = group.cards.every(task => checkedTaskIds.has(task.id));
+    group.cards.filter(task => checkedTaskIds.has(task.id) === allChecked).forEach(task => onToggleChecked(task.id));
+  };
   return (
     <>
       <div className="mb-kanban-mobile" style={{ marginBottom: 14 }}>
@@ -1700,7 +1743,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {sourceFor(mobileStage).filter(t => t.status === mobileStage).map(t => (
-            <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)} dark={dark} isChecked={checkedTaskIds.has(t.id)} onToggleChecked={() => onToggleChecked(t.id)}>{actions(t)}</TaskCard>
+            <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)} dark={dark} isChecked={checkedTaskIds.has(t.id)} onToggleChecked={() => onToggleChecked(t.id)} selectionMode={selectionMode}>{actions(t)}</TaskCard>
           ))}
           {sourceFor(mobileStage).filter(t => t.status === mobileStage).length === 0 && (
             <Empty text={showArchived && mobileStage === "Completed" ? "Nothing removed." : "No tasks in this stage."} />
@@ -1741,9 +1784,9 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
                         <div style={{ fontSize: 12, color: C.slate, padding: "10px 4px" }}>{archivedView ? "Nothing removed." : "No tasks."}</div>
                       ) : (
                         laneGroups.map(g => g.cards.length > 1 ? (
-                          <GroupHolder key={`g-${col}-${laneIndex}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} dark={dark} />
+                          <GroupHolder key={`g-${col}-${laneIndex}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} dark={dark} checkedTaskIds={checkedTaskIds} selectionMode={selectionMode} onToggleGroup={() => toggleGroup(g)} />
                         ) : (
-                          <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)} dark={dark} isChecked={checkedTaskIds.has(g.cards[0].id)} onToggleChecked={() => onToggleChecked(g.cards[0].id)}>{actions(g.cards[0])}</TaskCard>
+                          <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)} dark={dark} isChecked={checkedTaskIds.has(g.cards[0].id)} onToggleChecked={() => onToggleChecked(g.cards[0].id)} selectionMode={selectionMode}>{actions(g.cards[0])}</TaskCard>
                         ))
                       )}
                     </div>
@@ -1757,7 +1800,7 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, viewerEmp, setTa
       {openGroup && (
         <GroupModal col={openGroup.col} assignee={openGroup.assignee} source={sourceFor(openGroup.col)}
           onClose={() => setOpenGroup(null)} onSwitch={(a) => setOpenGroup({ col: openGroup.col, assignee: a })}
-          setTaskDetail={setTaskDetail} renderActions={actions} dark={dark} checkedTaskIds={checkedTaskIds} onToggleChecked={onToggleChecked} />
+          setTaskDetail={setTaskDetail} renderActions={actions} dark={dark} checkedTaskIds={checkedTaskIds} onToggleChecked={onToggleChecked} selectionMode={selectionMode} bulkUpdateTasks={bulkUpdateTasks} canBulkEdit={canManage} />
       )}
     </>
   );
@@ -1791,7 +1834,7 @@ function priorityFlagColor(t) {
   return C.blue; // Low
 }
 
-function TaskCard({ t, children, onOpen, dark, isChecked = false, onToggleChecked }) {
+function TaskCard({ t, children, onOpen, dark, isChecked = false, onToggleChecked, selectionMode = false }) {
   const { byId, onlineIds } = useEmp();
   const meta = statusMeta(t);
   const emp = byId[t.assignee] || { name: "Unassigned" };
@@ -1799,10 +1842,10 @@ function TaskCard({ t, children, onOpen, dark, isChecked = false, onToggleChecke
   const flagColor = priorityFlagColor(t);
   const flagLabel = t.status === "Completed" ? "Completed" : t.priority;
   return (
-    <div onClick={onOpen} style={{ background: dark ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))" : "var(--mb-glass-surface)", border: `1px solid ${isChecked ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`, borderRadius: 16, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(14px) saturate(140%)", boxShadow: isChecked ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)" : dark ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)" : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)" }}>
+    <div className={`mb-task-card${isChecked ? " is-checked" : ""}${selectionMode ? " is-selection-mode" : ""}`} onClick={onOpen} style={{ background: dark ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))" : "var(--mb-glass-surface)", border: `1px solid ${isChecked ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`, borderRadius: 16, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(14px) saturate(140%)", boxShadow: isChecked ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)" : dark ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)" : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
         {onToggleChecked ? (
-          <button type="button" onClick={(e) => { e.stopPropagation(); onToggleChecked(); }} aria-label={isChecked ? "Uncheck task" : "Check task"} style={{ width: 20, height: 20, borderRadius: 6, border: `1px solid ${isChecked ? "rgba(166, 144, 255, 0.9)" : dark ? "rgba(255,255,255,0.12)" : C.line}`, background: isChecked ? "linear-gradient(180deg, #8a7aff, #6552d6)" : dark ? "rgba(255,255,255,0.02)" : C.paper, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", cursor: "pointer", padding: 0 }}>
+          <button className="mb-task-select-control" type="button" onClick={(e) => { e.stopPropagation(); onToggleChecked(); }} aria-label={isChecked ? "Uncheck task" : "Check task"} aria-pressed={isChecked} style={{ width: 20, height: 20, borderRadius: 6, border: `1px solid ${isChecked ? "rgba(166, 144, 255, 0.9)" : dark ? "rgba(255,255,255,0.12)" : C.line}`, background: isChecked ? "linear-gradient(180deg, #8a7aff, #6552d6)" : dark ? "rgba(255,255,255,0.02)" : C.paper, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", cursor: "pointer", padding: 0 }}>
             {isChecked && <Check size={12} />}
           </button>
         ) : <span style={{ width: 20, height: 20 }} />}
@@ -1842,8 +1885,8 @@ function ListView({ tasks, setTaskDetail, dark, checkedTaskIds, onToggleChecked 
           {tasks.map(t => {
             const meta = statusMeta(t);
             return (
-              <tr key={t.id} onClick={() => setTaskDetail(t.id)} style={{ borderTop: `1px solid ${C.line}`, cursor: "pointer" }}>
-                <td style={{ padding: "8px 10px" }}><input type="checkbox" checked={checkedTaskIds.has(t.id)} onClick={e => e.stopPropagation()} onChange={() => onToggleChecked(t.id)} aria-label={`Select ${t.title} for bulk edit`} /></td>
+              <tr key={t.id} className={`mb-task-row${checkedTaskIds.has(t.id) ? " is-checked" : ""}`} onClick={() => setTaskDetail(t.id)} style={{ borderTop: `1px solid ${C.line}`, cursor: "pointer", background: checkedTaskIds.has(t.id) ? "rgba(132, 108, 220, 0.08)" : "transparent" }}>
+                <td style={{ padding: "8px 10px" }}><input className="mb-task-select-control" type="checkbox" checked={checkedTaskIds.has(t.id)} onClick={e => e.stopPropagation()} onChange={() => onToggleChecked(t.id)} aria-label={`Select ${t.title} for bulk edit`} /></td>
                 <td style={{ padding: "10px 16px", fontWeight: 600 }}>{t.title}</td>
                 <td style={{ padding: "10px 16px" }}>{byId[t.assignee]?.name || "Unassigned"}</td>
                 <td style={{ padding: "10px 16px" }}><DeptTag id={t.dept} /></td>
@@ -1873,8 +1916,8 @@ function CalendarView({ tasks, setTaskDetail, dark, checkedTaskIds, onToggleChec
           <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 8, color: dt < today() ? C.coral : dt === today() ? C.amber : C.ink }}>{dt} {dt === today() && "· Today"}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {grouped[dt].map(t => (
-              <div key={t.id} onClick={() => setTaskDetail(t.id)} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer" }}>
-                <input type="checkbox" checked={checkedTaskIds.has(t.id)} onClick={e => e.stopPropagation()} onChange={() => onToggleChecked(t.id)} aria-label={`Select ${t.title} for bulk edit`} />
+              <div key={t.id} className={`mb-task-row${checkedTaskIds.has(t.id) ? " is-checked" : ""}`} onClick={() => setTaskDetail(t.id)} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer", background: checkedTaskIds.has(t.id) ? "rgba(132, 108, 220, 0.08)" : "transparent", borderRadius: 6, padding: "2px 4px" }}>
+                <input className="mb-task-select-control" type="checkbox" checked={checkedTaskIds.has(t.id)} onClick={e => e.stopPropagation()} onChange={() => onToggleChecked(t.id)} aria-label={`Select ${t.title} for bulk edit`} />
                 <span style={{ fontWeight: 600, color: priColor(t.priority) }}>{t.priority}</span><span>{t.title}</span><span style={{ color: C.slate }}>— {byId[t.assignee]?.name || "Unassigned"}</span>
               </div>
             ))}
