@@ -489,7 +489,10 @@ export default function App() {
         }
       }
       setTasks((data || []).map(mapTask));
+      return true;
     }
+    console.error("Could not refresh tasks:", error);
+    return false;
   };
   const refetchNotifications = async () => {
     const { data, error } = await supabase.from("notifications").select("*").order("created_at", { ascending: false });
@@ -622,10 +625,19 @@ export default function App() {
   };
 
   const updateTask = async (id, patch) => {
-    const { error } = await supabase.from("tasks").update(patch).eq("id", id);
-    if (error) alert(error.message);
-    await refetchTasks();
-    return !error;
+    const { data, error } = await supabase.from("tasks").update(patch).eq("id", id).select("id").maybeSingle();
+    if (error) {
+      alert(error.message);
+      await refetchTasks();
+      return false;
+    }
+    if (!data) {
+      alert("No task row was updated. Your current account may not have permission to change this task after the organization chart changed.");
+      await refetchTasks();
+      return false;
+    }
+    if (!await refetchTasks()) alert("The task was saved, but the task list could not refresh. Reload the app to see the latest status.");
+    return true;
   };
   const bulkUpdateTasks = async (ids, patch) => {
     const { error } = await supabase.from("tasks").update(patch).in("id", ids);
