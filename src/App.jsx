@@ -337,6 +337,12 @@ function getAuthHashParams() {
   return Object.fromEntries(new URLSearchParams(hash));
 }
 
+const APP_PAGES = new Set(["dashboard", "organization", "employees", "tasks", "inventory", "notifications", "settings"]);
+const getPageFromUrl = () => {
+  const page = new URLSearchParams(window.location.search).get("page");
+  return APP_PAGES.has(page) ? page : "dashboard";
+};
+
 function TopNavItem({ icon: Icon, label, active, badge, onClick }) {
   return (
     <button onClick={onClick} style={{
@@ -406,7 +412,14 @@ export default function App() {
   const [employees, setEmployees] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
-  const [page, setPage] = useState("dashboard");
+  const [page, setPageState] = useState(getPageFromUrl);
+  const setPage = (nextPage) => {
+    setPageState(nextPage);
+    const url = new URL(window.location.href);
+    if (nextPage === "dashboard") url.searchParams.delete("page");
+    else url.searchParams.set("page", nextPage);
+    window.history.pushState(null, "", url);
+  };
   const [selectedEmp, setSelectedEmp] = useState(null);
   const [editingEmp, setEditingEmp] = useState(undefined);
   const [orgView, setOrgView] = useState("chart");
@@ -435,6 +448,12 @@ export default function App() {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
     return () => sub.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const syncPage = () => setPageState(getPageFromUrl());
+    window.addEventListener("popstate", syncPage);
+    return () => window.removeEventListener("popstate", syncPage);
   }, []);
 
   const refetchEmployees = async () => {
@@ -571,7 +590,7 @@ export default function App() {
       <SetPassword
         onDone={() => {
           setAuthFlow(null);
-          window.history.replaceState(null, "", window.location.pathname);
+          window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
         }}
       />
     );
