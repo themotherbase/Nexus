@@ -945,7 +945,8 @@ export default function App() {
 
         {selectedEmp && (
           <EmployeeModal empId={selectedEmp} tasks={tasks} onClose={() => setSelectedEmp(null)}
-            setSelectedEmp={setSelectedEmp} onEdit={() => setEditingEmp(byId[selectedEmp])} />
+            setSelectedEmp={setSelectedEmp} setTaskDetail={setTaskDetail}
+            onEdit={() => setEditingEmp(byId[selectedEmp])} />
         )}
         {editingEmp !== undefined && <EmployeeFormModal employee={editingEmp} onClose={() => setEditingEmp(undefined)} />}
         {showAddTask && (
@@ -1390,7 +1391,8 @@ function EmployeesList({ setSelectedEmp, search, setSearch, tasks, onAdd }) {
   );
 }
 
-function EmployeeModal({ empId, tasks, onClose, setSelectedEmp, onEdit }) {
+function EmployeeModal({ empId, tasks, onClose, setSelectedEmp, setTaskDetail, onEdit }) {
+  const [taskFilter, setTaskFilter] = useState("active");
   const { byId, directReports, canEditOrg } = useEmp();
   const emp = byId[empId];
   if (!emp) return null;
@@ -1398,6 +1400,10 @@ function EmployeeModal({ empId, tasks, onClose, setSelectedEmp, onEdit }) {
   const activeTasks = myTasks
     .filter(t => t.status !== "Completed" && !t.archived)
     .sort((a, b) => (a.due || "").localeCompare(b.due || ""));
+  const completedTasks = myTasks.filter(t => t.status === "Completed");
+  const displayedTasks = taskFilter === "active" ? activeTasks
+    : taskFilter === "completed" ? completedTasks
+      : [...myTasks].sort((a, b) => (a.due || "").localeCompare(b.due || ""));
   const stats = { total: myTasks.length, completed: myTasks.filter(t => t.status === "Completed").length, inProgress: myTasks.filter(t => t.status === "In Progress").length };
   const rate = stats.total ? Math.round((stats.completed/stats.total)*100) : 0;
   const reports = directReports(emp.id);
@@ -1436,21 +1442,34 @@ function EmployeeModal({ empId, tasks, onClose, setSelectedEmp, onEdit }) {
         </div>
         <section className="mb-employee-task-column" style={{ minWidth: 0, borderLeft: `1px solid ${C.line}`, paddingLeft: 20 }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
-            <SectionLabel>Active tasks</SectionLabel>
-            <span style={{ fontSize: 11.5, color: C.slate }}>{activeTasks.length}</span>
+            <SectionLabel>Tasks</SectionLabel>
+            <span style={{ fontSize: 11.5, color: C.slate }}>{displayedTasks.length}</span>
+          </div>
+          <div role="group" aria-label="Filter employee tasks" style={{ display: "flex", gap: 5, marginTop: 8 }}>
+            {[["active", "Active"], ["completed", "Completed"], ["all", "All"]].map(([value, label]) => (
+              <button key={value} type="button" aria-pressed={taskFilter === value} onClick={() => setTaskFilter(value)} style={{
+                background: taskFilter === value ? C.navySoft : C.paper,
+                border: `1px solid ${taskFilter === value ? C.navySoft : C.line}`,
+                borderRadius: 6, color: taskFilter === value ? "#fff" : C.ink,
+                cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 600, padding: "5px 9px",
+              }}>{label}</button>
+            ))}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8, maxHeight: "62vh", overflowY: "auto", paddingRight: 4 }}>
-            {activeTasks.length === 0 && <Empty text="No active tasks assigned." />}
-            {activeTasks.map(t => {
+            {displayedTasks.length === 0 && <Empty text={taskFilter === "active" ? "No active tasks assigned." : "No tasks in this view."} />}
+            {displayedTasks.map(t => {
               const meta = statusMeta(t);
               return (
-                <div key={t.id} style={{ background: C.paper, border: `1px solid ${C.line}`, borderLeft: `3px solid ${stageColor(t.status)}`, borderRadius: 8, padding: "10px 12px" }}>
+                <button key={t.id} type="button" onClick={() => { onClose(); setTaskDetail(t.id); }} style={{
+                  background: C.paper, border: `1px solid ${C.line}`, borderLeft: `3px solid ${stageColor(t.status)}`,
+                  borderRadius: 8, color: C.ink, cursor: "pointer", fontFamily: "inherit", padding: "10px 12px", textAlign: "left", width: "100%",
+                }}>
                   <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.4, overflowWrap: "anywhere" }}>{t.title}</div>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6, fontSize: 11.5 }}>
-                    <span style={{ color: stageColor(t.status), fontWeight: 600 }}>{t.status}</span>
+                    <span style={{ color: stageColor(t.status), fontWeight: 600 }}>{t.status}{t.archived ? " · Removed" : ""}</span>
                     <span style={{ color: meta.color, whiteSpace: "nowrap" }}>Due {t.due || "—"}</span>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -1824,8 +1843,10 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, bulkUpdateTasks,
           </button>
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {sourceFor(mobileStage).filter(t => t.status === mobileStage).map(t => (
-            <TaskCard key={t.id} t={t} onOpen={() => setTaskDetail(t.id)} dark={dark} isChecked={checkedTaskIds.has(t.id)} onToggleChecked={() => onToggleChecked(t.id)} selectionMode={selectionMode}>{actions(t)}</TaskCard>
+          {groupByAssignee(sourceFor(mobileStage).filter(t => t.status === mobileStage), byId).map(group => group.cards.length > 1 ? (
+            <GroupHolder key={`mobile-${mobileStage}-${group.assignee}`} group={group} onOpen={() => setOpenGroup({ col: mobileStage, assignee: group.assignee })} dark={dark} checkedTaskIds={checkedTaskIds} selectionMode={selectionMode} onToggleGroup={() => toggleGroup(group)} bulkUpdateTasks={bulkUpdateTasks} canBulkEdit={canManage} />
+          ) : (
+            <TaskCard key={group.cards[0].id} t={group.cards[0]} onOpen={() => setTaskDetail(group.cards[0].id)} dark={dark} isChecked={checkedTaskIds.has(group.cards[0].id)} onToggleChecked={() => onToggleChecked(group.cards[0].id)} selectionMode={selectionMode}>{actions(group.cards[0])}</TaskCard>
           ))}
           {sourceFor(mobileStage).filter(t => t.status === mobileStage).length === 0 && (
             <Empty text={showArchived && mobileStage === "Completed" ? "Nothing removed." : "No tasks in this stage."} />

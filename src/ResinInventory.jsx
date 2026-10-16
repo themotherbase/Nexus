@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { supabase } from "./supabaseClient";
 import "./ResinInventory.css";
 
-const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTauwj6SIEt1gi6gm0NvjD9zQuqvh-j_4QhaL28TiW8lEJwvaMv7_uhPikWk6K41PGCRXMzCcOZepRu/pub?gid=383642645&single=true&output=csv";
+const SHEET_URL = "";
 const TABLE = "resin_inventory";
 const STATUSES = ["Available", "Reserved", "Sold", "For Repair", "On Display", "Consigned"];
 const DECLARATIONS = ["Brand-new", "Second hand", "Repaired"];
