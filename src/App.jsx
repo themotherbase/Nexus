@@ -1,13 +1,14 @@
 import React, { useState, useMemo, useEffect, useRef, createContext, useContext } from "react";
 import { createPortal } from "react-dom";
 import {
-  LayoutGrid, Users, ClipboardList, Bell, Settings, Network,
+  LayoutGrid, Users, ClipboardList, Bell, Settings, Network, PackageSearch,
   Search, Plus, X, CircleAlert, Clock, CheckCircle2,
   Table2, CalendarDays, KanbanSquare, ShieldCheck, Pencil, Trash2,
   Repeat, TriangleAlert, ListTree, LogOut, Undo2,
   ArrowRightLeft, ChevronDown, ChevronLeft, ChevronRight, Check, Minus, Archive, ArchiveRestore, MessageSquare, Flag
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
+import ResinInventory from "./ResinInventory.jsx";
 import motherbaseBackground from "../images/The Motherbase (Transparent).png";
 
 /* ---------------------------------------------------------------
@@ -809,6 +810,7 @@ export default function App() {
     { id: "organization", label: "Organization", icon: Network },
     { id: "employees", label: "Employees", icon: Users },
     { id: "tasks", label: "Tasks", icon: ClipboardList },
+    { id: "inventory", label: "Resin Inventory", icon: PackageSearch },
     { id: "settings", label: "Settings", icon: Settings },
   ];
 
@@ -895,6 +897,7 @@ export default function App() {
               canCreate={isManager} setShowAddTask={setShowAddTask} setTaskDetail={setTaskDetail}
               onRepeat={setRepeatTask} onArchive={archiveTask} />
           )}
+          {page === "inventory" && <ResinInventory viewerEmp={viewerEmp} />}
           {page === "notifications" && <Notifications tasks={boardTasks} byId={byId} notifications={notifications} onMarkRead={markNotificationRead} setPage={setPage} setTaskDetail={setTaskDetail} />}
           {page === "settings" && <SettingsPage isAdmin={isAdmin} dark={dark} setDark={setDark}
             viewerEmp={viewerEmp} completedTaskColor={completedTaskColor} defaultCompletedTaskColor={defaultCompletedTaskColor}
