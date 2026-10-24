@@ -187,11 +187,22 @@ const initials = (name) =>
     .slice(0, 2)
     .join("");
 const collectDescendants = (id, employees) => {
-  const kids = employees.filter((e) => e.sup === id);
-  return kids.reduce(
-    (acc, k) => [...acc, k.id, ...collectDescendants(k.id, employees)],
-    [],
-  );
+  const childrenBySupervisor = new Map();
+  employees.forEach((employee) => {
+    if (!employee.sup) return;
+    const children = childrenBySupervisor.get(employee.sup) || [];
+    children.push(employee);
+    childrenBySupervisor.set(employee.sup, children);
+  });
+  const descendants = [];
+  const visit = (supervisorId) => {
+    (childrenBySupervisor.get(supervisorId) || []).forEach((employee) => {
+      descendants.push(employee.id);
+      visit(employee.id);
+    });
+  };
+  visit(id);
+  return descendants;
 };
 const slugify = (s) =>
   (s || "")
@@ -290,6 +301,22 @@ const isOnTask = (t, empId) =>
 const taskTeam = (t) => [
   ...new Set([t.assignee, ...(t.assignees || [])].filter(Boolean)),
 ];
+const getEmployeeTaskStats = (tasks) => {
+  const stats = new Map();
+  tasks.forEach((task) => {
+    if (task.status === "Completed") return;
+    taskTeam(task).forEach((employeeId) => {
+      const employeeStats = stats.get(employeeId) || {
+        active: 0,
+        highPriority: 0,
+      };
+      employeeStats.active += 1;
+      if (task.priority === "High") employeeStats.highPriority += 1;
+      stats.set(employeeId, employeeStats);
+    });
+  });
+  return stats;
+};
 const taskProgress = (task) => {
   const subtasks = task.subtasks || [];
   if (subtasks.length)
@@ -1079,17 +1106,21 @@ export default function App() {
   const refetchEmployees = async () => {
     const { data, error } = await supabase
       .from("employees")
-      .select("*")
+      .select(
+        "id,name,position,dept_id,supervisor_id,role,status,secondary_role,responsibilities,can_edit_org,email",
+      )
       .order("name");
     if (!error) setEmployees((data || []).map(mapEmployee));
   };
   const refetchTasks = async () => {
     // Newer tables may not exist yet (their migrations not run) — step down through the
     // older shapes so the task list always loads.
+    const taskColumns =
+      "id,title,description,dept_id,assignee_id,supervisor_id,backup_id,priority,status,progress,category,completed_at,updated_at,recurring,recurring_custom_days,due_date,needs_signoff,created_by,archived";
     const shapes = [
-      "*, subtasks(*), task_comments(*), task_attachments(*), task_assignees(*)",
-      "*, subtasks(*), task_comments(*), task_attachments(*)",
-      "*, subtasks(*), task_comments(*)",
+      `${taskColumns}, subtasks(id,title,done,assignee_id), task_comments(id,parent_comment_id,author_id,body,created_at), task_attachments(id,file_name,file_path,uploaded_by,created_at), task_assignees(employee_id,added_at)`,
+      `${taskColumns}, subtasks(id,title,done,assignee_id), task_comments(id,parent_comment_id,author_id,body,created_at), task_attachments(id,file_name,file_path,uploaded_by,created_at)`,
+      `${taskColumns}, subtasks(id,title,done,assignee_id), task_comments(id,parent_comment_id,author_id,body,created_at)`,
     ];
     let data = null,
       error = null;
@@ -1132,7 +1163,8 @@ export default function App() {
   const refetchNotifications = async () => {
     const { data, error } = await supabase
       .from("notifications")
-      .select("*")
+      .select("id,type,read,task_id,message,created_at")
+      .eq("type", "comment")
       .order("created_at", { ascending: false });
     if (!error) setNotifications(data || []);
   };
@@ -1310,17 +1342,16 @@ export default function App() {
   const isManager = viewerEmp.role === "manager" || isExec;
   const canEditOrg = !!viewerEmp.canEditOrg;
 
+  const managedEmployeeIds = viewerEmp.role === "manager"
+    ? new Set([viewerEmp.id, ...collectDescendants(viewerEmp.id, employees)])
+    : null;
   const visibleTasks = isExec
     ? tasks
     : viewerEmp.role === "manager"
       ? tasks.filter(
           (t) =>
-            taskTeam(t).some((id) =>
-              new Set([
-                viewerEmp.id,
-                ...collectDescendants(viewerEmp.id, employees),
-              ]).has(id),
-            ) || t.supervisor === viewerEmp.id,
+            taskTeam(t).some((id) => managedEmployeeIds.has(id)) ||
+            t.supervisor === viewerEmp.id,
         )
       : tasks.filter((t) => isOnTask(t, viewerEmp.id));
 
@@ -2130,16 +2161,14 @@ function Dashboard({
     setTaskDetail(id);
     setPage("tasks");
   };
+  const managedEmployeeIds = viewerEmp.role === "manager"
+    ? new Set([viewerEmp.id, ...collectDescendants(viewerEmp.id, employees)])
+    : null;
   const scoped = isExec
     ? tasks
     : isManager
       ? tasks.filter((t) =>
-          taskTeam(t).some((id) =>
-            [
-              viewerEmp.id,
-              ...collectDescendants(viewerEmp.id, employees),
-            ].includes(id),
-          ),
+          taskTeam(t).some((id) => managedEmployeeIds.has(id)),
         )
       : tasks.filter((t) => isOnTask(t, viewerEmp.id));
 
@@ -2163,17 +2192,12 @@ function Dashboard({
       .length,
   })).filter((dd) => dd.count > 0);
 
+  const employeeTaskStats = getEmployeeTaskStats(tasks);
   const workload = employees
     .map((e) => ({
       emp: e,
-      active: tasks.filter((t) => isOnTask(t, e.id) && t.status !== "Completed")
-        .length,
-      highPri: tasks.filter(
-        (t) =>
-          isOnTask(t, e.id) &&
-          t.priority === "High" &&
-          t.status !== "Completed",
-      ).length,
+      active: employeeTaskStats.get(e.id)?.active || 0,
+      highPri: employeeTaskStats.get(e.id)?.highPriority || 0,
     }))
     .filter((w) => w.active > 0)
     .sort((a, b) => b.active - a.active);
@@ -2676,7 +2700,14 @@ function OrgChartPyramid({ onSelect, onEdit }) {
   const layout = useMemo(() => {
     const empIds = new Set(employees.map((e) => e.id));
     const roots = employees.filter((e) => !e.sup || !empIds.has(e.sup));
-    const childrenOf = (id) => employees.filter((e) => e.sup === id);
+    const childrenBySupervisor = new Map();
+    employees.forEach((employee) => {
+      if (!employee.sup) return;
+      const children = childrenBySupervisor.get(employee.sup) || [];
+      children.push(employee);
+      childrenBySupervisor.set(employee.sup, children);
+    });
+    const childrenOf = (id) => childrenBySupervisor.get(id) || [];
     const positions = {},
       depths = {};
     let slot = 0;
@@ -3190,6 +3221,7 @@ function StatusPill({ status }) {
 
 function EmployeesList({ setSelectedEmp, search, setSearch, tasks, onAdd }) {
   const { employees, canEditOrg, onlineIds } = useEmp();
+  const employeeTaskStats = getEmployeeTaskStats(tasks);
   const filtered = employees.filter((e) =>
     e.name.toLowerCase().includes(search.toLowerCase()),
   );
@@ -3235,9 +3267,7 @@ function EmployeesList({ setSelectedEmp, search, setSearch, tasks, onAdd }) {
         }}
       >
         {filtered.map((e) => {
-          const active = tasks.filter(
-            (t) => isOnTask(t, e.id) && t.status !== "Completed",
-          ).length;
+          const active = employeeTaskStats.get(e.id)?.active || 0;
           return (
             <div
               key={e.id}
@@ -6980,6 +7010,7 @@ function Notifications({
   setPage,
   setTaskDetail,
 }) {
+  const taskById = Object.fromEntries(tasks.map((task) => [task.id, task]));
   const taskItems = [
     ...tasks
       .filter((t) => statusMeta(t).label === "Due today")
@@ -6997,7 +7028,7 @@ function Notifications({
     .map((n) => ({
       type: "comment",
       n,
-      t: tasks.find((t) => t.id === n.task_id),
+      t: taskById[n.task_id],
     }));
 
   const copy = {
