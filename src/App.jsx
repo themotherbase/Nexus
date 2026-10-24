@@ -1,31 +1,91 @@
-import React, { useState, useMemo, useEffect, useRef, createContext, useContext } from "react";
+import React, {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  createContext,
+  useContext,
+} from "react";
 import { createPortal } from "react-dom";
 import {
-  LayoutGrid, Users, ClipboardList, Bell, Settings, Network, PackageSearch,
-  Search, Plus, X, CircleAlert, Clock, CheckCircle2,
-  Table2, CalendarDays, KanbanSquare, ShieldCheck, Pencil, Trash2,
-  Repeat, TriangleAlert, ListTree, LogOut, Undo2,
-  ArrowRightLeft, ChevronDown, ChevronLeft, ChevronRight, Check, Minus, Archive, ArchiveRestore, MessageSquare, Flag
+  LayoutGrid,
+  Users,
+  ClipboardList,
+  Bell,
+  Settings,
+  Network,
+  Search,
+  Plus,
+  X,
+  CircleAlert,
+  Clock,
+  CheckCircle2,
+  Table2,
+  CalendarDays,
+  KanbanSquare,
+  ShieldCheck,
+  Pencil,
+  Trash2,
+  Repeat,
+  TriangleAlert,
+  ListTree,
+  LogOut,
+  Undo2,
+  ArrowRightLeft,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  Minus,
+  Archive,
+  ArchiveRestore,
+  MessageSquare,
+  Flag,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
-import ResinInventory from "./ResinInventory.jsx";
 import motherbaseBackground from "../images/The Motherbase (Transparent).png";
 
 /* ---------------------------------------------------------------
    DESIGN TOKENS
 ----------------------------------------------------------------*/
 const C = {
-  navy: "#1B2340", navySoft: "#2B3660", ink: "#20263D", paper: "#F1F0EC",
-  card: "#FFFFFF", line: "#E4E2DC", amber: "#DD9A34", amberSoft: "#F6E6C7",
-  coral: "#D8574C", coralSoft: "#F8E1DE", sage: "#4C8F6B", sageSoft: "#DEEBE3", slate: "#6B7280",
-  blue: "#3B7DD8", blueSoft: "#E1EBFA", yellow: "#C99A11", yellowSoft: "#FBF0CB",
+  navy: "#1B2340",
+  navySoft: "#2B3660",
+  ink: "#20263D",
+  paper: "#F1F0EC",
+  card: "#FFFFFF",
+  line: "#E4E2DC",
+  amber: "#DD9A34",
+  amberSoft: "#F6E6C7",
+  coral: "#D8574C",
+  coralSoft: "#F8E1DE",
+  sage: "#4C8F6B",
+  sageSoft: "#DEEBE3",
+  slate: "#6B7280",
+  blue: "#3B7DD8",
+  blueSoft: "#E1EBFA",
+  yellow: "#C99A11",
+  yellowSoft: "#FBF0CB",
 };
 const LIGHT_THEME = { ...C };
 const DARK_THEME = {
-  navy: "#110D1E", navySoft: "#1C1532", ink: "#F3ECFF", paper: "#090611", card: "#171224",
-  line: "#352A4D", amber: "#E2B95E", amberSoft: "#3A2B15", coral: "#E68F90", coralSoft: "#3A2126",
-  sage: "#73C7A6", sageSoft: "#1C342A", slate: "#B7ABCC", blue: "#8AA8FF", blueSoft: "#1C274A",
-  yellow: "#EBCB7B", yellowSoft: "#362C1C",
+  navy: "#110D1E",
+  navySoft: "#1C1532",
+  ink: "#F3ECFF",
+  paper: "#090611",
+  card: "#171224",
+  line: "#352A4D",
+  amber: "#E2B95E",
+  amberSoft: "#3A2B15",
+  coral: "#E68F90",
+  coralSoft: "#3A2126",
+  sage: "#73C7A6",
+  sageSoft: "#1C342A",
+  slate: "#B7ABCC",
+  blue: "#8AA8FF",
+  blueSoft: "#1C274A",
+  yellow: "#EBCB7B",
+  yellowSoft: "#362C1C",
 };
 const FONT = `
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap');
@@ -84,77 +144,159 @@ const DEPARTMENTS = [
   { id: "sales", name: "Sales – Main", color: "#D85A30" },
   { id: "base3", name: "Base 3", color: "#E24B4A" },
 ];
-const deptById = Object.fromEntries(DEPARTMENTS.map(d => [d.id, d]));
+const deptById = Object.fromEntries(DEPARTMENTS.map((d) => [d.id, d]));
 
 const STATUSES = ["Active", "On Leave", "Suspended", "Resigned", "Terminated"];
-const ROLE_LABEL = { superadmin: "Super Admin", executive: "Executive", manager: "Manager", employee: "Employee" };
+const ROLE_LABEL = {
+  superadmin: "Super Admin",
+  executive: "Executive",
+  manager: "Manager",
+  employee: "Employee",
+};
 const COLUMNS = ["Backlog", "To Do", "In Progress", "For Review", "Completed"];
 
 /* ---------------------------------------------------------------
    HELPERS
 ----------------------------------------------------------------*/
 const today = () => new Date().toISOString().slice(0, 10);
-const mixHex = (color, base, baseWeight) => `#${[1, 3, 5].map(i => {
-  const foreground = parseInt(color.slice(i, i + 2), 16);
-  const background = parseInt(base.slice(i, i + 2), 16);
-  return Math.round(foreground * (1 - baseWeight) + background * baseWeight).toString(16).padStart(2, "0");
-}).join("")}`;
-const priColor = (p) => p === "High" ? C.coral : p === "Medium" ? C.amber : C.slate;
+const mixHex = (color, base, baseWeight) =>
+  `#${[1, 3, 5]
+    .map((i) => {
+      const foreground = parseInt(color.slice(i, i + 2), 16);
+      const background = parseInt(base.slice(i, i + 2), 16);
+      return Math.round(foreground * (1 - baseWeight) + background * baseWeight)
+        .toString(16)
+        .padStart(2, "0");
+    })
+    .join("")}`;
+const priColor = (p) =>
+  p === "High" ? C.coral : p === "Medium" ? C.amber : C.slate;
 const statusMeta = (t) => {
   const overdue = t.due && t.due < today() && t.status !== "Completed";
   const dueToday = t.due === today() && t.status !== "Completed";
   if (overdue) return { label: "Overdue", color: C.coral };
   if (dueToday) return { label: "Due today", color: C.amber };
-  if (t.status === "Completed") return { label: "Completed", color: C.completed };
+  if (t.status === "Completed")
+    return { label: "Completed", color: C.completed };
   return { label: "On track", color: C.slate };
 };
-const initials = (name) => (name || "?").split(" ").map(n => n[0]).slice(0, 2).join("");
+const initials = (name) =>
+  (name || "?")
+    .split(" ")
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join("");
 const collectDescendants = (id, employees) => {
-  const kids = employees.filter(e => e.sup === id);
-  return kids.reduce((acc, k) => [...acc, k.id, ...collectDescendants(k.id, employees)], []);
+  const kids = employees.filter((e) => e.sup === id);
+  return kids.reduce(
+    (acc, k) => [...acc, k.id, ...collectDescendants(k.id, employees)],
+    [],
+  );
 };
-const slugify = (s) => (s || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+const slugify = (s) =>
+  (s || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 const makeEmpId = (name, employees) => {
   const base = slugify(name) || "employee";
-  const ids = new Set(employees.map(e => e.id));
-  let id = base, i = 2;
-  while (ids.has(id)) { id = `${base}-${i++}`; }
+  const ids = new Set(employees.map((e) => e.id));
+  let id = base,
+    i = 2;
+  while (ids.has(id)) {
+    id = `${base}-${i++}`;
+  }
   return id;
 };
 
 // DB row (snake_case) <-> UI shape (camelCase, matches the rest of this file)
 const mapEmployee = (row) => ({
-  id: row.id, name: row.name, position: row.position, dept: row.dept_id,
-  sup: row.supervisor_id, role: row.role, status: row.status,
-  secondary: row.secondary_role || undefined, resp: row.responsibilities || [],
-  canEditOrg: row.can_edit_org, email: row.email,
+  id: row.id,
+  name: row.name,
+  position: row.position,
+  dept: row.dept_id,
+  sup: row.supervisor_id,
+  role: row.role,
+  status: row.status,
+  secondary: row.secondary_role || undefined,
+  resp: row.responsibilities || [],
+  canEditOrg: row.can_edit_org,
+  email: row.email,
 });
 const mapTask = (row) => ({
-  id: row.id, title: row.title, description: row.description, dept: row.dept_id,
-  assignee: row.assignee_id, supervisor: row.supervisor_id, backup: row.backup_id,
-  priority: row.priority, status: row.status, progress: row.progress, category: row.category,
+  id: row.id,
+  title: row.title,
+  description: row.description,
+  dept: row.dept_id,
+  assignee: row.assignee_id,
+  supervisor: row.supervisor_id,
+  backup: row.backup_id,
+  priority: row.priority,
+  status: row.status,
+  progress: row.progress,
+  category: row.category,
   updatedAt: row.completed_at || row.updated_at || null,
-  recurring: row.recurring, recurringCustomDays: row.recurring_custom_days, due: row.due_date, needsSignoff: row.needs_signoff, createdBy: row.created_by, archived: !!row.archived,
+  recurring: row.recurring,
+  recurringCustomDays: row.recurring_custom_days,
+  due: row.due_date,
+  needsSignoff: row.needs_signoff,
+  createdBy: row.created_by,
+  archived: !!row.archived,
   // Everyone on the task, lead first. The lead (assignee_id) is always included even if the
   // multi-assignee migration hasn't been run yet, so the app behaves exactly as before until then.
-  assignees: [...new Set([row.assignee_id, ...(row.task_assignees || [])
-    .sort((a, b) => new Date(a.added_at) - new Date(b.added_at)).map(a => a.employee_id)].filter(Boolean))],
-  subtasks: (row.subtasks || []).sort((a, b) => a.id - b.id).map(s => ({ id: s.id, title: s.title, done: !!s.done, assignee: s.assignee_id || null })),
+  assignees: [
+    ...new Set(
+      [
+        row.assignee_id,
+        ...(row.task_assignees || [])
+          .sort((a, b) => new Date(a.added_at) - new Date(b.added_at))
+          .map((a) => a.employee_id),
+      ].filter(Boolean),
+    ),
+  ],
+  subtasks: (row.subtasks || [])
+    .sort((a, b) => a.id - b.id)
+    .map((s) => ({
+      id: s.id,
+      title: s.title,
+      done: !!s.done,
+      assignee: s.assignee_id || null,
+    })),
   comments: (row.task_comments || [])
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-    .map(c => ({ id: c.id, parent: c.parent_comment_id, author: c.author_id, text: c.body, time: new Date(c.created_at).toLocaleString() })),
+    .map((c) => ({
+      id: c.id,
+      parent: c.parent_comment_id,
+      author: c.author_id,
+      text: c.body,
+      time: new Date(c.created_at).toLocaleString(),
+    })),
   attachments: (row.task_attachments || [])
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-    .map(a => ({ id: a.id, name: a.file_name, path: a.file_path, uploadedBy: a.uploaded_by, time: new Date(a.created_at).toLocaleString() })),
+    .map((a) => ({
+      id: a.id,
+      name: a.file_name,
+      path: a.file_path,
+      uploadedBy: a.uploaded_by,
+      time: new Date(a.created_at).toLocaleString(),
+    })),
 });
 
 // A task has one lead (task.assignee — drives the board column grouping, sign-off and defaults)
 // plus an optional wider team (task.assignees, lead included).
-const isOnTask = (t, empId) => !!empId && (t.assignee === empId || (t.assignees || []).includes(empId));
-const taskTeam = (t) => [...new Set([t.assignee, ...(t.assignees || [])].filter(Boolean))];
+const isOnTask = (t, empId) =>
+  !!empId && (t.assignee === empId || (t.assignees || []).includes(empId));
+const taskTeam = (t) => [
+  ...new Set([t.assignee, ...(t.assignees || [])].filter(Boolean)),
+];
 const taskProgress = (task) => {
   const subtasks = task.subtasks || [];
-  if (subtasks.length) return Math.round((subtasks.filter(subtask => subtask.done).length / subtasks.length) * 100);
+  if (subtasks.length)
+    return Math.round(
+      (subtasks.filter((subtask) => subtask.done).length / subtasks.length) *
+        100,
+    );
   return Math.max(0, Math.min(100, Number(task.progress) || 0));
 };
 
@@ -176,42 +318,134 @@ function Login() {
 
   const submit = async (e) => {
     e.preventDefault();
-    setError(""); setLoading(true);
-    const genericError = "We couldn't sign you in — check your Bundy number and password.";
+    setError("");
+    setLoading(true);
+    const genericError =
+      "We couldn't sign you in — check your Bundy number and password.";
     let targetEmail = email;
     if (method === "bundy") {
-      const { data: resolved, error: lookupErr } = await supabase.rpc("email_for_bundy_id", { p_bundy_id: bundyId.trim() });
-      if (lookupErr || !resolved) { setLoading(false); setError(genericError); return; }
+      const { data: resolved, error: lookupErr } = await supabase.rpc(
+        "email_for_bundy_id",
+        { p_bundy_id: bundyId.trim() },
+      );
+      if (lookupErr || !resolved) {
+        setLoading(false);
+        setError(genericError);
+        return;
+      }
       targetEmail = resolved;
     }
-    const { error } = await supabase.auth.signInWithPassword({ email: targetEmail, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: targetEmail,
+      password,
+    });
     setLoading(false);
     if (error) setError(method === "bundy" ? genericError : error.message);
   };
 
   const sendReset = async (e) => {
     e.preventDefault();
-    setError(""); setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+    setError("");
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin,
+    });
     setLoading(false);
-    if (error) setError(error.message); else setResetSent(true);
+    if (error) setError(error.message);
+    else setResetSent(true);
   };
 
   if (mode === "forgot") {
     return (
-      <div className="mb-body" style={{ minHeight: "100vh", background: C.navy, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
+      <div
+        className="mb-body"
+        style={{
+          minHeight: "100vh",
+          background: C.navy,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
         <style>{FONT}</style>
         <AuthBackdrop />
-        <form onSubmit={sendReset} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 32, width: 360, maxWidth: "calc(100% - 32px)", position: "relative", zIndex: 1 }}>
-          <div className="mb-display" style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}>Reset your password</div>
-          <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 20 }}>Enter your email and we'll send you a reset link.</div>
-          <FormRow label="Email"><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} style={inputStyle} /></FormRow>
-          {resetSent && <div style={{ color: C.sage, fontSize: 12.5, marginBottom: 10 }}>Check your email for a reset link.</div>}
-          {error && <div style={{ color: C.coral, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
-          <button type="submit" disabled={loading} style={{ width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+        <form
+          onSubmit={sendReset}
+          style={{
+            background: C.card,
+            border: `1px solid ${C.line}`,
+            borderRadius: 16,
+            padding: 32,
+            width: 360,
+            maxWidth: "calc(100% - 32px)",
+            position: "relative",
+            zIndex: 1,
+          }}
+        >
+          <div
+            className="mb-display"
+            style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}
+          >
+            Reset your password
+          </div>
+          <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 20 }}>
+            Enter your email and we'll send you a reset link.
+          </div>
+          <FormRow label="Email">
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={inputStyle}
+            />
+          </FormRow>
+          {resetSent && (
+            <div style={{ color: C.sage, fontSize: 12.5, marginBottom: 10 }}>
+              Check your email for a reset link.
+            </div>
+          )}
+          {error && (
+            <div style={{ color: C.coral, fontSize: 12.5, marginBottom: 10 }}>
+              {error}
+            </div>
+          )}
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              width: "100%",
+              background: C.amber,
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              padding: "10px 0",
+              fontWeight: 600,
+              fontSize: 14,
+              cursor: "pointer",
+            }}
+          >
             {loading ? "Sending…" : "Send reset link"}
           </button>
-          <button type="button" onClick={() => { setMode("signin"); setError(""); setResetSent(false); }} style={{ width: "100%", background: "none", border: "none", color: C.slate, fontSize: 12, marginTop: 12, cursor: "pointer" }}>
+          <button
+            type="button"
+            onClick={() => {
+              setMode("signin");
+              setError("");
+              setResetSent(false);
+            }}
+            style={{
+              width: "100%",
+              background: "none",
+              border: "none",
+              color: C.slate,
+              fontSize: 12,
+              marginTop: 12,
+              cursor: "pointer",
+            }}
+          >
             ← Back to sign in
           </button>
         </form>
@@ -220,44 +454,163 @@ function Login() {
   }
 
   return (
-    <div className="mb-body" style={{ minHeight: "100vh", background: C.navy, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
+    <div
+      className="mb-body"
+      style={{
+        minHeight: "100vh",
+        background: C.navy,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
       <style>{FONT}</style>
       <AuthBackdrop />
-      <form onSubmit={submit} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 32, width: 360, maxWidth: "calc(100% - 32px)", position: "relative", zIndex: 1 }}>
-        <div className="mb-display" style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}>The Motherbase</div>
-        <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 16 }}>Sign in to the Ops System</div>
+      <form
+        onSubmit={submit}
+        style={{
+          background: C.card,
+          border: `1px solid ${C.line}`,
+          borderRadius: 16,
+          padding: 32,
+          width: 360,
+          maxWidth: "calc(100% - 32px)",
+          position: "relative",
+          zIndex: 1,
+        }}
+      >
+        <div
+          className="mb-display"
+          style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}
+        >
+          The Motherbase
+        </div>
+        <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 16 }}>
+          Sign in to the Ops System
+        </div>
 
-        <div style={{ display: "flex", background: C.paper, borderRadius: 9, padding: 3, marginBottom: 16 }}>
-          {[["email", "Email"], ["bundy", "Bundy ID"]].map(([val, label]) => (
-            <button key={val} type="button" onClick={() => { setMethod(val); setError(""); }}
+        <div
+          style={{
+            display: "flex",
+            background: C.paper,
+            borderRadius: 9,
+            padding: 3,
+            marginBottom: 16,
+          }}
+        >
+          {[
+            ["email", "Email"],
+            ["bundy", "Bundy ID"],
+          ].map(([val, label]) => (
+            <button
+              key={val}
+              type="button"
+              onClick={() => {
+                setMethod(val);
+                setError("");
+              }}
               style={{
-                flex: 1, padding: "7px 0", borderRadius: 7, border: "none", cursor: "pointer",
-                fontSize: 12.5, fontWeight: 600, fontFamily: "inherit",
+                flex: 1,
+                padding: "7px 0",
+                borderRadius: 7,
+                border: "none",
+                cursor: "pointer",
+                fontSize: 12.5,
+                fontWeight: 600,
+                fontFamily: "inherit",
                 background: method === val ? C.card : "transparent",
                 color: method === val ? C.ink : C.slate,
-                boxShadow: method === val ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
-              }}>
+                boxShadow:
+                  method === val ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
+              }}
+            >
               {label}
             </button>
           ))}
         </div>
 
         {method === "email" ? (
-          <FormRow label="Email"><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} style={inputStyle} /></FormRow>
+          <FormRow label="Email">
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={inputStyle}
+            />
+          </FormRow>
         ) : (
-          <FormRow label="Bundy account number"><input type="text" inputMode="numeric" required value={bundyId} onChange={e=>setBundyId(e.target.value)} placeholder="e.g. 20240029" style={inputStyle} /></FormRow>
+          <FormRow label="Bundy account number">
+            <input
+              type="text"
+              inputMode="numeric"
+              required
+              value={bundyId}
+              onChange={(e) => setBundyId(e.target.value)}
+              placeholder="e.g. 20240029"
+              style={inputStyle}
+            />
+          </FormRow>
         )}
-        <FormRow label="Password"><input type="password" required value={password} onChange={e=>setPassword(e.target.value)} style={inputStyle} /></FormRow>
-        {error && <div style={{ color: C.purple, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
-        <button type="submit" disabled={loading} style={{ width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+        <FormRow label="Password">
+          <input
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={inputStyle}
+          />
+        </FormRow>
+        {error && (
+          <div style={{ color: C.purple, fontSize: 12.5, marginBottom: 10 }}>
+            {error}
+          </div>
+        )}
+        <button
+          type="submit"
+          disabled={loading}
+          style={{
+            width: "100%",
+            background: C.amber,
+            color: "#fff",
+            border: "none",
+            borderRadius: 8,
+            padding: "10px 0",
+            fontWeight: 600,
+            fontSize: 14,
+            cursor: "pointer",
+          }}
+        >
           {loading ? "Signing in…" : "Sign in"}
         </button>
         {method === "email" && (
-          <button type="button" onClick={() => setMode("forgot")} style={{ background: "none", border: "none", color: C.navy, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0, marginTop: 12 }}>
+          <button
+            type="button"
+            onClick={() => setMode("forgot")}
+            style={{
+              background: "none",
+              border: "none",
+              color: C.navy,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+              padding: 0,
+              marginTop: 12,
+            }}
+          >
             Forgot password?
           </button>
         )}
-        <div style={{ fontSize: 11.5, color: C.slate, marginTop: 14, lineHeight: 1.5 }}>
+        <div
+          style={{
+            fontSize: 11.5,
+            color: C.slate,
+            marginTop: 14,
+            lineHeight: 1.5,
+          }}
+        >
           {method === "bundy"
             ? "Forgot your password? Ask Jose Paulo, Andrea, Maria, or Julian to reset it for you."
             : "First time? Check your email for the invite link to set your password. If you don't have an account yet, ask Jose Paulo, Andrea, Maria, or Julian to invite you."}
@@ -269,9 +622,34 @@ function Login() {
 
 function AuthBackdrop() {
   return (
-    <div aria-hidden="true" style={{ position: "absolute", inset: -18, overflow: "hidden", pointerEvents: "none" }}>
-      <img src={motherbaseBackground} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "blur(14px)", transform: "scale(1.06)", opacity: 0.5 }} />
-      <div style={{ position: "absolute", inset: 0, background: "rgba(18,22,42,0.28)" }} />
+    <div
+      aria-hidden="true"
+      style={{
+        position: "absolute",
+        inset: -18,
+        overflow: "hidden",
+        pointerEvents: "none",
+      }}
+    >
+      <img
+        src={motherbaseBackground}
+        alt=""
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          filter: "blur(14px)",
+          transform: "scale(1.06)",
+          opacity: 0.5,
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: "rgba(18,22,42,0.28)",
+        }}
+      />
     </div>
   );
 }
@@ -285,25 +663,93 @@ function SetPassword({ onDone }) {
   const submit = async (e) => {
     e.preventDefault();
     setError("");
-    if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
-    if (password !== confirm) { setError("Passwords don't match."); return; }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (password !== confirm) {
+      setError("Passwords don't match.");
+      return;
+    }
     setLoading(true);
     const { error } = await supabase.auth.updateUser({ password });
     setLoading(false);
-    if (error) { setError(error.message); return; }
+    if (error) {
+      setError(error.message);
+      return;
+    }
     onDone();
   };
 
   return (
-    <div className="mb-body" style={{ minHeight: "100vh", background: C.paper, display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div
+      className="mb-body"
+      style={{
+        minHeight: "100vh",
+        background: C.paper,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
       <style>{FONT}</style>
-      <form onSubmit={submit} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 16, padding: 32, width: 360 }}>
-        <div className="mb-display" style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}>Welcome to The Motherbase</div>
-        <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 20 }}>Set a password to finish creating your account.</div>
-        <FormRow label="New password"><input type="password" required value={password} onChange={e=>setPassword(e.target.value)} style={inputStyle} /></FormRow>
-        <FormRow label="Confirm password"><input type="password" required value={confirm} onChange={e=>setConfirm(e.target.value)} style={inputStyle} /></FormRow>
-        {error && <div style={{ color: C.coral, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
-        <button type="submit" disabled={loading} style={{ width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+      <form
+        onSubmit={submit}
+        style={{
+          background: C.card,
+          border: `1px solid ${C.line}`,
+          borderRadius: 16,
+          padding: 32,
+          width: 360,
+        }}
+      >
+        <div
+          className="mb-display"
+          style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}
+        >
+          Welcome to The Motherbase
+        </div>
+        <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 20 }}>
+          Set a password to finish creating your account.
+        </div>
+        <FormRow label="New password">
+          <input
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={inputStyle}
+          />
+        </FormRow>
+        <FormRow label="Confirm password">
+          <input
+            type="password"
+            required
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            style={inputStyle}
+          />
+        </FormRow>
+        {error && (
+          <div style={{ color: C.coral, fontSize: 12.5, marginBottom: 10 }}>
+            {error}
+          </div>
+        )}
+        <button
+          type="submit"
+          disabled={loading}
+          style={{
+            width: "100%",
+            background: C.amber,
+            color: "#fff",
+            border: "none",
+            borderRadius: 8,
+            padding: "10px 0",
+            fontWeight: 600,
+            fontSize: 14,
+            cursor: "pointer",
+          }}
+        >
           {loading ? "Saving…" : "Set password & continue"}
         </button>
       </form>
@@ -313,14 +759,41 @@ function SetPassword({ onDone }) {
 
 function NotLinked({ email }) {
   return (
-    <div className="mb-body" style={{ minHeight: "100vh", background: C.paper, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 20 }}>
+    <div
+      className="mb-body"
+      style={{
+        minHeight: "100vh",
+        background: C.paper,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        textAlign: "center",
+        padding: 20,
+      }}
+    >
       <div>
-        <div className="mb-display" style={{ fontSize: 20, fontWeight: 600, marginBottom: 8 }}>Account not linked yet</div>
-        <div style={{ fontSize: 13.5, color: C.slate, maxWidth: 360 }}>
-          You're signed in as {email}, but no employee record uses this email yet. Ask Jose Paulo, Andrea, Maria, or Julian
-          to set your email on your employee profile, then sign out and back in.
+        <div
+          className="mb-display"
+          style={{ fontSize: 20, fontWeight: 600, marginBottom: 8 }}
+        >
+          Account not linked yet
         </div>
-        <button onClick={() => supabase.auth.signOut()} style={{ marginTop: 16, background: "none", border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 16px", cursor: "pointer" }}>
+        <div style={{ fontSize: 13.5, color: C.slate, maxWidth: 360 }}>
+          You're signed in as {email}, but no employee record uses this email
+          yet. Ask Jose Paulo, Andrea, Maria, or Julian to set your email on
+          your employee profile, then sign out and back in.
+        </div>
+        <button
+          onClick={() => supabase.auth.signOut()}
+          style={{
+            marginTop: 16,
+            background: "none",
+            border: `1px solid ${C.line}`,
+            borderRadius: 8,
+            padding: "8px 16px",
+            cursor: "pointer",
+          }}
+        >
           Sign out
         </button>
       </div>
@@ -333,35 +806,80 @@ function NotLinked({ email }) {
 ----------------------------------------------------------------*/
 // Reads Supabase's #access_token=...&type=invite (or recovery) hash params.
 function getAuthHashParams() {
-  const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+  const hash = window.location.hash.startsWith("#")
+    ? window.location.hash.slice(1)
+    : window.location.hash;
   return Object.fromEntries(new URLSearchParams(hash));
 }
 
-const APP_PAGES = new Set(["dashboard", "organization", "employees", "tasks", "inventory", "notifications", "settings"]);
-const getPageFromUrl = () => {
-  const page = new URLSearchParams(window.location.search).get("page");
-  return APP_PAGES.has(page) ? page : "dashboard";
-};
-
 function TopNavItem({ icon: Icon, label, active, badge, onClick }) {
   return (
-    <button onClick={onClick} style={{
-      display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
-      background: "none", border: "none", cursor: "pointer", flexShrink: 0,
-      padding: "9px 16px 11px", position: "relative", color: active ? C.amber : "#9CA3C4",
-    }}>
-      <span style={{ position: "relative", display: "inline-flex", filter: active ? `drop-shadow(0 0 7px ${C.amber}99)` : "none", transition: "filter 0.15s, color 0.15s" }}>
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 5,
+        background: "none",
+        border: "none",
+        cursor: "pointer",
+        flexShrink: 0,
+        padding: "9px 16px 11px",
+        position: "relative",
+        color: active ? C.amber : "#9CA3C4",
+      }}
+    >
+      <span
+        style={{
+          position: "relative",
+          display: "inline-flex",
+          filter: active ? `drop-shadow(0 0 7px ${C.amber}99)` : "none",
+          transition: "filter 0.15s, color 0.15s",
+        }}
+      >
         <Icon size={19} strokeWidth={2} />
         {badge > 0 && (
-          <span style={{ position: "absolute", top: -4, right: -6, width: 8, height: 8, borderRadius: 8, background: C.coral, border: `1.5px solid ${C.navy}` }} />
+          <span
+            style={{
+              position: "absolute",
+              top: -4,
+              right: -6,
+              width: 8,
+              height: 8,
+              borderRadius: 8,
+              background: C.coral,
+              border: `1.5px solid ${C.navy}`,
+            }}
+          />
         )}
       </span>
-      <span className="mb-topnav-label" style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", whiteSpace: "nowrap" }}>{label}</span>
-      <span style={{
-        position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)",
-        width: active ? 18 : 0, height: 3, borderRadius: 3, background: C.amber,
-        boxShadow: active ? `0 0 8px ${C.amber}` : "none", transition: "width 0.15s",
-      }} />
+      <span
+        className="mb-topnav-label"
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: 0.5,
+          textTransform: "uppercase",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {label}
+      </span>
+      <span
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: active ? 18 : 0,
+          height: 3,
+          borderRadius: 3,
+          background: C.amber,
+          boxShadow: active ? `0 0 8px ${C.amber}` : "none",
+          transition: "width 0.15s",
+        }}
+      />
     </button>
   );
 }
@@ -371,25 +889,117 @@ function UserMenu({ viewerEmp, canEditOrg, onlineSelf }) {
   const ref = useRef(null);
   useEffect(() => {
     if (!open) return;
-    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const close = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
     window.addEventListener("mousedown", close);
     return () => window.removeEventListener("mousedown", close);
   }, [open]);
   return (
     <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
-      <button onClick={() => setOpen(v => !v)} style={{ display: "flex", alignItems: "center", gap: 7, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 20, padding: "4px 10px 4px 4px", cursor: "pointer" }}>
-        <Avatar name={viewerEmp.name} size={28} color={deptById[viewerEmp.dept]?.color} online={onlineSelf} />
-        <span className="mb-topnav-label" style={{ fontSize: 12.5, fontWeight: 600, color: "#fff", maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{viewerEmp.name.split(" ")[0]}</span>
-        <ChevronDown size={13} color="#9CA3C4" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+      <button
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 7,
+          background: "rgba(255,255,255,0.06)",
+          border: "1px solid rgba(255,255,255,0.12)",
+          borderRadius: 20,
+          padding: "4px 10px 4px 4px",
+          cursor: "pointer",
+        }}
+      >
+        <Avatar
+          name={viewerEmp.name}
+          size={28}
+          color={deptById[viewerEmp.dept]?.color}
+          online={onlineSelf}
+        />
+        <span
+          className="mb-topnav-label"
+          style={{
+            fontSize: 12.5,
+            fontWeight: 600,
+            color: "#fff",
+            maxWidth: 110,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {viewerEmp.name.split(" ")[0]}
+        </span>
+        <ChevronDown
+          size={13}
+          color="#9CA3C4"
+          style={{
+            transform: open ? "rotate(180deg)" : "none",
+            transition: "transform 0.15s",
+          }}
+        />
       </button>
       {open && (
-        <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, width: "min(210px, calc(100vw - 16px))", boxSizing: "border-box", background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 10, boxShadow: "0 10px 30px rgba(0,0,0,0.25)", zIndex: 120, color: C.ink }}>
-          <div style={{ padding: "4px 8px 8px", borderBottom: `1px solid ${C.line}`, marginBottom: 6 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{viewerEmp.name}</div>
-            <div style={{ fontSize: 11, color: C.slate }}>{ROLE_LABEL[viewerEmp.role]}</div>
-            {canEditOrg && <div style={{ fontSize: 10, color: C.sage, marginTop: 3 }}>✓ Can edit org &amp; employees</div>}
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 8px)",
+            right: 0,
+            width: "min(210px, calc(100vw - 16px))",
+            boxSizing: "border-box",
+            background: C.card,
+            border: `1px solid ${C.line}`,
+            borderRadius: 12,
+            padding: 10,
+            boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+            zIndex: 120,
+            color: C.ink,
+          }}
+        >
+          <div
+            style={{
+              padding: "4px 8px 8px",
+              borderBottom: `1px solid ${C.line}`,
+              marginBottom: 6,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {viewerEmp.name}
+            </div>
+            <div style={{ fontSize: 11, color: C.slate }}>
+              {ROLE_LABEL[viewerEmp.role]}
+            </div>
+            {canEditOrg && (
+              <div style={{ fontSize: 10, color: C.sage, marginTop: 3 }}>
+                ✓ Can edit org &amp; employees
+              </div>
+            )}
           </div>
-          <button onClick={() => supabase.auth.signOut()} style={{ display: "flex", alignItems: "center", gap: 7, width: "100%", background: "none", border: "none", borderRadius: 8, padding: "8px", fontSize: 13, color: C.coral, cursor: "pointer", fontFamily: "inherit" }}>
+          <button
+            onClick={() => supabase.auth.signOut()}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              width: "100%",
+              background: "none",
+              border: "none",
+              borderRadius: 8,
+              padding: "8px",
+              fontSize: 13,
+              color: C.coral,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
             <LogOut size={14} /> Sign out
           </button>
         </div>
@@ -412,14 +1022,7 @@ export default function App() {
   const [employees, setEmployees] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
-  const [page, setPageState] = useState(getPageFromUrl);
-  const setPage = (nextPage) => {
-    setPageState(nextPage);
-    const url = new URL(window.location.href);
-    if (nextPage === "dashboard") url.searchParams.delete("page");
-    else url.searchParams.set("page", nextPage);
-    window.history.pushState(null, "", url);
-  };
+  const [page, setPage] = useState("dashboard");
   const [selectedEmp, setSelectedEmp] = useState(null);
   const [editingEmp, setEditingEmp] = useState(undefined);
   const [orgView, setOrgView] = useState("chart");
@@ -429,10 +1032,20 @@ export default function App() {
   const [repeatTask, setRepeatTask] = useState(null);
   const [taskDetail, setTaskDetail] = useState(null);
   const [completionTimes, setCompletionTimes] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("mb-task-completion-times") || "{}"); } catch { return {}; }
+    try {
+      return JSON.parse(
+        localStorage.getItem("mb-task-completion-times") || "{}",
+      );
+    } catch {
+      return {};
+    }
   });
   const [dark, setDark] = useState(() => {
-    try { return localStorage.getItem("mb-dark") !== "0"; } catch { return true; }
+    try {
+      return localStorage.getItem("mb-dark") !== "0";
+    } catch {
+      return true;
+    }
   });
   const [completedTaskColorPref, setCompletedTaskColorPref] = useState(null);
   const [onlineIds, setOnlineIds] = useState(new Set());
@@ -441,23 +1054,33 @@ export default function App() {
   // Mutate the shared color-token object in place so every component (which reads
   // C.xxx live at render time) picks up the theme without threading it through props.
   Object.assign(C, dark ? DARK_THEME : LIGHT_THEME);
-  useEffect(() => { try { localStorage.setItem("mb-dark", dark ? "1" : "0"); } catch {} }, [dark]);
-  useEffect(() => { try { localStorage.setItem("mb-task-completion-times", JSON.stringify(completionTimes)); } catch {} }, [completionTimes]);
+  useEffect(() => {
+    try {
+      localStorage.setItem("mb-dark", dark ? "1" : "0");
+    } catch {}
+  }, [dark]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "mb-task-completion-times",
+        JSON.stringify(completionTimes),
+      );
+    } catch {}
+  }, [completionTimes]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) =>
+      setSession(s),
+    );
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    const syncPage = () => setPageState(getPageFromUrl());
-    window.addEventListener("popstate", syncPage);
-    return () => window.removeEventListener("popstate", syncPage);
-  }, []);
-
   const refetchEmployees = async () => {
-    const { data, error } = await supabase.from("employees").select("*").order("name");
+    const { data, error } = await supabase
+      .from("employees")
+      .select("*")
+      .order("name");
     if (!error) setEmployees((data || []).map(mapEmployee));
   };
   const refetchTasks = async () => {
@@ -468,34 +1091,49 @@ export default function App() {
       "*, subtasks(*), task_comments(*), task_attachments(*)",
       "*, subtasks(*), task_comments(*)",
     ];
-    let data = null, error = null;
+    let data = null,
+      error = null;
     for (const shape of shapes) {
-      ({ data, error } = await supabase.from("tasks").select(shape).order("due_date"));
+      ({ data, error } = await supabase
+        .from("tasks")
+        .select(shape)
+        .order("due_date"));
       if (!error) break;
     }
     if (!error) {
       const todayDate = today();
-      const backlogTasksToMove = (data || []).filter(task =>
-        !task.archived && task.status === "Backlog" && (!task.due_date || task.due_date >= todayDate)
+      const backlogTasksToMove = (data || []).filter(
+        (task) =>
+          !task.archived &&
+          task.status === "Backlog" &&
+          (!task.due_date || task.due_date >= todayDate),
       );
       if (backlogTasksToMove.length) {
-        const { data: updatedTasks, error: updateError } = await supabase.from("tasks")
+        const { data: updatedTasks, error: updateError } = await supabase
+          .from("tasks")
           .update({ status: "To Do" })
-          .in("id", backlogTasksToMove.map(task => task.id))
+          .in(
+            "id",
+            backlogTasksToMove.map((task) => task.id),
+          )
           .select("id");
         if (!updateError) {
-          const updatedIds = new Set((updatedTasks || []).map(task => task.id));
-          data = data.map(task => updatedIds.has(task.id) ? { ...task, status: "To Do" } : task);
+          const updatedIds = new Set(
+            (updatedTasks || []).map((task) => task.id),
+          );
+          data = data.map((task) =>
+            updatedIds.has(task.id) ? { ...task, status: "To Do" } : task,
+          );
         }
       }
       setTasks((data || []).map(mapTask));
-      return true;
     }
-    console.error("Could not refresh tasks:", error);
-    return false;
   };
   const refetchNotifications = async () => {
-    const { data, error } = await supabase.from("notifications").select("*").order("created_at", { ascending: false });
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("*")
+      .order("created_at", { ascending: false });
     if (!error) setNotifications(data || []);
   };
 
@@ -504,55 +1142,92 @@ export default function App() {
     (async () => {
       setLoadingData(true);
       // Auto-link this login to an employee row on first sign-in, by email
-      await supabase.from("employees")
+      await supabase
+        .from("employees")
         .update({ auth_user_id: session.user.id })
         .eq("email", session.user.email)
         .is("auth_user_id", null);
-      await Promise.all([refetchEmployees(), refetchTasks(), refetchNotifications()]);
+      await Promise.all([
+        refetchEmployees(),
+        refetchTasks(),
+        refetchNotifications(),
+      ]);
       setLoadingData(false);
     })();
   }, [session]);
 
-  const byId = useMemo(() => Object.fromEntries(employees.map(e => [e.id, e])), [employees]);
-  const directReports = (id) => employees.filter(e => e.sup === id);
-  const me = useMemo(() => employees.find(e => e.email === session?.user?.email), [employees, session]);
-  const defaultCompletedTaskColor = me?.name.trim().toLowerCase() === "maria cortez" ? "#7C3AED" : C.sage;
-  const completedTaskColor = completedTaskColorPref?.employeeId === me?.id && completedTaskColorPref?.color
-    ? completedTaskColorPref.color
-    : defaultCompletedTaskColor;
+  const byId = useMemo(
+    () => Object.fromEntries(employees.map((e) => [e.id, e])),
+    [employees],
+  );
+  const directReports = (id) => employees.filter((e) => e.sup === id);
+  const me = useMemo(
+    () => employees.find((e) => e.email === session?.user?.email),
+    [employees, session],
+  );
+  const defaultCompletedTaskColor =
+    me?.name.trim().toLowerCase() === "maria cortez" ? "#7C3AED" : C.sage;
+  const completedTaskColor =
+    completedTaskColorPref?.employeeId === me?.id &&
+    completedTaskColorPref?.color
+      ? completedTaskColorPref.color
+      : defaultCompletedTaskColor;
   Object.assign(C, {
     completed: completedTaskColor,
-    completedSoft: mixHex(completedTaskColor, dark ? C.card : "#FFFFFF", dark ? 0.82 : 0.84),
+    completedSoft: mixHex(
+      completedTaskColor,
+      dark ? C.card : "#FFFFFF",
+      dark ? 0.82 : 0.84,
+    ),
   });
 
   useEffect(() => {
     if (!me) return;
     let color = null;
-    try { color = localStorage.getItem(`mb-completed-task-color-${me.id}`); } catch {}
+    try {
+      color = localStorage.getItem(`mb-completed-task-color-${me.id}`);
+    } catch {}
     setCompletedTaskColorPref({ employeeId: me.id, color });
   }, [me?.id]);
 
   // Presence: lets everyone see who else is currently signed into the app.
   useEffect(() => {
     if (!me) return;
-    const channel = supabase.channel("presence-online", { config: { presence: { key: me.id } } });
+    const channel = supabase.channel("presence-online", {
+      config: { presence: { key: me.id } },
+    });
     channel.on("presence", { event: "sync" }, () => {
       setOnlineIds(new Set(Object.keys(channel.presenceState())));
     });
     channel.subscribe(async (status) => {
-      if (status === "SUBSCRIBED") await channel.track({ at: new Date().toISOString() });
+      if (status === "SUBSCRIBED")
+        await channel.track({ at: new Date().toISOString() });
     });
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [me?.id]);
 
   // Live comment notifications: the row insert itself is already scoped to "me" by RLS,
   // but Realtime still needs a matching filter to know which inserts to push to this client.
   useEffect(() => {
     if (!me) return;
-    const ch = supabase.channel(`notif-${me.id}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `employee_id=eq.${me.id}` }, () => refetchNotifications())
+    const ch = supabase
+      .channel(`notif-${me.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `employee_id=eq.${me.id}`,
+        },
+        () => refetchNotifications(),
+      )
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => {
+      supabase.removeChannel(ch);
+    };
   }, [me?.id]);
 
   // Live board sync: without this, a status change (or a new comment/attachment) made by
@@ -565,24 +1240,49 @@ export default function App() {
       clearTimeout(refetchTasksDebounced.current);
       refetchTasksDebounced.current = setTimeout(() => refetchTasks(), 250);
     };
-    const ch = supabase.channel("tasks-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, bump)
-      .on("postgres_changes", { event: "*", schema: "public", table: "subtasks" }, bump)
-      .on("postgres_changes", { event: "*", schema: "public", table: "task_comments" }, bump)
-      .on("postgres_changes", { event: "*", schema: "public", table: "task_attachments" }, bump)
+    const ch = supabase
+      .channel("tasks-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tasks" },
+        bump,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "subtasks" },
+        bump,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "task_comments" },
+        bump,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "task_attachments" },
+        bump,
+      )
       .subscribe();
-    return () => { clearTimeout(refetchTasksDebounced.current); supabase.removeChannel(ch); };
+    return () => {
+      clearTimeout(refetchTasksDebounced.current);
+      supabase.removeChannel(ch);
+    };
   }, [me?.id]);
 
   // The team roster gets its own channel: if its migration hasn't been run yet, a failed
   // subscription here can't take the main live-sync channel down with it.
   useEffect(() => {
     if (!me) return;
-    const ch = supabase.channel("task-assignees-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "task_assignees" }, () => {
-        clearTimeout(refetchTasksDebounced.current);
-        refetchTasksDebounced.current = setTimeout(() => refetchTasks(), 250);
-      })
+    const ch = supabase
+      .channel("task-assignees-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "task_assignees" },
+        () => {
+          clearTimeout(refetchTasksDebounced.current);
+          refetchTasksDebounced.current = setTimeout(() => refetchTasks(), 250);
+        },
+      )
       .subscribe();
     return () => supabase.removeChannel(ch);
   }, [me?.id]);
@@ -593,7 +1293,7 @@ export default function App() {
       <SetPassword
         onDone={() => {
           setAuthFlow(null);
-          window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+          window.history.replaceState(null, "", window.location.pathname);
         }}
       />
     );
@@ -601,7 +1301,8 @@ export default function App() {
   if (session === null) return <Login />;
 
   if (!loadingData && !me) return <NotLinked email={session.user.email} />;
-  if (loadingData || !me) return <FullScreenMsg text="Loading your workspace…" />;
+  if (loadingData || !me)
+    return <FullScreenMsg text="Loading your workspace…" />;
 
   const viewerEmp = me;
   const isAdmin = viewerEmp.role === "superadmin";
@@ -609,35 +1310,41 @@ export default function App() {
   const isManager = viewerEmp.role === "manager" || isExec;
   const canEditOrg = !!viewerEmp.canEditOrg;
 
-  const visibleTasks = isExec ? tasks
+  const visibleTasks = isExec
+    ? tasks
     : viewerEmp.role === "manager"
-      ? tasks.filter(t => taskTeam(t).some(id => new Set([viewerEmp.id, ...collectDescendants(viewerEmp.id, employees)]).has(id)) || t.supervisor === viewerEmp.id)
-      : tasks.filter(t => isOnTask(t, viewerEmp.id));
+      ? tasks.filter(
+          (t) =>
+            taskTeam(t).some((id) =>
+              new Set([
+                viewerEmp.id,
+                ...collectDescendants(viewerEmp.id, employees),
+              ]).has(id),
+            ) || t.supervisor === viewerEmp.id,
+        )
+      : tasks.filter((t) => isOnTask(t, viewerEmp.id));
 
-  const boardTasks = visibleTasks.filter(t => !t.archived);
-  const archivedTasks = visibleTasks.filter(t => t.archived);
-  const urgentTasks = boardTasks.filter(t => statusMeta(t).label === "Overdue" || t.status === "For Review");
-  const unreadCommentCount = notifications.filter(n => n.type === "comment" && !n.read).length;
+  const boardTasks = visibleTasks.filter((t) => !t.archived);
+  const archivedTasks = visibleTasks.filter((t) => t.archived);
+  const urgentTasks = boardTasks.filter(
+    (t) => statusMeta(t).label === "Overdue" || t.status === "For Review",
+  );
+  const unreadCommentCount = notifications.filter(
+    (n) => n.type === "comment" && !n.read,
+  ).length;
   const urgentCount = urgentTasks.length + unreadCommentCount;
   const markNotificationRead = async (id) => {
-    setNotifications(ns => ns.map(n => n.id === id ? { ...n, read: true } : n));
+    setNotifications((ns) =>
+      ns.map((n) => (n.id === id ? { ...n, read: true } : n)),
+    );
     await supabase.from("notifications").update({ read: true }).eq("id", id);
   };
 
   const updateTask = async (id, patch) => {
-    const { data, error } = await supabase.from("tasks").update(patch).eq("id", id).select("id").maybeSingle();
-    if (error) {
-      alert(error.message);
-      await refetchTasks();
-      return false;
-    }
-    if (!data) {
-      alert("No task row was updated. Your current account may not have permission to change this task after the organization chart changed.");
-      await refetchTasks();
-      return false;
-    }
-    if (!await refetchTasks()) alert("The task was saved, but the task list could not refresh. Reload the app to see the latest status.");
-    return true;
+    const { error } = await supabase.from("tasks").update(patch).eq("id", id);
+    if (error) alert(error.message);
+    await refetchTasks();
+    return !error;
   };
   const bulkUpdateTasks = async (ids, patch) => {
     const { error } = await supabase.from("tasks").update(patch).in("id", ids);
@@ -648,9 +1355,9 @@ export default function App() {
     }
     if (patch.status) {
       const completedAt = new Date().toISOString();
-      setCompletionTimes(previous => {
+      setCompletionTimes((previous) => {
         const next = { ...previous };
-        ids.forEach(id => {
+        ids.forEach((id) => {
           if (patch.status === "Completed") next[id] = completedAt;
           else delete next[id];
         });
@@ -665,7 +1372,7 @@ export default function App() {
     if (status === "Completed") patch.progress = 100;
     const saved = await updateTask(id, patch);
     if (saved) {
-      setCompletionTimes(previous => {
+      setCompletionTimes((previous) => {
         const next = { ...previous };
         if (status === "Completed") next[id] = new Date().toISOString();
         else delete next[id];
@@ -676,9 +1383,14 @@ export default function App() {
   };
   // "Remove" only hides a task from the board (archived = true); the row stays in the database.
   const archiveTask = async (task, archived = true) => {
-    const { error } = await supabase.from("tasks").update({ archived }).eq("id", task.id);
+    const { error } = await supabase
+      .from("tasks")
+      .update({ archived })
+      .eq("id", task.id);
     if (error) {
-      alert(`Couldn't ${archived ? "remove" : "restore"} that task. Has migration_archive_tasks.sql been run in Supabase?\n\n${error.message}`);
+      alert(
+        `Couldn't ${archived ? "remove" : "restore"} that task. Has migration_archive_tasks.sql been run in Supabase?\n\n${error.message}`,
+      );
       return false;
     }
     await refetchTasks();
@@ -687,12 +1399,24 @@ export default function App() {
   // "Repeat" makes a fresh copy in To Do; optionally hides the finished card so the board stays tidy.
   const createRepeat = async (task, due, archiveOriginal) => {
     const { error } = await supabase.from("tasks").insert({
-      title: task.title, description: task.description ?? null, dept_id: task.dept,
-      assignee_id: task.assignee, supervisor_id: task.supervisor, backup_id: task.backup ?? null,
-      priority: task.priority, status: "To Do", progress: 0, category: task.category,
-      due_date: due, needs_signoff: task.needsSignoff, created_by: viewerEmp.id,
+      title: task.title,
+      description: task.description ?? null,
+      dept_id: task.dept,
+      assignee_id: task.assignee,
+      supervisor_id: task.supervisor,
+      backup_id: task.backup ?? null,
+      priority: task.priority,
+      status: "To Do",
+      progress: 0,
+      category: task.category,
+      due_date: due,
+      needs_signoff: task.needsSignoff,
+      created_by: viewerEmp.id,
     });
-    if (error) { alert("Couldn't repeat that task: " + error.message); return; }
+    if (error) {
+      alert("Couldn't repeat that task: " + error.message);
+      return;
+    }
     if (archiveOriginal) await archiveTask(task, true);
     else await refetchTasks();
   };
@@ -705,49 +1429,103 @@ export default function App() {
       delete payload.parent_comment_id;
       ({ error } = await supabase.from("task_comments").insert(payload));
     }
-    if (error) { alert("Comment didn't save: " + error.message); await refetchTasks(); return; }
+    if (error) {
+      alert("Comment didn't save: " + error.message);
+      await refetchTasks();
+      return;
+    }
 
     // Notify whoever else is "on" this task — the assignee, the supervisor, and (for a
     // reply) the person being replied to — skipping the commenter themself. If the
     // notifications migration hasn't been run yet this just silently does nothing;
     // the comment itself has already saved either way.
-    const task = tasks.find(t => t.id === id);
+    const task = tasks.find((t) => t.id === id);
     if (task) {
-      const repliedToAuthor = parentId ? task.comments?.find(c => c.id === parentId)?.author : null;
-      const recipients = [...new Set([...taskTeam(task), task.supervisor, repliedToAuthor].filter(Boolean))]
-        .filter(empId => empId !== viewerEmp.id);
+      const repliedToAuthor = parentId
+        ? task.comments?.find((c) => c.id === parentId)?.author
+        : null;
+      const recipients = [
+        ...new Set(
+          [...taskTeam(task), task.supervisor, repliedToAuthor].filter(Boolean),
+        ),
+      ].filter((empId) => empId !== viewerEmp.id);
       if (recipients.length) {
         const message = `${viewerEmp.name} commented on "${task.title}"`;
-        await supabase.from("notifications").insert(
-          recipients.map(employee_id => ({ employee_id, type: "comment", message, task_id: id, read: false }))
-        );
+        await supabase
+          .from("notifications")
+          .insert(
+            recipients.map((employee_id) => ({
+              employee_id,
+              type: "comment",
+              message,
+              task_id: id,
+              read: false,
+            })),
+          );
       }
     }
     await refetchTasks();
   };
   const createTask = async (t) => {
-    const { data, error } = await supabase.from("tasks").insert({
-      title: t.title, dept_id: t.dept, assignee_id: t.assignee, supervisor_id: t.supervisor,
-      priority: t.priority, status: t.status, due_date: t.due, progress: t.progress,
-      category: t.category, recurring: t.recurring, recurring_custom_days: t.recurringCustomDays ?? null, created_by: t.createdBy, needs_signoff: t.needsSignoff,
-    }).select().single();
-    if (error) { alert(error.message); return null; }
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert({
+        title: t.title,
+        dept_id: t.dept,
+        assignee_id: t.assignee,
+        supervisor_id: t.supervisor,
+        priority: t.priority,
+        status: t.status,
+        due_date: t.due,
+        progress: t.progress,
+        category: t.category,
+        recurring: t.recurring,
+        recurring_custom_days: t.recurringCustomDays ?? null,
+        created_by: t.createdBy,
+        needs_signoff: t.needsSignoff,
+      })
+      .select()
+      .single();
+    if (error) {
+      alert(error.message);
+      return null;
+    }
     const id = data?.id ?? null;
     if (id) {
       // The lead is added to the roster automatically by the database; add everyone else.
-      const extras = [...new Set(t.extraAssignees || [])].filter(x => x && x !== t.assignee);
+      const extras = [...new Set(t.extraAssignees || [])].filter(
+        (x) => x && x !== t.assignee,
+      );
       if (extras.length) {
-        const { error: rErr } = await supabase.from("task_assignees").insert(extras.map(employee_id => ({ task_id: id, employee_id })));
-        if (rErr) alert(`The task was created, but adding the extra people failed. Has migration_multi_assignee.sql been run in Supabase?\n\n${rErr.message}`);
+        const { error: rErr } = await supabase
+          .from("task_assignees")
+          .insert(extras.map((employee_id) => ({ task_id: id, employee_id })));
+        if (rErr)
+          alert(
+            `The task was created, but adding the extra people failed. Has migration_multi_assignee.sql been run in Supabase?\n\n${rErr.message}`,
+          );
       }
-      const subs = (t.subtasks || []).filter(x => x.title.trim());
+      const subs = (t.subtasks || []).filter((x) => x.title.trim());
       if (subs.length) {
-        const { error: sErr } = await supabase.from("subtasks").insert(subs.map(x => ({ task_id: id, title: x.title.trim(), assignee_id: x.assignee || null })));
+        const { error: sErr } = await supabase
+          .from("subtasks")
+          .insert(
+            subs.map((x) => ({
+              task_id: id,
+              title: x.title.trim(),
+              assignee_id: x.assignee || null,
+            })),
+          );
         if (sErr) {
           // assignee_id column may not exist yet — keep the subtasks, drop who they're assigned to
-          const plain = await supabase.from("subtasks").insert(subs.map(x => ({ task_id: id, title: x.title.trim() })));
-          alert(plain.error ? "Subtasks didn't save: " + plain.error.message
-            : "The task and its subtasks were saved, but who each subtask is assigned to wasn't. Run migration_multi_assignee.sql in Supabase.");
+          const plain = await supabase
+            .from("subtasks")
+            .insert(subs.map((x) => ({ task_id: id, title: x.title.trim() })));
+          alert(
+            plain.error
+              ? "Subtasks didn't save: " + plain.error.message
+              : "The task and its subtasks were saved, but who each subtask is assigned to wasn't. Run migration_multi_assignee.sql in Supabase.",
+          );
         }
       }
     }
@@ -758,38 +1536,74 @@ export default function App() {
   // Team + subtask operations used by the task detail view.
   const taskOps = {
     addAssignee: async (task, empId) => {
-      const { error } = await supabase.from("task_assignees").insert({ task_id: task.id, employee_id: empId });
-      if (error) alert("Couldn't add that person. Has migration_multi_assignee.sql been run in Supabase?\n\n" + error.message);
+      const { error } = await supabase
+        .from("task_assignees")
+        .insert({ task_id: task.id, employee_id: empId });
+      if (error)
+        alert(
+          "Couldn't add that person. Has migration_multi_assignee.sql been run in Supabase?\n\n" +
+            error.message,
+        );
       await refetchTasks();
     },
     removeAssignee: async (task, empId) => {
       if (empId === task.assignee) return; // the lead is changed via Edit, not removed
-      const { error } = await supabase.from("task_assignees").delete().eq("task_id", task.id).eq("employee_id", empId);
-      if (error) { alert("Couldn't remove that person: " + error.message); return; }
-      await supabase.from("subtasks").update({ assignee_id: null }).eq("task_id", task.id).eq("assignee_id", empId); // un-assign their subtasks
+      const { error } = await supabase
+        .from("task_assignees")
+        .delete()
+        .eq("task_id", task.id)
+        .eq("employee_id", empId);
+      if (error) {
+        alert("Couldn't remove that person: " + error.message);
+        return;
+      }
+      await supabase
+        .from("subtasks")
+        .update({ assignee_id: null })
+        .eq("task_id", task.id)
+        .eq("assignee_id", empId); // un-assign their subtasks
       await refetchTasks();
     },
     addSubtask: async (task, title, assignee) => {
-      let { error } = await supabase.from("subtasks").insert({ task_id: task.id, title, assignee_id: assignee || null });
+      let { error } = await supabase
+        .from("subtasks")
+        .insert({ task_id: task.id, title, assignee_id: assignee || null });
       if (error && assignee) {
-        ({ error } = await supabase.from("subtasks").insert({ task_id: task.id, title }));
-        alert("Saved without an assignee — run migration_multi_assignee.sql to assign subtasks to people.");
+        ({ error } = await supabase
+          .from("subtasks")
+          .insert({ task_id: task.id, title }));
+        alert(
+          "Saved without an assignee — run migration_multi_assignee.sql to assign subtasks to people.",
+        );
       }
       if (error) alert("Couldn't add that subtask: " + error.message);
       await refetchTasks();
     },
     toggleSubtask: async (subtaskId, done) => {
-      const { error } = await supabase.from("subtasks").update({ done }).eq("id", subtaskId);
+      const { error } = await supabase
+        .from("subtasks")
+        .update({ done })
+        .eq("id", subtaskId);
       if (error) alert("Couldn't update that subtask: " + error.message);
       await refetchTasks();
     },
     setSubtaskAssignee: async (subtaskId, empId) => {
-      const { error } = await supabase.from("subtasks").update({ assignee_id: empId || null }).eq("id", subtaskId);
-      if (error) alert("Couldn't assign that subtask. Has migration_multi_assignee.sql been run in Supabase?\n\n" + error.message);
+      const { error } = await supabase
+        .from("subtasks")
+        .update({ assignee_id: empId || null })
+        .eq("id", subtaskId);
+      if (error)
+        alert(
+          "Couldn't assign that subtask. Has migration_multi_assignee.sql been run in Supabase?\n\n" +
+            error.message,
+        );
       await refetchTasks();
     },
     deleteSubtask: async (subtaskId) => {
-      const { error } = await supabase.from("subtasks").delete().eq("id", subtaskId);
+      const { error } = await supabase
+        .from("subtasks")
+        .delete()
+        .eq("id", subtaskId);
       if (error) alert("Couldn't delete that subtask: " + error.message);
       await refetchTasks();
     },
@@ -797,9 +1611,21 @@ export default function App() {
   const attachFile = async (taskId, file) => {
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const path = `${taskId}/${Date.now()}-${safeName}`;
-    const { error: upErr } = await supabase.storage.from("app-task-attachment").upload(path, file);
-    if (upErr) { alert("File didn't upload: " + upErr.message); return; }
-    const { error: rowErr } = await supabase.from("task_attachments").insert({ task_id: taskId, file_name: file.name, file_path: path, uploaded_by: viewerEmp.id });
+    const { error: upErr } = await supabase.storage
+      .from("app-task-attachment")
+      .upload(path, file);
+    if (upErr) {
+      alert("File didn't upload: " + upErr.message);
+      return;
+    }
+    const { error: rowErr } = await supabase
+      .from("task_attachments")
+      .insert({
+        task_id: taskId,
+        file_name: file.name,
+        file_path: path,
+        uploaded_by: viewerEmp.id,
+      });
     if (rowErr) alert("File didn't upload: " + rowErr.message);
     await refetchTasks();
   };
@@ -807,28 +1633,56 @@ export default function App() {
   const addEmployee = async (data) => {
     const id = makeEmpId(data.name, employees);
     await supabase.from("employees").insert({
-      id, name: data.name, position: data.position, dept_id: data.dept, supervisor_id: data.sup,
-      role: data.role, status: data.status, secondary_role: data.secondary || null,
-      responsibilities: data.resp, email: data.email || null,
+      id,
+      name: data.name,
+      position: data.position,
+      dept_id: data.dept,
+      supervisor_id: data.sup,
+      role: data.role,
+      status: data.status,
+      secondary_role: data.secondary || null,
+      responsibilities: data.resp,
+      email: data.email || null,
     });
     setEditingEmp(undefined);
     await refetchEmployees();
   };
   const updateEmployee = async (id, patch) => {
-    await supabase.from("employees").update({
-      name: patch.name, position: patch.position, dept_id: patch.dept, supervisor_id: patch.sup,
-      role: patch.role, status: patch.status, secondary_role: patch.secondary || null,
-      responsibilities: patch.resp, email: patch.email || null,
-    }).eq("id", id);
+    await supabase
+      .from("employees")
+      .update({
+        name: patch.name,
+        position: patch.position,
+        dept_id: patch.dept,
+        supervisor_id: patch.sup,
+        role: patch.role,
+        status: patch.status,
+        secondary_role: patch.secondary || null,
+        responsibilities: patch.resp,
+        email: patch.email || null,
+      })
+      .eq("id", id);
     setEditingEmp(undefined);
     await refetchEmployees();
   };
   const deleteEmployee = async (id) => {
     const emp = byId[id];
-    const fallback = emp?.sup || employees.find(e => e.id !== id && !e.sup)?.id || null;
-    await supabase.from("employees").update({ supervisor_id: fallback }).eq("supervisor_id", id);
-    for (const field of ["assignee_id", "supervisor_id", "backup_id", "created_by"]) {
-      await supabase.from("tasks").update({ [field]: fallback }).eq(field, id);
+    const fallback =
+      emp?.sup || employees.find((e) => e.id !== id && !e.sup)?.id || null;
+    await supabase
+      .from("employees")
+      .update({ supervisor_id: fallback })
+      .eq("supervisor_id", id);
+    for (const field of [
+      "assignee_id",
+      "supervisor_id",
+      "backup_id",
+      "created_by",
+    ]) {
+      await supabase
+        .from("tasks")
+        .update({ [field]: fallback })
+        .eq(field, id);
     }
     await supabase.from("employees").delete().eq("id", id);
     setEditingEmp(undefined);
@@ -841,18 +1695,83 @@ export default function App() {
     { id: "organization", label: "Organization", icon: Network },
     { id: "employees", label: "Employees", icon: Users },
     { id: "tasks", label: "Tasks", icon: ClipboardList },
-    { id: "inventory", label: "Resin Inventory", icon: PackageSearch },
     { id: "settings", label: "Settings", icon: Settings },
   ];
 
   return (
-    <EmpContext.Provider value={{ employees, byId, directReports, addEmployee, updateEmployee, deleteEmployee, canEditOrg, onlineIds }}>
-      <div className="mb-body" style={{ background: C.paper, minHeight: "100vh", color: C.ink, display: "flex", flexDirection: "column", colorScheme: dark ? "dark" : "light", "--mb-control-bg": C.card, "--mb-control-fg": C.ink, "--mb-control-border": C.line, "--mb-glass-surface": dark ? "rgba(27, 20, 39, 0.9)" : "rgba(255, 255, 255, 0.82)", "--mb-glass-border": dark ? "rgba(181, 156, 255, 0.18)" : "rgba(15, 23, 42, 0.08)", "--mb-glass-header": dark ? "rgba(22, 17, 34, 0.96)" : "rgba(255, 255, 255, 0.8)", "--mb-glass-node": dark ? "rgba(24, 19, 35, 0.9)" : "rgba(255, 255, 255, 0.8)", "--mb-glass-chart": dark ? "rgba(20, 15, 30, 0.72)" : "rgba(255, 255, 255, 0.58)" }}>
-        <style>{FONT}{RESPONSIVE_CSS}</style>
+    <EmpContext.Provider
+      value={{
+        employees,
+        byId,
+        directReports,
+        addEmployee,
+        updateEmployee,
+        deleteEmployee,
+        canEditOrg,
+        onlineIds,
+      }}
+    >
+      <div
+        className="mb-body"
+        style={{
+          background: C.paper,
+          minHeight: "100vh",
+          color: C.ink,
+          display: "flex",
+          flexDirection: "column",
+          colorScheme: dark ? "dark" : "light",
+          "--mb-control-bg": C.card,
+          "--mb-control-fg": C.ink,
+          "--mb-control-border": C.line,
+          "--mb-glass-surface": dark
+            ? "rgba(27, 20, 39, 0.9)"
+            : "rgba(255, 255, 255, 0.82)",
+          "--mb-glass-border": dark
+            ? "rgba(181, 156, 255, 0.18)"
+            : "rgba(15, 23, 42, 0.08)",
+          "--mb-glass-header": dark
+            ? "rgba(22, 17, 34, 0.96)"
+            : "rgba(255, 255, 255, 0.8)",
+          "--mb-glass-node": dark
+            ? "rgba(24, 19, 35, 0.9)"
+            : "rgba(255, 255, 255, 0.8)",
+          "--mb-glass-chart": dark
+            ? "rgba(20, 15, 30, 0.72)"
+            : "rgba(255, 255, 255, 0.58)",
+        }}
+      >
+        <style>
+          {FONT}
+          {RESPONSIVE_CSS}
+        </style>
 
-        <header style={{ position: "sticky", top: 0, zIndex: 60, background: "rgba(12, 12, 12, 0.88)", borderBottom: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(12px)" }}>
-          <div className="mb-header-inner" style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 18px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 9, flexShrink: 0 }}>
+        <header
+          style={{
+            position: "sticky",
+            top: 0,
+            zIndex: 60,
+            background: "rgba(12, 12, 12, 0.88)",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            backdropFilter: "blur(12px)",
+          }}
+        >
+          <div
+            className="mb-header-inner"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 14,
+              padding: "10px 18px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 9,
+                flexShrink: 0,
+              }}
+            >
               <img
                 src={motherbaseBackground}
                 alt="The Motherbase logo"
@@ -869,98 +1788,305 @@ export default function App() {
                 }}
               />
               <div className="mb-brand-sub">
-                <div className="mb-display" style={{ fontSize: 15.5, fontWeight: 600, color: "#fff", lineHeight: 1.1 }}>The Motherbase</div>
+                <div
+                  className="mb-display"
+                  style={{
+                    fontSize: 15.5,
+                    fontWeight: 600,
+                    color: "#fff",
+                    lineHeight: 1.1,
+                  }}
+                >
+                  The Motherbase
+                </div>
                 <div style={{ fontSize: 10, color: "#9FA6C4" }}>Ops System</div>
               </div>
             </div>
 
-            <nav className="mb-topnav" style={{ display: "flex", margin: "0 auto", overflowX: "auto" }}>
-              {nav.map(n => (
-                <TopNavItem key={n.id} icon={n.icon} label={n.label} active={page === n.id} onClick={() => setPage(n.id)} />
+            <nav
+              className="mb-topnav"
+              style={{ display: "flex", margin: "0 auto", overflowX: "auto" }}
+            >
+              {nav.map((n) => (
+                <TopNavItem
+                  key={n.id}
+                  icon={n.icon}
+                  label={n.label}
+                  active={page === n.id}
+                  onClick={() => setPage(n.id)}
+                />
               ))}
             </nav>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-              <button onClick={() => setPage("notifications")} title="Notifications" style={{
-                position: "relative", width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center",
-                background: page === "notifications" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, cursor: "pointer", color: page === "notifications" ? C.amber : "#C9CEE0",
-              }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                flexShrink: 0,
+              }}
+            >
+              <button
+                onClick={() => setPage("notifications")}
+                title="Notifications"
+                style={{
+                  position: "relative",
+                  width: 36,
+                  height: 36,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background:
+                    page === "notifications"
+                      ? "rgba(255,255,255,0.1)"
+                      : "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: 10,
+                  cursor: "pointer",
+                  color: page === "notifications" ? C.amber : "#C9CEE0",
+                }}
+              >
                 <Bell size={16} />
                 {urgentCount > 0 && (
-                  <span style={{ position: "absolute", top: -4, right: -4, width: 15, height: 15, borderRadius: 10, background: C.coral, color: "#fff", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", border: `1.5px solid ${C.navy}` }}>
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: -4,
+                      right: -4,
+                      width: 15,
+                      height: 15,
+                      borderRadius: 10,
+                      background: C.coral,
+                      color: "#fff",
+                      fontSize: 9,
+                      fontWeight: 700,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      border: `1.5px solid ${C.navy}`,
+                    }}
+                  >
                     {urgentCount > 9 ? "9+" : urgentCount}
                   </span>
                 )}
               </button>
-              <UserMenu viewerEmp={viewerEmp} canEditOrg={canEditOrg} onlineSelf />
+              <UserMenu
+                viewerEmp={viewerEmp}
+                canEditOrg={canEditOrg}
+                onlineSelf
+              />
             </div>
           </div>
         </header>
-        <nav className="mb-mobile-nav" aria-label="Main navigation" style={{ position: "fixed", zIndex: 80, right: 0, bottom: 0, left: 0, alignItems: "stretch", justifyContent: "space-around", padding: "7px 6px calc(7px + env(safe-area-inset-bottom))", background: C.navy, borderTop: "1px solid rgba(255,255,255,0.12)" }}>
-          {nav.map(n => {
+        <nav
+          className="mb-mobile-nav"
+          aria-label="Main navigation"
+          style={{
+            position: "fixed",
+            zIndex: 80,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            alignItems: "stretch",
+            justifyContent: "space-around",
+            padding: "7px 6px calc(7px + env(safe-area-inset-bottom))",
+            background: C.navy,
+            borderTop: "1px solid rgba(255,255,255,0.12)",
+          }}
+        >
+          {nav.map((n) => {
             const Icon = n.icon;
             const active = page === n.id;
             return (
-              <button key={n.id} type="button" aria-current={active ? "page" : undefined} onClick={() => setPage(n.id)}
-                style={{ display: "flex", flex: 1, minWidth: 0, flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, padding: "4px 2px", color: active ? C.amber : "#9CA3C4", background: "none", border: "none", fontFamily: "inherit", cursor: "pointer" }}>
+              <button
+                key={n.id}
+                type="button"
+                aria-current={active ? "page" : undefined}
+                onClick={() => setPage(n.id)}
+                style={{
+                  display: "flex",
+                  flex: 1,
+                  minWidth: 0,
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 3,
+                  padding: "4px 2px",
+                  color: active ? C.amber : "#9CA3C4",
+                  background: "none",
+                  border: "none",
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                }}
+              >
                 <Icon size={18} strokeWidth={2} />
-                <span style={{ fontSize: 9, fontWeight: 700, whiteSpace: "nowrap" }}>{n.label}</span>
+                <span
+                  style={{ fontSize: 9, fontWeight: 700, whiteSpace: "nowrap" }}
+                >
+                  {n.label}
+                </span>
               </button>
             );
           })}
         </nav>
 
         <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-        <main className="mb-main" style={{ flex: 1, minWidth: 0, padding: "26px 34px 60px", overflowY: "auto", backgroundColor: C.paper, backgroundImage: `linear-gradient(${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}, ${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}), url("${motherbaseBackground}")`, backgroundSize: "cover, min(1100px, 94vw) auto", backgroundPosition: "center, center 42%", backgroundRepeat: "no-repeat" }}>
-          {page === "dashboard" && <Dashboard tasks={tasks} completionTimes={completionTimes} viewerEmp={viewerEmp} isManager={isManager} isExec={isExec} setPage={setPage} setTaskDetail={setTaskDetail} />}
-          {page === "organization" && (
-            <Organization orgView={orgView} setOrgView={setOrgView} setSelectedEmp={setSelectedEmp}
-              search={search} setSearch={setSearch} onAdd={() => setEditingEmp(null)} onEdit={setEditingEmp} />
-          )}
-          {page === "employees" && (
-            <EmployeesList setSelectedEmp={setSelectedEmp} search={search} setSearch={setSearch} tasks={tasks} onAdd={() => setEditingEmp(null)} />
-          )}
-          {page === "tasks" && (
-            <Tasks tasks={boardTasks} archivedTasks={archivedTasks} reportTasks={visibleTasks} dark={dark}
-              taskView={taskView} setTaskView={setTaskView}
-              setTaskStatus={setTaskStatus} bulkUpdateTasks={bulkUpdateTasks} viewerEmp={viewerEmp}
-              canCreate={isManager} setShowAddTask={setShowAddTask} setTaskDetail={setTaskDetail}
-              onRepeat={setRepeatTask} onArchive={archiveTask} />
-          )}
-          {page === "inventory" && <ResinInventory viewerEmp={viewerEmp} />}
-          {page === "notifications" && <Notifications tasks={boardTasks} byId={byId} notifications={notifications} onMarkRead={markNotificationRead} setPage={setPage} setTaskDetail={setTaskDetail} />}
-          {page === "settings" && <SettingsPage isAdmin={isAdmin} dark={dark} setDark={setDark}
-            viewerEmp={viewerEmp} completedTaskColor={completedTaskColor} defaultCompletedTaskColor={defaultCompletedTaskColor}
-            onCompletedTaskColorChange={(color) => {
-              setCompletedTaskColorPref({ employeeId: viewerEmp.id, color });
-              try { localStorage.setItem(`mb-completed-task-color-${viewerEmp.id}`, color); } catch {}
+          <main
+            className="mb-main"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              padding: "26px 34px 60px",
+              overflowY: "auto",
+              backgroundColor: C.paper,
+              backgroundImage: `linear-gradient(${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}, ${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}), url("${motherbaseBackground}")`,
+              backgroundSize: "cover, min(1100px, 94vw) auto",
+              backgroundPosition: "center, center 42%",
+              backgroundRepeat: "no-repeat",
             }}
-            onResetCompletedTaskColor={() => {
-              setCompletedTaskColorPref({ employeeId: viewerEmp.id, color: null });
-              try { localStorage.removeItem(`mb-completed-task-color-${viewerEmp.id}`); } catch {}
-            }} />}
-        </main>
+          >
+            {page === "dashboard" && (
+              <Dashboard
+                tasks={tasks}
+                completionTimes={completionTimes}
+                viewerEmp={viewerEmp}
+                isManager={isManager}
+                isExec={isExec}
+                setPage={setPage}
+                setTaskDetail={setTaskDetail}
+              />
+            )}
+            {page === "organization" && (
+              <Organization
+                orgView={orgView}
+                setOrgView={setOrgView}
+                setSelectedEmp={setSelectedEmp}
+                search={search}
+                setSearch={setSearch}
+                onAdd={() => setEditingEmp(null)}
+                onEdit={setEditingEmp}
+              />
+            )}
+            {page === "employees" && (
+              <EmployeesList
+                setSelectedEmp={setSelectedEmp}
+                search={search}
+                setSearch={setSearch}
+                tasks={tasks}
+                onAdd={() => setEditingEmp(null)}
+              />
+            )}
+            {page === "tasks" && (
+              <Tasks
+                tasks={boardTasks}
+                archivedTasks={archivedTasks}
+                reportTasks={visibleTasks}
+                dark={dark}
+                taskView={taskView}
+                setTaskView={setTaskView}
+                setTaskStatus={setTaskStatus}
+                bulkUpdateTasks={bulkUpdateTasks}
+                viewerEmp={viewerEmp}
+                canCreate={isManager}
+                setShowAddTask={setShowAddTask}
+                setTaskDetail={setTaskDetail}
+                onRepeat={setRepeatTask}
+                onArchive={archiveTask}
+              />
+            )}
+            {page === "notifications" && (
+              <Notifications
+                tasks={boardTasks}
+                byId={byId}
+                notifications={notifications}
+                onMarkRead={markNotificationRead}
+                setPage={setPage}
+                setTaskDetail={setTaskDetail}
+              />
+            )}
+            {page === "settings" && (
+              <SettingsPage
+                isAdmin={isAdmin}
+                dark={dark}
+                setDark={setDark}
+                viewerEmp={viewerEmp}
+                completedTaskColor={completedTaskColor}
+                defaultCompletedTaskColor={defaultCompletedTaskColor}
+                onCompletedTaskColorChange={(color) => {
+                  setCompletedTaskColorPref({
+                    employeeId: viewerEmp.id,
+                    color,
+                  });
+                  try {
+                    localStorage.setItem(
+                      `mb-completed-task-color-${viewerEmp.id}`,
+                      color,
+                    );
+                  } catch {}
+                }}
+                onResetCompletedTaskColor={() => {
+                  setCompletedTaskColorPref({
+                    employeeId: viewerEmp.id,
+                    color: null,
+                  });
+                  try {
+                    localStorage.removeItem(
+                      `mb-completed-task-color-${viewerEmp.id}`,
+                    );
+                  } catch {}
+                }}
+              />
+            )}
+          </main>
         </div>
 
         {selectedEmp && (
-          <EmployeeModal empId={selectedEmp} tasks={tasks} onClose={() => setSelectedEmp(null)}
-            setSelectedEmp={setSelectedEmp} setTaskDetail={setTaskDetail}
-            onEdit={() => setEditingEmp(byId[selectedEmp])} />
+          <EmployeeModal
+            empId={selectedEmp}
+            tasks={tasks}
+            onClose={() => setSelectedEmp(null)}
+            setSelectedEmp={setSelectedEmp}
+            onEdit={() => setEditingEmp(byId[selectedEmp])}
+          />
         )}
-        {editingEmp !== undefined && <EmployeeFormModal employee={editingEmp} onClose={() => setEditingEmp(undefined)} />}
+        {editingEmp !== undefined && (
+          <EmployeeFormModal
+            employee={editingEmp}
+            onClose={() => setEditingEmp(undefined)}
+          />
+        )}
         {showAddTask && (
-          <AddTaskModal onClose={() => setShowAddTask(false)} onCreate={createTask} onAttach={attachFile} createdBy={viewerEmp.id} />
+          <AddTaskModal
+            onClose={() => setShowAddTask(false)}
+            onCreate={createTask}
+            onAttach={attachFile}
+            createdBy={viewerEmp.id}
+          />
         )}
         {taskDetail && (
-          <TaskDetailModal task={tasks.find(t=>t.id===taskDetail)} onClose={() => setTaskDetail(null)}
-            addComment={addComment} viewerEmp={viewerEmp} setTaskStatus={setTaskStatus}
-            updateTask={updateTask} refetchTasks={refetchTasks} taskOps={taskOps}
-            onRepeat={setRepeatTask} onArchive={archiveTask} />
+          <TaskDetailModal
+            task={tasks.find((t) => t.id === taskDetail)}
+            onClose={() => setTaskDetail(null)}
+            addComment={addComment}
+            viewerEmp={viewerEmp}
+            setTaskStatus={setTaskStatus}
+            updateTask={updateTask}
+            refetchTasks={refetchTasks}
+            taskOps={taskOps}
+            onRepeat={setRepeatTask}
+            onArchive={archiveTask}
+          />
         )}
         {repeatTask && (
-          <RepeatTaskModal task={repeatTask} onClose={() => setRepeatTask(null)}
-            onConfirm={async (due, archiveOriginal) => { const t = repeatTask; setRepeatTask(null); await createRepeat(t, due, archiveOriginal); }} />
+          <RepeatTaskModal
+            task={repeatTask}
+            onClose={() => setRepeatTask(null)}
+            onConfirm={async (due, archiveOriginal) => {
+              const t = repeatTask;
+              setRepeatTask(null);
+              await createRepeat(t, due, archiveOriginal);
+            }}
+          />
         )}
       </div>
     </EmpContext.Provider>
@@ -969,7 +2095,18 @@ export default function App() {
 
 function FullScreenMsg({ text }) {
   return (
-    <div className="mb-body" style={{ minHeight: "100vh", background: C.paper, display: "flex", alignItems: "center", justifyContent: "center", color: C.slate, fontSize: 14 }}>
+    <div
+      className="mb-body"
+      style={{
+        minHeight: "100vh",
+        background: C.paper,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: C.slate,
+        fontSize: 14,
+      }}
+    >
       <style>{FONT}</style>
       {text}
     </div>
@@ -979,64 +2116,174 @@ function FullScreenMsg({ text }) {
 /* ---------------------------------------------------------------
    DASHBOARD
 ----------------------------------------------------------------*/
-function Dashboard({ tasks, completionTimes = {}, viewerEmp, isManager, isExec, setPage, setTaskDetail }) {
+function Dashboard({
+  tasks,
+  completionTimes = {},
+  viewerEmp,
+  isManager,
+  isExec,
+  setPage,
+  setTaskDetail,
+}) {
   const { employees, directReports, onlineIds } = useEmp();
-  const goToTask = (id) => { setTaskDetail(id); setPage("tasks"); };
-  const scoped = isExec ? tasks : isManager
-    ? tasks.filter(t => taskTeam(t).some(id => [viewerEmp.id, ...collectDescendants(viewerEmp.id, employees)].includes(id)))
-    : tasks.filter(t => isOnTask(t, viewerEmp.id));
+  const goToTask = (id) => {
+    setTaskDetail(id);
+    setPage("tasks");
+  };
+  const scoped = isExec
+    ? tasks
+    : isManager
+      ? tasks.filter((t) =>
+          taskTeam(t).some((id) =>
+            [
+              viewerEmp.id,
+              ...collectDescendants(viewerEmp.id, employees),
+            ].includes(id),
+          ),
+        )
+      : tasks.filter((t) => isOnTask(t, viewerEmp.id));
 
-  const overdue = scoped.filter(t => statusMeta(t).label === "Overdue");
-  const dueToday = scoped.filter(t => statusMeta(t).label === "Due today");
-  const completed = scoped.filter(t => t.status === "Completed");
-  const recentCompleted = [...completed].sort((a, b) => {
-    const aTime = completionTimes[a.id] || a.updatedAt;
-    const bTime = completionTimes[b.id] || b.updatedAt;
-    if (aTime && bTime) return String(bTime).localeCompare(String(aTime));
-    if (aTime) return -1;
-    if (bTime) return 1;
-    return (b.due || "").localeCompare(a.due || "");
-  }).slice(0, 3);
+  const overdue = scoped.filter((t) => statusMeta(t).label === "Overdue");
+  const dueToday = scoped.filter((t) => statusMeta(t).label === "Due today");
+  const completed = scoped.filter((t) => t.status === "Completed");
+  const recentCompleted = [...completed]
+    .sort((a, b) => {
+      const aTime = completionTimes[a.id] || a.updatedAt;
+      const bTime = completionTimes[b.id] || b.updatedAt;
+      if (aTime && bTime) return String(bTime).localeCompare(String(aTime));
+      if (aTime) return -1;
+      if (bTime) return 1;
+      return (b.due || "").localeCompare(a.due || "");
+    })
+    .slice(0, 3);
 
-  const byDept = DEPARTMENTS.map(dep => ({
-    ...dep, count: scoped.filter(t => t.dept === dep.id && t.status !== "Completed").length,
-  })).filter(dd => dd.count > 0);
+  const byDept = DEPARTMENTS.map((dep) => ({
+    ...dep,
+    count: scoped.filter((t) => t.dept === dep.id && t.status !== "Completed")
+      .length,
+  })).filter((dd) => dd.count > 0);
 
-  const workload = employees.map(e => ({
-    emp: e,
-    active: tasks.filter(t => isOnTask(t, e.id) && t.status !== "Completed").length,
-    highPri: tasks.filter(t => isOnTask(t, e.id) && t.priority === "High" && t.status !== "Completed").length,
-  })).filter(w => w.active > 0).sort((a,b) => b.active - a.active);
+  const workload = employees
+    .map((e) => ({
+      emp: e,
+      active: tasks.filter((t) => isOnTask(t, e.id) && t.status !== "Completed")
+        .length,
+      highPri: tasks.filter(
+        (t) =>
+          isOnTask(t, e.id) &&
+          t.priority === "High" &&
+          t.status !== "Completed",
+      ).length,
+    }))
+    .filter((w) => w.active > 0)
+    .sort((a, b) => b.active - a.active);
 
   return (
     <div>
       <PageHeader
-        eyebrow={isExec ? "Company overview" : isManager ? "Team overview" : "My dashboard"}
-        title={isExec ? "Dashboard" : isManager ? `${viewerEmp.name.split(" ")[0]}'s Team` : "My Tasks"}
+        eyebrow={
+          isExec
+            ? "Company overview"
+            : isManager
+              ? "Team overview"
+              : "My dashboard"
+        }
+        title={
+          isExec
+            ? "Dashboard"
+            : isManager
+              ? `${viewerEmp.name.split(" ")[0]}'s Team`
+              : "My Tasks"
+        }
       />
 
       {isExec && (
-        <div className="mb-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 22 }}>
-          <StatCard label="Employees" value={employees.length} sub={`${employees.filter(e=>e.status==="Active").length} active`} />
-          <StatCard label="Departments" value={DEPARTMENTS.length} sub="editable in Settings" />
-          <StatCard label="Open tasks" value={tasks.filter(t=>t.status!=="Completed").length} sub={`${completed.length} completed`} />
-          <StatCard label="Overdue" value={overdue.length} sub="needs attention" accent={overdue.length>0 ? C.coral : undefined} />
+        <div
+          className="mb-grid-4"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: 14,
+            marginBottom: 22,
+          }}
+        >
+          <StatCard
+            label="Employees"
+            value={employees.length}
+            sub={`${employees.filter((e) => e.status === "Active").length} active`}
+          />
+          <StatCard
+            label="Departments"
+            value={DEPARTMENTS.length}
+            sub="editable in Settings"
+          />
+          <StatCard
+            label="Open tasks"
+            value={tasks.filter((t) => t.status !== "Completed").length}
+            sub={`${completed.length} completed`}
+          />
+          <StatCard
+            label="Overdue"
+            value={overdue.length}
+            sub="needs attention"
+            accent={overdue.length > 0 ? C.coral : undefined}
+          />
         </div>
       )}
 
-      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: isExec ? "1.3fr 1fr" : "1fr", gap: 18 }}>
+      <div
+        className="mb-grid-2"
+        style={{
+          display: "grid",
+          gridTemplateColumns: isExec ? "1.3fr 1fr" : "1fr",
+          gap: 18,
+        }}
+      >
         <Panel title="Management alerts">
-          <AlertRow icon={CircleAlert} color={C.coral} label="Overdue" items={overdue} onOpen={goToTask} />
-          <AlertRow icon={Clock} color={C.amber} label="Due today" items={dueToday} onOpen={goToTask} />
-          <AlertRow icon={CheckCircle2} color={C.completed} label="Recently completed" items={recentCompleted} onOpen={goToTask} />
+          <AlertRow
+            icon={CircleAlert}
+            color={C.coral}
+            label="Overdue"
+            items={overdue}
+            onOpen={goToTask}
+          />
+          <AlertRow
+            icon={Clock}
+            color={C.amber}
+            label="Due today"
+            items={dueToday}
+            onOpen={goToTask}
+          />
+          <AlertRow
+            icon={CheckCircle2}
+            color={C.completed}
+            label="Recently completed"
+            items={recentCompleted}
+            onOpen={goToTask}
+          />
         </Panel>
 
         {isExec && (
           <Panel title="Tasks by department">
             {byDept.length === 0 && <Empty text="No open tasks right now." />}
-            {byDept.map(dep => (
-              <div key={dep.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0" }}>
-                <div style={{ width: 9, height: 9, borderRadius: 9, background: dep.color }} />
+            {byDept.map((dep) => (
+              <div
+                key={dep.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "7px 0",
+                }}
+              >
+                <div
+                  style={{
+                    width: 9,
+                    height: 9,
+                    borderRadius: 9,
+                    background: dep.color,
+                  }}
+                />
                 <div style={{ fontSize: 13, flex: 1 }}>{dep.name}</div>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{dep.count}</div>
               </div>
@@ -1045,42 +2292,92 @@ function Dashboard({ tasks, completionTimes = {}, viewerEmp, isManager, isExec, 
         )}
       </div>
 
-      <Panel title={`Online now (${employees.filter(e => onlineIds.has(e.id)).length})`} style={{ marginTop: 18 }}>
-        {employees.filter(e => onlineIds.has(e.id)).length === 0 && <Empty text="No one else is online right now." />}
+      <Panel
+        title={`Online now (${employees.filter((e) => onlineIds.has(e.id)).length})`}
+        style={{ marginTop: 18 }}
+      >
+        {employees.filter((e) => onlineIds.has(e.id)).length === 0 && (
+          <Empty text="No one else is online right now." />
+        )}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
-          {employees.filter(e => onlineIds.has(e.id)).map(e => (
-            <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <Avatar name={e.name} size={26} online />
-              <span style={{ fontSize: 12.5 }}>{e.name}</span>
-            </div>
-          ))}
+          {employees
+            .filter((e) => onlineIds.has(e.id))
+            .map((e) => (
+              <div
+                key={e.id}
+                style={{ display: "flex", alignItems: "center", gap: 6 }}
+              >
+                <Avatar name={e.name} size={26} online />
+                <span style={{ fontSize: 12.5 }}>{e.name}</span>
+              </div>
+            ))}
         </div>
       </Panel>
 
       {isManager && (
-        <Panel title={isExec ? "Workload by employee" : "My team's workload"} style={{ marginTop: 18 }}>
-          {workload.filter(w => isExec || [viewerEmp.id, ...collectDescendants(viewerEmp.id, employees)].includes(w.emp.id)).map(w => (
-            <div key={w.emp.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 0", borderBottom: `1px solid ${C.line}` }}>
-              <Avatar name={w.emp.name} online={onlineIds.has(w.emp.id)} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 600 }}>{w.emp.name}</div>
-                <div style={{ fontSize: 11.5, color: C.slate }}>{deptById[w.emp.dept]?.name}</div>
+        <Panel
+          title={isExec ? "Workload by employee" : "My team's workload"}
+          style={{ marginTop: 18 }}
+        >
+          {workload
+            .filter(
+              (w) =>
+                isExec ||
+                [
+                  viewerEmp.id,
+                  ...collectDescendants(viewerEmp.id, employees),
+                ].includes(w.emp.id),
+            )
+            .map((w) => (
+              <div
+                key={w.emp.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "9px 0",
+                  borderBottom: `1px solid ${C.line}`,
+                }}
+              >
+                <Avatar name={w.emp.name} online={onlineIds.has(w.emp.id)} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>
+                    {w.emp.name}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: C.slate }}>
+                    {deptById[w.emp.dept]?.name}
+                  </div>
+                </div>
+                <div style={{ fontSize: 13, color: C.slate }}>
+                  {w.active} active
+                </div>
+                {w.highPri >= 3 && (
+                  <span
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                      fontSize: 11,
+                      color: C.coral,
+                      background: C.coralSoft,
+                      padding: "3px 8px",
+                      borderRadius: 20,
+                    }}
+                  >
+                    <TriangleAlert size={12} /> Potentially overloaded
+                  </span>
+                )}
               </div>
-              <div style={{ fontSize: 13, color: C.slate }}>{w.active} active</div>
-              {w.highPri >= 3 && (
-                <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: C.coral, background: C.coralSoft, padding: "3px 8px", borderRadius: 20 }}>
-                  <TriangleAlert size={12} /> Potentially overloaded
-                </span>
-              )}
-            </div>
-          ))}
+            ))}
         </Panel>
       )}
 
       {!isManager && (
         <Panel title="My tasks" style={{ marginTop: 18 }}>
           {scoped.length === 0 && <Empty text="Nothing assigned yet." />}
-          {scoped.map(t => <MiniTaskRow key={t.id} t={t} onClick={() => goToTask(t.id)} />)}
+          {scoped.map((t) => (
+            <MiniTaskRow key={t.id} t={t} onClick={() => goToTask(t.id)} />
+          ))}
         </Panel>
       )}
     </div>
@@ -1091,18 +2388,41 @@ function AlertRow({ icon: Icon, color, label, items, onOpen }) {
   const { byId } = useEmp();
   return (
     <div style={{ marginBottom: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 6 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 7,
+          marginBottom: 6,
+        }}
+      >
         <Icon size={14} color={color} />
         <span style={{ fontSize: 12.5, fontWeight: 600, color }}>{label}</span>
         <span style={{ fontSize: 12, color: C.slate }}>({items.length})</span>
       </div>
       {items.length === 0 ? (
-        <div style={{ fontSize: 12.5, color: C.slate, paddingLeft: 21 }}>None right now.</div>
-      ) : items.slice(0,4).map(t => (
-        <div key={t.id} onClick={() => onOpen?.(t.id)} style={{ fontSize: 13, padding: "3px 0 3px 21px", color: C.ink, cursor: onOpen ? "pointer" : "default" }}>
-          {t.title} <span style={{ color: C.slate }}>— {byId[t.assignee]?.name || "Unassigned"}</span>
+        <div style={{ fontSize: 12.5, color: C.slate, paddingLeft: 21 }}>
+          None right now.
         </div>
-      ))}
+      ) : (
+        items.slice(0, 4).map((t) => (
+          <div
+            key={t.id}
+            onClick={() => onOpen?.(t.id)}
+            style={{
+              fontSize: 13,
+              padding: "3px 0 3px 21px",
+              color: C.ink,
+              cursor: onOpen ? "pointer" : "default",
+            }}
+          >
+            {t.title}{" "}
+            <span style={{ color: C.slate }}>
+              — {byId[t.assignee]?.name || "Unassigned"}
+            </span>
+          </div>
+        ))
+      )}
     </div>
   );
 }
@@ -1110,11 +2430,40 @@ function AlertRow({ icon: Icon, color, label, items, onOpen }) {
 function MiniTaskRow({ t, onClick }) {
   const meta = statusMeta(t);
   return (
-    <div onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: `1px solid ${C.line}`, cursor: "pointer" }}>
-      <div style={{ width: 7, height: 7, borderRadius: 7, background: meta.color, flexShrink: 0 }} />
+    <div
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "9px 0",
+        borderBottom: `1px solid ${C.line}`,
+        cursor: "pointer",
+      }}
+    >
+      <div
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: 7,
+          background: meta.color,
+          flexShrink: 0,
+        }}
+      />
       <div style={{ flex: 1, fontSize: 13.5 }}>{t.title}</div>
-      <div style={{ fontSize: 11.5, color: meta.color, fontWeight: 600 }}>{meta.label}</div>
-      <div style={{ fontSize: 11.5, color: C.slate, width: 70, textAlign: "right" }}>{t.status}</div>
+      <div style={{ fontSize: 11.5, color: meta.color, fontWeight: 600 }}>
+        {meta.label}
+      </div>
+      <div
+        style={{
+          fontSize: 11.5,
+          color: C.slate,
+          width: 70,
+          textAlign: "right",
+        }}
+      >
+        {t.status}
+      </div>
     </div>
   );
 }
@@ -1122,49 +2471,142 @@ function MiniTaskRow({ t, onClick }) {
 /* ---------------------------------------------------------------
    ORGANIZATION
 ----------------------------------------------------------------*/
-function Organization({ orgView, setOrgView, setSelectedEmp, search, setSearch, onAdd, onEdit }) {
+function Organization({
+  orgView,
+  setOrgView,
+  setSelectedEmp,
+  search,
+  setSearch,
+  onAdd,
+  onEdit,
+}) {
   const { employees, canEditOrg } = useEmp();
-  const filtered = employees.filter(e => e.name.toLowerCase().includes(search.toLowerCase()) || e.position.toLowerCase().includes(search.toLowerCase()));
+  const filtered = employees.filter(
+    (e) =>
+      e.name.toLowerCase().includes(search.toLowerCase()) ||
+      e.position.toLowerCase().includes(search.toLowerCase()),
+  );
 
   return (
     <div>
-      <PageHeader eyebrow="Organization" title="Structure & Reporting" actions={
-        <div style={{ display: "flex", gap: 8 }}>
-          <ToggleBtn active={orgView==="chart"} onClick={()=>setOrgView("chart")} icon={ListTree} label="Org Chart" />
-          <ToggleBtn active={orgView==="list"} onClick={()=>setOrgView("list")} icon={Table2} label="List View" />
-          {canEditOrg && (
-            <button onClick={onAdd} style={{ display: "flex", alignItems: "center", gap: 6, background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
-              <Plus size={14} /> Add Employee
-            </button>
-          )}
-        </div>
-      } />
+      <PageHeader
+        eyebrow="Organization"
+        title="Structure & Reporting"
+        actions={
+          <div style={{ display: "flex", gap: 8 }}>
+            <ToggleBtn
+              active={orgView === "chart"}
+              onClick={() => setOrgView("chart")}
+              icon={ListTree}
+              label="Org Chart"
+            />
+            <ToggleBtn
+              active={orgView === "list"}
+              onClick={() => setOrgView("list")}
+              icon={Table2}
+              label="List View"
+            />
+            {canEditOrg && (
+              <button
+                onClick={onAdd}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: C.amber,
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "7px 14px",
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                <Plus size={14} /> Add Employee
+              </button>
+            )}
+          </div>
+        }
+      />
 
-      {orgView === "list" && <SearchBar value={search} onChange={setSearch} placeholder="Search employees, positions, departments…" />}
+      {orgView === "list" && (
+        <SearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder="Search employees, positions, departments…"
+        />
+      )}
 
       {orgView === "chart" ? (
         <OrgChartPyramid onSelect={setSelectedEmp} onEdit={onEdit} />
       ) : (
-        <div style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 14, overflow: "hidden", backdropFilter: "blur(14px) saturate(140%)", boxShadow: "0 10px 28px rgba(22,30,55,0.10)" }}>
+        <div
+          style={{
+            background: "var(--mb-glass-surface)",
+            border: "1px solid var(--mb-glass-border)",
+            borderRadius: 14,
+            overflow: "hidden",
+            backdropFilter: "blur(14px) saturate(140%)",
+            boxShadow: "0 10px 28px rgba(22,30,55,0.10)",
+          }}
+        >
           <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
-            <thead>
-              <tr style={{ background: "var(--mb-glass-header)", textAlign: "left" }}>
-                {["Employee","Position","Department","Supervisor","Status",""].map(h => (
-                  <th key={h} style={{ padding: "10px 16px", fontSize: 11.5, color: C.slate, fontWeight: 600 }}>{h}</th>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: 13.5,
+              }}
+            >
+              <thead>
+                <tr
+                  style={{
+                    background: "var(--mb-glass-header)",
+                    textAlign: "left",
+                  }}
+                >
+                  {[
+                    "Employee",
+                    "Position",
+                    "Department",
+                    "Supervisor",
+                    "Status",
+                    "",
+                  ].map((h) => (
+                    <th
+                      key={h}
+                      style={{
+                        padding: "10px 16px",
+                        fontSize: 11.5,
+                        color: C.slate,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((e) => (
+                  <RowWithEdit
+                    key={e.id}
+                    e={e}
+                    onSelect={setSelectedEmp}
+                    onEdit={onEdit}
+                    canEditOrg={canEditOrg}
+                  />
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(e => <RowWithEdit key={e.id} e={e} onSelect={setSelectedEmp} onEdit={onEdit} canEditOrg={canEditOrg} />)}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
           </div>
         </div>
       )}
       {!canEditOrg && (
         <div style={{ marginTop: 12, fontSize: 12, color: C.slate }}>
-          Only Jose Paulo, Andrea, Maria, and Julian can add, edit, or remove employees.
+          Only Jose Paulo, Andrea, Maria, and Julian can add, edit, or remove
+          employees.
         </div>
       )}
     </div>
@@ -1175,13 +2617,50 @@ function RowWithEdit({ e, onSelect, onEdit, canEditOrg }) {
   const { byId } = useEmp();
   return (
     <tr style={{ borderTop: `1px solid ${C.line}` }}>
-      <td onClick={() => onSelect(e.id)} style={{ padding: "10px 16px", fontWeight: 600, cursor: "pointer" }}>{e.name}</td>
-      <td onClick={() => onSelect(e.id)} style={{ padding: "10px 16px", color: C.slate, cursor: "pointer" }}>{e.position}</td>
-      <td onClick={() => onSelect(e.id)} style={{ padding: "10px 16px", cursor: "pointer" }}><DeptTag id={e.dept} /></td>
-      <td onClick={() => onSelect(e.id)} style={{ padding: "10px 16px", color: C.slate, cursor: "pointer" }}>{e.sup ? (byId[e.sup]?.name || "—") : "—"}</td>
-      <td onClick={() => onSelect(e.id)} style={{ padding: "10px 16px", cursor: "pointer" }}><StatusPill status={e.status} /></td>
+      <td
+        onClick={() => onSelect(e.id)}
+        style={{ padding: "10px 16px", fontWeight: 600, cursor: "pointer" }}
+      >
+        {e.name}
+      </td>
+      <td
+        onClick={() => onSelect(e.id)}
+        style={{ padding: "10px 16px", color: C.slate, cursor: "pointer" }}
+      >
+        {e.position}
+      </td>
+      <td
+        onClick={() => onSelect(e.id)}
+        style={{ padding: "10px 16px", cursor: "pointer" }}
+      >
+        <DeptTag id={e.dept} />
+      </td>
+      <td
+        onClick={() => onSelect(e.id)}
+        style={{ padding: "10px 16px", color: C.slate, cursor: "pointer" }}
+      >
+        {e.sup ? byId[e.sup]?.name || "—" : "—"}
+      </td>
+      <td
+        onClick={() => onSelect(e.id)}
+        style={{ padding: "10px 16px", cursor: "pointer" }}
+      >
+        <StatusPill status={e.status} />
+      </td>
       <td style={{ padding: "10px 16px" }}>
-        {canEditOrg && <button onClick={() => onEdit(e)} style={{ background: "none", border: "none", cursor: "pointer", color: C.slate }}><Pencil size={14} /></button>}
+        {canEditOrg && (
+          <button
+            onClick={() => onEdit(e)}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: C.slate,
+            }}
+          >
+            <Pencil size={14} />
+          </button>
+        )}
       </td>
     </tr>
   );
@@ -1189,13 +2668,17 @@ function RowWithEdit({ e, onSelect, onEdit, canEditOrg }) {
 
 function OrgChartPyramid({ onSelect, onEdit }) {
   const { employees, canEditOrg, deleteEmployee } = useEmp();
-  const NODE_W = 172, NODE_H = 96, GAP_X = 22, GAP_Y = 46;
+  const NODE_W = 172,
+    NODE_H = 96,
+    GAP_X = 22,
+    GAP_Y = 46;
 
   const layout = useMemo(() => {
-    const empIds = new Set(employees.map(e => e.id));
-    const roots = employees.filter(e => !e.sup || !empIds.has(e.sup));
-    const childrenOf = (id) => employees.filter(e => e.sup === id);
-    const positions = {}, depths = {};
+    const empIds = new Set(employees.map((e) => e.id));
+    const roots = employees.filter((e) => !e.sup || !empIds.has(e.sup));
+    const childrenOf = (id) => employees.filter((e) => e.sup === id);
+    const positions = {},
+      depths = {};
     let slot = 0;
     const visited = new Set();
     const walk = (emp, depth) => {
@@ -1203,63 +2686,226 @@ function OrgChartPyramid({ onSelect, onEdit }) {
       visited.add(emp.id);
       depths[emp.id] = depth;
       const kids = childrenOf(emp.id);
-      if (kids.length === 0) { positions[emp.id] = slot; slot += 1; }
-      else {
-        kids.forEach(k => walk(k, depth + 1));
-        const xs = kids.map(k => positions[k.id]).filter(x => x !== undefined);
-        positions[emp.id] = xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : slot++;
+      if (kids.length === 0) {
+        positions[emp.id] = slot;
+        slot += 1;
+      } else {
+        kids.forEach((k) => walk(k, depth + 1));
+        const xs = kids
+          .map((k) => positions[k.id])
+          .filter((x) => x !== undefined);
+        positions[emp.id] = xs.length
+          ? (Math.min(...xs) + Math.max(...xs)) / 2
+          : slot++;
       }
     };
-    roots.forEach(r => walk(r, 0));
-    employees.forEach(e => { if (!visited.has(e.id)) walk(e, 0); });
+    roots.forEach((r) => walk(r, 0));
+    employees.forEach((e) => {
+      if (!visited.has(e.id)) walk(e, 0);
+    });
     const maxDepth = Math.max(0, ...Object.values(depths));
     const maxSlot = Math.max(0, ...Object.values(positions));
-    return { positions, depths, width: (maxSlot + 1) * (NODE_W + GAP_X), height: (maxDepth + 1) * (NODE_H + GAP_Y) };
+    return {
+      positions,
+      depths,
+      width: (maxSlot + 1) * (NODE_W + GAP_X),
+      height: (maxDepth + 1) * (NODE_H + GAP_Y),
+    };
   }, [employees]);
 
   const px = (id) => layout.positions[id] * (NODE_W + GAP_X);
   const py = (id) => layout.depths[id] * (NODE_H + GAP_Y);
 
   return (
-    <div style={{ background: "var(--mb-glass-chart)", border: "1px solid var(--mb-glass-border)", borderRadius: 14, padding: "24px 16px 50px", overflowX: "auto", backdropFilter: "blur(10px) saturate(135%)", boxShadow: "0 12px 32px rgba(22,30,55,0.10)" }}>
-      <div style={{ position: "relative", width: Math.max(layout.width, 400), height: layout.height + NODE_H, margin: "0 auto" }}>
-        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible", pointerEvents: "none" }}>
+    <div
+      style={{
+        background: "var(--mb-glass-chart)",
+        border: "1px solid var(--mb-glass-border)",
+        borderRadius: 14,
+        padding: "24px 16px 50px",
+        overflowX: "auto",
+        backdropFilter: "blur(10px) saturate(135%)",
+        boxShadow: "0 12px 32px rgba(22,30,55,0.10)",
+      }}
+    >
+      <div
+        style={{
+          position: "relative",
+          width: Math.max(layout.width, 400),
+          height: layout.height + NODE_H,
+          margin: "0 auto",
+        }}
+      >
+        <svg
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            overflow: "visible",
+            pointerEvents: "none",
+          }}
+        >
           <defs>
-            <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-              <path d="M2 1L8 5L2 9" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" stroke="context-stroke" />
+            <marker
+              id="arr"
+              viewBox="0 0 10 10"
+              refX="8"
+              refY="5"
+              markerWidth="5"
+              markerHeight="5"
+              orient="auto-start-reverse"
+            >
+              <path
+                d="M2 1L8 5L2 9"
+                fill="none"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                stroke="context-stroke"
+              />
             </marker>
           </defs>
-          {employees.filter(e => e.sup && layout.positions[e.sup] !== undefined).map(e => {
-            const x1 = px(e.sup) + NODE_W/2, y1 = py(e.sup) + NODE_H;
-            const x2 = px(e.id) + NODE_W/2, y2 = py(e.id);
-            const ym = (y1 + y2) / 2;
-            const color = deptById[e.dept]?.color || C.slate;
-            return <path key={e.id} d={`M${x1} ${y1} L${x1} ${ym} L${x2} ${ym} L${x2} ${y2}`} fill="none" stroke={color} strokeWidth="1.5" strokeOpacity="0.65" markerEnd="url(#arr)" />;
-          })}
+          {employees
+            .filter((e) => e.sup && layout.positions[e.sup] !== undefined)
+            .map((e) => {
+              const x1 = px(e.sup) + NODE_W / 2,
+                y1 = py(e.sup) + NODE_H;
+              const x2 = px(e.id) + NODE_W / 2,
+                y2 = py(e.id);
+              const ym = (y1 + y2) / 2;
+              const color = deptById[e.dept]?.color || C.slate;
+              return (
+                <path
+                  key={e.id}
+                  d={`M${x1} ${y1} L${x1} ${ym} L${x2} ${ym} L${x2} ${y2}`}
+                  fill="none"
+                  stroke={color}
+                  strokeWidth="1.5"
+                  strokeOpacity="0.65"
+                  markerEnd="url(#arr)"
+                />
+              );
+            })}
         </svg>
 
-        {employees.map(e => {
+        {employees.map((e) => {
           const dep = deptById[e.dept] || { color: C.slate, name: e.dept };
           return (
-            <div key={e.id} style={{
-              position: "absolute", left: px(e.id), top: py(e.id), width: NODE_W,
-              background: "var(--mb-glass-node)", border: `1.5px ${e.secondary ? "dashed" : "solid"} ${dep.color}`,
-              borderRadius: 10, padding: "8px 10px", cursor: "pointer", backdropFilter: "blur(12px) saturate(145%)", boxShadow: "0 4px 14px rgba(20,28,48,0.11), inset 0 1px 0 rgba(255,255,255,0.36)",
-            }}>
+            <div
+              key={e.id}
+              style={{
+                position: "absolute",
+                left: px(e.id),
+                top: py(e.id),
+                width: NODE_W,
+                background: "var(--mb-glass-node)",
+                border: `1.5px ${e.secondary ? "dashed" : "solid"} ${dep.color}`,
+                borderRadius: 10,
+                padding: "8px 10px",
+                cursor: "pointer",
+                backdropFilter: "blur(12px) saturate(145%)",
+                boxShadow:
+                  "0 4px 14px rgba(20,28,48,0.11), inset 0 1px 0 rgba(255,255,255,0.36)",
+              }}
+            >
               <div onClick={() => onSelect(e.id)} style={{ marginBottom: 2 }}>
-                <div style={{ fontSize: 11.5, fontWeight: 700, lineHeight: 1.25 }}>{e.name}</div>
-                <div style={{ fontSize: 10, color: C.slate, lineHeight: 1.3, marginTop: 1 }}>{e.position}</div>
-                <span style={{ fontSize: 9, fontWeight: 500, marginTop: 4, padding: "1px 6px", borderRadius: 8, display: "inline-block", background: dep.color + "18", color: dep.color }}>{dep.name}</span>
-                {e.secondary && <div style={{ fontSize: 8.5, padding: "1px 5px", borderRadius: 6, background: C.amberSoft, color: "#8f5512", border: "1px solid #EF9F27", marginTop: 3, display: "inline-block" }}>{e.secondary}</div>}
+                <div
+                  style={{ fontSize: 11.5, fontWeight: 700, lineHeight: 1.25 }}
+                >
+                  {e.name}
+                </div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: C.slate,
+                    lineHeight: 1.3,
+                    marginTop: 1,
+                  }}
+                >
+                  {e.position}
+                </div>
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 500,
+                    marginTop: 4,
+                    padding: "1px 6px",
+                    borderRadius: 8,
+                    display: "inline-block",
+                    background: dep.color + "18",
+                    color: dep.color,
+                  }}
+                >
+                  {dep.name}
+                </span>
+                {e.secondary && (
+                  <div
+                    style={{
+                      fontSize: 8.5,
+                      padding: "1px 5px",
+                      borderRadius: 6,
+                      background: C.amberSoft,
+                      color: "#8f5512",
+                      border: "1px solid #EF9F27",
+                      marginTop: 3,
+                      display: "inline-block",
+                    }}
+                  >
+                    {e.secondary}
+                  </div>
+                )}
               </div>
               {canEditOrg && (
-                <div style={{ display: "flex", gap: 6, marginTop: 6, borderTop: `1px solid ${C.line}`, paddingTop: 5 }}>
-                  <button onClick={(ev) => { ev.stopPropagation(); onEdit(e); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.slate, display: "flex", alignItems: "center", gap: 3, fontSize: 10 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 6,
+                    marginTop: 6,
+                    borderTop: `1px solid ${C.line}`,
+                    paddingTop: 5,
+                  }}
+                >
+                  <button
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      onEdit(e);
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: C.slate,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 3,
+                      fontSize: 10,
+                    }}
+                  >
                     <Pencil size={11} /> Edit
                   </button>
                   {e.sup && (
-                    <button onClick={(ev) => { ev.stopPropagation(); if (window.confirm(`Remove ${e.name}? Their direct reports move up to their supervisor.`)) deleteEmployee(e.id); }}
-                      style={{ background: "none", border: "none", cursor: "pointer", color: C.coral, display: "flex", alignItems: "center", gap: 3, fontSize: 10 }}>
+                    <button
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        if (
+                          window.confirm(
+                            `Remove ${e.name}? Their direct reports move up to their supervisor.`,
+                          )
+                        )
+                          deleteEmployee(e.id);
+                      }}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        color: C.coral,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 3,
+                        fontSize: 10,
+                      }}
+                    >
                       <Trash2 size={11} /> Remove
                     </button>
                   )}
@@ -1269,9 +2915,40 @@ function OrgChartPyramid({ onSelect, onEdit }) {
           );
         })}
       </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 14, fontSize: 10.5, color: C.slate, alignItems: "center", marginTop: 10, paddingLeft: 4 }}>
-        <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 24, height: 2, background: C.navy, display: "inline-block" }} /> Solid border = single role</span>
-        <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 24, height: 0, borderTop: `2px dashed ${C.amber}`, display: "inline-block" }} /> Dashed border = dual-role person</span>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 14,
+          fontSize: 10.5,
+          color: C.slate,
+          alignItems: "center",
+          marginTop: 10,
+          paddingLeft: 4,
+        }}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span
+            style={{
+              width: 24,
+              height: 2,
+              background: C.navy,
+              display: "inline-block",
+            }}
+          />{" "}
+          Solid border = single role
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span
+            style={{
+              width: 24,
+              height: 0,
+              borderTop: `2px dashed ${C.amber}`,
+              display: "inline-block",
+            }}
+          />{" "}
+          Dashed border = dual-role person
+        </span>
       </div>
     </div>
   );
@@ -1291,61 +2968,183 @@ function EmployeeFormModal({ employee, onClose }) {
   const [resp, setResp] = useState((employee?.resp || []).join("\n"));
   const [error, setError] = useState("");
 
-  const blockedSupervisors = isEdit ? new Set([employee.id, ...collectDescendants(employee.id, employees)]) : new Set();
-  const supervisorOptions = employees.filter(e => !blockedSupervisors.has(e.id));
+  const blockedSupervisors = isEdit
+    ? new Set([employee.id, ...collectDescendants(employee.id, employees)])
+    : new Set();
+  const supervisorOptions = employees.filter(
+    (e) => !blockedSupervisors.has(e.id),
+  );
 
   const submit = async () => {
-    if (!name.trim() || !position.trim()) { setError("Name and position are required."); return; }
-    const data = { name: name.trim(), position: position.trim(), dept, sup: sup || null, role, status,
-      secondary: secondary.trim() || undefined, email: email.trim() || undefined,
-      resp: resp.split("\n").map(r => r.trim()).filter(Boolean) };
+    if (!name.trim() || !position.trim()) {
+      setError("Name and position are required.");
+      return;
+    }
+    const data = {
+      name: name.trim(),
+      position: position.trim(),
+      dept,
+      sup: sup || null,
+      role,
+      status,
+      secondary: secondary.trim() || undefined,
+      email: email.trim() || undefined,
+      resp: resp
+        .split("\n")
+        .map((r) => r.trim())
+        .filter(Boolean),
+    };
     if (isEdit) await updateEmployee(employee.id, data);
     else await addEmployee(data);
   };
 
   return (
     <ModalShell onClose={onClose} width={480}>
-      <div className="mb-display" style={{ fontSize: 19, fontWeight: 600, marginBottom: 16 }}>{isEdit ? "Edit Employee" : "Add Employee"}</div>
-      <FormRow label="Full name"><input value={name} onChange={e=>setName(e.target.value)} style={inputStyle} /></FormRow>
-      <FormRow label="Position / title"><input value={position} onChange={e=>setPosition(e.target.value)} style={inputStyle} /></FormRow>
-      <FormRow label="Login email (used to link their account)"><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@themotherbase.com" style={inputStyle} /></FormRow>
-      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      <div
+        className="mb-display"
+        style={{ fontSize: 19, fontWeight: 600, marginBottom: 16 }}
+      >
+        {isEdit ? "Edit Employee" : "Add Employee"}
+      </div>
+      <FormRow label="Full name">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          style={inputStyle}
+        />
+      </FormRow>
+      <FormRow label="Position / title">
+        <input
+          value={position}
+          onChange={(e) => setPosition(e.target.value)}
+          style={inputStyle}
+        />
+      </FormRow>
+      <FormRow label="Login email (used to link their account)">
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="name@themotherbase.com"
+          style={inputStyle}
+        />
+      </FormRow>
+      <div
+        className="mb-grid-2"
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
+      >
         <FormRow label="Department">
-          <select value={dept} onChange={e=>setDept(e.target.value)} style={inputStyle}>
-            {DEPARTMENTS.map(dp => <option key={dp.id} value={dp.id}>{dp.name}</option>)}
+          <select
+            value={dept}
+            onChange={(e) => setDept(e.target.value)}
+            style={inputStyle}
+          >
+            {DEPARTMENTS.map((dp) => (
+              <option key={dp.id} value={dp.id}>
+                {dp.name}
+              </option>
+            ))}
           </select>
         </FormRow>
         <FormRow label="Reports to">
-          <select value={sup || ""} onChange={e=>setSup(e.target.value)} style={inputStyle}>
+          <select
+            value={sup || ""}
+            onChange={(e) => setSup(e.target.value)}
+            style={inputStyle}
+          >
             <option value="">— None (top of org) —</option>
-            {supervisorOptions.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            {supervisorOptions.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.name}
+              </option>
+            ))}
           </select>
         </FormRow>
       </div>
-      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      <div
+        className="mb-grid-2"
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
+      >
         <FormRow label="Permission role">
-          <select value={role} onChange={e=>setRole(e.target.value)} style={inputStyle}>
-            <option value="superadmin">Super Admin</option><option value="executive">Executive</option>
-            <option value="manager">Manager</option><option value="employee">Employee</option>
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            style={inputStyle}
+          >
+            <option value="superadmin">Super Admin</option>
+            <option value="executive">Executive</option>
+            <option value="manager">Manager</option>
+            <option value="employee">Employee</option>
           </select>
         </FormRow>
         <FormRow label="Employment status">
-          <select value={status} onChange={e=>setStatus(e.target.value)} style={inputStyle}>
-            {STATUSES.map(s => <option key={s}>{s}</option>)}
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            style={inputStyle}
+          >
+            {STATUSES.map((s) => (
+              <option key={s}>{s}</option>
+            ))}
           </select>
         </FormRow>
       </div>
-      <FormRow label="Secondary role (optional)"><input value={secondary} onChange={e=>setSecondary(e.target.value)} placeholder="e.g. Also: Base 3 Lead" style={inputStyle} /></FormRow>
-      <FormRow label="Main responsibilities (one per line)">
-        <textarea value={resp} onChange={e=>setResp(e.target.value)} rows={4} style={{ ...inputStyle, resize: "vertical" }} />
+      <FormRow label="Secondary role (optional)">
+        <input
+          value={secondary}
+          onChange={(e) => setSecondary(e.target.value)}
+          placeholder="e.g. Also: Base 3 Lead"
+          style={inputStyle}
+        />
       </FormRow>
-      {error && <div style={{ color: C.coral, fontSize: 12.5, marginBottom: 10 }}>{error}</div>}
-      <button onClick={submit} style={{ width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+      <FormRow label="Main responsibilities (one per line)">
+        <textarea
+          value={resp}
+          onChange={(e) => setResp(e.target.value)}
+          rows={4}
+          style={{ ...inputStyle, resize: "vertical" }}
+        />
+      </FormRow>
+      {error && (
+        <div style={{ color: C.coral, fontSize: 12.5, marginBottom: 10 }}>
+          {error}
+        </div>
+      )}
+      <button
+        onClick={submit}
+        style={{
+          width: "100%",
+          background: C.amber,
+          color: "#fff",
+          border: "none",
+          borderRadius: 8,
+          padding: "10px 0",
+          fontWeight: 600,
+          fontSize: 14,
+          cursor: "pointer",
+        }}
+      >
         {isEdit ? "Save Changes" : "Add Employee"}
       </button>
       {isEdit && (
-        <button onClick={() => { if (window.confirm(`Remove ${employee.name}?`)) deleteEmployee(employee.id); }}
-          style={{ width: "100%", background: "none", color: C.coral, border: `1px solid ${C.coralSoft}`, borderRadius: 8, padding: "9px 0", fontWeight: 600, fontSize: 13, cursor: "pointer", marginTop: 10 }}>
+        <button
+          onClick={() => {
+            if (window.confirm(`Remove ${employee.name}?`))
+              deleteEmployee(employee.id);
+          }}
+          style={{
+            width: "100%",
+            background: "none",
+            color: C.coral,
+            border: `1px solid ${C.coralSoft}`,
+            borderRadius: 8,
+            padding: "9px 0",
+            fontWeight: 600,
+            fontSize: 13,
+            cursor: "pointer",
+            marginTop: 10,
+          }}
+        >
           Delete Employee
         </button>
       )}
@@ -1355,33 +3154,136 @@ function EmployeeFormModal({ employee, onClose }) {
 
 function DeptTag({ id }) {
   const dep = deptById[id] || { color: C.slate, name: id };
-  return <span style={{ fontSize: 11, fontWeight: 600, color: dep.color, background: dep.color+"18", padding: "3px 9px", borderRadius: 20 }}>{dep.name}</span>;
+  return (
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        color: dep.color,
+        background: dep.color + "18",
+        padding: "3px 9px",
+        borderRadius: 20,
+      }}
+    >
+      {dep.name}
+    </span>
+  );
 }
 function StatusPill({ status }) {
-  const color = status === "Active" ? C.sage : status === "On Leave" ? C.amber : C.slate;
-  return <span style={{ fontSize: 11, fontWeight: 600, color, background: color+"18", padding: "3px 9px", borderRadius: 20 }}>{status}</span>;
+  const color =
+    status === "Active" ? C.sage : status === "On Leave" ? C.amber : C.slate;
+  return (
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        color,
+        background: color + "18",
+        padding: "3px 9px",
+        borderRadius: 20,
+      }}
+    >
+      {status}
+    </span>
+  );
 }
 
 function EmployeesList({ setSelectedEmp, search, setSearch, tasks, onAdd }) {
   const { employees, canEditOrg, onlineIds } = useEmp();
-  const filtered = employees.filter(e => e.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = employees.filter((e) =>
+    e.name.toLowerCase().includes(search.toLowerCase()),
+  );
   return (
     <div>
-      <PageHeader eyebrow="Directory" title="Employees" actions={
-        canEditOrg && <button onClick={onAdd} style={{ display: "flex", alignItems: "center", gap: 6, background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}><Plus size={15} /> Add Employee</button>
-      } />
-      <SearchBar value={search} onChange={setSearch} placeholder="Search employees…" />
-      <div className="mb-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
-        {filtered.map(e => {
-          const active = tasks.filter(t => isOnTask(t, e.id) && t.status !== "Completed").length;
+      <PageHeader
+        eyebrow="Directory"
+        title="Employees"
+        actions={
+          canEditOrg && (
+            <button
+              onClick={onAdd}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                background: C.amber,
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                padding: "8px 14px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              <Plus size={15} /> Add Employee
+            </button>
+          )
+        }
+      />
+      <SearchBar
+        value={search}
+        onChange={setSearch}
+        placeholder="Search employees…"
+      />
+      <div
+        className="mb-grid-3"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: 14,
+        }}
+      >
+        {filtered.map((e) => {
+          const active = tasks.filter(
+            (t) => isOnTask(t, e.id) && t.status !== "Completed",
+          ).length;
           return (
-            <div key={e.id} onClick={() => setSelectedEmp(e.id)} style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 12, padding: 16, cursor: "pointer", backdropFilter: "blur(14px) saturate(140%)", boxShadow: "0 8px 22px rgba(22,30,55,0.09)" }}>
-              <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
-                <Avatar name={e.name} size={38} color={deptById[e.dept]?.color} online={onlineIds.has(e.id)} />
-                <div><div style={{ fontWeight: 600, fontSize: 14 }}>{e.name}</div><div style={{ fontSize: 12, color: C.slate }}>{e.position}</div></div>
+            <div
+              key={e.id}
+              onClick={() => setSelectedEmp(e.id)}
+              style={{
+                background: "var(--mb-glass-surface)",
+                border: "1px solid var(--mb-glass-border)",
+                borderRadius: 12,
+                padding: 16,
+                cursor: "pointer",
+                backdropFilter: "blur(14px) saturate(140%)",
+                boxShadow: "0 8px 22px rgba(22,30,55,0.09)",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "center",
+                  marginBottom: 10,
+                }}
+              >
+                <Avatar
+                  name={e.name}
+                  size={38}
+                  color={deptById[e.dept]?.color}
+                  online={onlineIds.has(e.id)}
+                />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{e.name}</div>
+                  <div style={{ fontSize: 12, color: C.slate }}>
+                    {e.position}
+                  </div>
+                </div>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <DeptTag id={e.dept} /><span style={{ fontSize: 12, color: C.slate }}>{active} active</span>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <DeptTag id={e.dept} />
+                <span style={{ fontSize: 12, color: C.slate }}>
+                  {active} active
+                </span>
               </div>
             </div>
           );
@@ -1391,85 +3293,252 @@ function EmployeesList({ setSelectedEmp, search, setSearch, tasks, onAdd }) {
   );
 }
 
-function EmployeeModal({ empId, tasks, onClose, setSelectedEmp, setTaskDetail, onEdit }) {
-  const [taskFilter, setTaskFilter] = useState("active");
+function EmployeeModal({ empId, tasks, onClose, setSelectedEmp, onEdit }) {
   const { byId, directReports, canEditOrg } = useEmp();
   const emp = byId[empId];
   if (!emp) return null;
-  const myTasks = tasks.filter(t => isOnTask(t, emp.id));
+  const myTasks = tasks.filter((t) => isOnTask(t, emp.id));
   const activeTasks = myTasks
-    .filter(t => t.status !== "Completed" && !t.archived)
+    .filter((t) => t.status !== "Completed" && !t.archived)
     .sort((a, b) => (a.due || "").localeCompare(b.due || ""));
-  const completedTasks = myTasks.filter(t => t.status === "Completed");
-  const displayedTasks = taskFilter === "active" ? activeTasks
-    : taskFilter === "completed" ? completedTasks
-      : [...myTasks].sort((a, b) => (a.due || "").localeCompare(b.due || ""));
-  const stats = { total: myTasks.length, completed: myTasks.filter(t => t.status === "Completed").length, inProgress: myTasks.filter(t => t.status === "In Progress").length };
-  const rate = stats.total ? Math.round((stats.completed/stats.total)*100) : 0;
+  const stats = {
+    total: myTasks.length,
+    completed: myTasks.filter((t) => t.status === "Completed").length,
+    inProgress: myTasks.filter((t) => t.status === "In Progress").length,
+  };
+  const rate = stats.total
+    ? Math.round((stats.completed / stats.total) * 100)
+    : 0;
   const reports = directReports(emp.id);
 
   return (
     <ModalShell onClose={onClose} width={900}>
-      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 24, alignItems: "start" }}>
+      <div
+        className="mb-grid-2"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+          gap: 24,
+          alignItems: "start",
+        }}
+      >
         <div>
-          <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 18 }}>
-            <Avatar name={emp.name} size={52} color={deptById[emp.dept]?.color} />
-            <div style={{ flex: 1, minWidth: 0 }}><div className="mb-display" style={{ fontSize: 20, fontWeight: 600 }}>{emp.name}</div><div style={{ fontSize: 13, color: C.slate }}>{emp.position}</div></div>
+          <div
+            style={{
+              display: "flex",
+              gap: 14,
+              alignItems: "center",
+              marginBottom: 18,
+            }}
+          >
+            <Avatar
+              name={emp.name}
+              size={52}
+              color={deptById[emp.dept]?.color}
+            />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                className="mb-display"
+                style={{ fontSize: 20, fontWeight: 600 }}
+              >
+                {emp.name}
+              </div>
+              <div style={{ fontSize: 13, color: C.slate }}>{emp.position}</div>
+            </div>
             <DeptTag id={emp.dept} />
           </div>
-          <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              marginBottom: 18,
+              flexWrap: "wrap",
+            }}
+          >
             <StatusPill status={emp.status} />
-            {emp.secondary && <span style={{ fontSize: 11, background: C.amberSoft, color: "#7A4E10", padding: "3px 9px", borderRadius: 20, fontWeight: 600 }}>{emp.secondary}</span>}
-            {canEditOrg && <button onClick={onEdit} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 600, color: C.white, background: C.paper, border: "none", borderRadius: 20, padding: "3px 10px", cursor: "pointer" }}><Pencil size={12} /> Edit</button>}
+            {emp.secondary && (
+              <span
+                style={{
+                  fontSize: 11,
+                  background: C.amberSoft,
+                  color: "#7A4E10",
+                  padding: "3px 9px",
+                  borderRadius: 20,
+                  fontWeight: 600,
+                }}
+              >
+                {emp.secondary}
+              </span>
+            )}
+            {canEditOrg && (
+              <button
+                onClick={onEdit}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  color: C.white,
+                  background: C.paper,
+                  border: "none",
+                  borderRadius: 20,
+                  padding: "3px 10px",
+                  cursor: "pointer",
+                }}
+              >
+                <Pencil size={12} /> Edit
+              </button>
+            )}
           </div>
           <SectionLabel>Primary responsibilities</SectionLabel>
-          <ul style={{ margin: "6px 0 18px", paddingLeft: 18, fontSize: 13.5, lineHeight: 1.7 }}>{emp.resp.map((r,i) => <li key={i}>{r}</li>)}</ul>
+          <ul
+            style={{
+              margin: "6px 0 18px",
+              paddingLeft: 18,
+              fontSize: 13.5,
+              lineHeight: 1.7,
+            }}
+          >
+            {emp.resp.map((r, i) => (
+              <li key={i}>{r}</li>
+            ))}
+          </ul>
           <SectionLabel>Task statistics</SectionLabel>
-          <div className="mb-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, margin: "8px 0 18px" }}>
-            <MiniStat label="Total" value={stats.total} /><MiniStat label="Completed" value={stats.completed} /><MiniStat label="Completion" value={`${rate}%`} />
+          <div
+            className="mb-grid-3"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: 8,
+              margin: "8px 0 18px",
+            }}
+          >
+            <MiniStat label="Total" value={stats.total} />
+            <MiniStat label="Completed" value={stats.completed} />
+            <MiniStat label="Completion" value={`${rate}%`} />
           </div>
           <SectionLabel>Reporting structure</SectionLabel>
           <div style={{ fontSize: 13.5, margin: "8px 0 6px" }}>
-            Reports to: {emp.sup && byId[emp.sup] ? <b onClick={() => setSelectedEmp(emp.sup)} style={{cursor:"pointer", textDecoration:"underline"}}>{byId[emp.sup].name}</b> : <span style={{color:C.slate}}>— (top of org)</span>}
+            Reports to:{" "}
+            {emp.sup && byId[emp.sup] ? (
+              <b
+                onClick={() => setSelectedEmp(emp.sup)}
+                style={{ cursor: "pointer", textDecoration: "underline" }}
+              >
+                {byId[emp.sup].name}
+              </b>
+            ) : (
+              <span style={{ color: C.slate }}>— (top of org)</span>
+            )}
           </div>
           {reports.length > 0 && (
-            <div style={{ fontSize: 13.5 }}>Direct reports:
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
-                {reports.map(r => <span key={r.id} onClick={() => setSelectedEmp(r.id)} style={{ fontSize: 12, background: C.paper, padding: "4px 10px", borderRadius: 20, cursor: "pointer" }}>{r.name}</span>)}
+            <div style={{ fontSize: 13.5 }}>
+              Direct reports:
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 6,
+                  marginTop: 6,
+                }}
+              >
+                {reports.map((r) => (
+                  <span
+                    key={r.id}
+                    onClick={() => setSelectedEmp(r.id)}
+                    style={{
+                      fontSize: 12,
+                      background: C.paper,
+                      padding: "4px 10px",
+                      borderRadius: 20,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {r.name}
+                  </span>
+                ))}
               </div>
             </div>
           )}
         </div>
-        <section className="mb-employee-task-column" style={{ minWidth: 0, borderLeft: `1px solid ${C.line}`, paddingLeft: 20 }}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
-            <SectionLabel>Tasks</SectionLabel>
-            <span style={{ fontSize: 11.5, color: C.slate }}>{displayedTasks.length}</span>
+        <section
+          className="mb-employee-task-column"
+          style={{
+            minWidth: 0,
+            borderLeft: `1px solid ${C.line}`,
+            paddingLeft: 20,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              justifyContent: "space-between",
+              gap: 8,
+            }}
+          >
+            <SectionLabel>Active tasks</SectionLabel>
+            <span style={{ fontSize: 11.5, color: C.slate }}>
+              {activeTasks.length}
+            </span>
           </div>
-          <div role="group" aria-label="Filter employee tasks" style={{ display: "flex", gap: 5, marginTop: 8 }}>
-            {[["active", "Active"], ["completed", "Completed"], ["all", "All"]].map(([value, label]) => (
-              <button key={value} type="button" aria-pressed={taskFilter === value} onClick={() => setTaskFilter(value)} style={{
-                background: taskFilter === value ? C.navySoft : C.paper,
-                border: `1px solid ${taskFilter === value ? C.navySoft : C.line}`,
-                borderRadius: 6, color: taskFilter === value ? "#fff" : C.ink,
-                cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 600, padding: "5px 9px",
-              }}>{label}</button>
-            ))}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8, maxHeight: "62vh", overflowY: "auto", paddingRight: 4 }}>
-            {displayedTasks.length === 0 && <Empty text={taskFilter === "active" ? "No active tasks assigned." : "No tasks in this view."} />}
-            {displayedTasks.map(t => {
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              marginTop: 8,
+              maxHeight: "62vh",
+              overflowY: "auto",
+              paddingRight: 4,
+            }}
+          >
+            {activeTasks.length === 0 && (
+              <Empty text="No active tasks assigned." />
+            )}
+            {activeTasks.map((t) => {
               const meta = statusMeta(t);
               return (
-                <button key={t.id} type="button" onClick={() => { onClose(); setTaskDetail(t.id); }} style={{
-                  background: C.paper, border: `1px solid ${C.line}`, borderLeft: `3px solid ${stageColor(t.status)}`,
-                  borderRadius: 8, color: C.ink, cursor: "pointer", fontFamily: "inherit", padding: "10px 12px", textAlign: "left", width: "100%",
-                }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.4, overflowWrap: "anywhere" }}>{t.title}</div>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6, fontSize: 11.5 }}>
-                    <span style={{ color: stageColor(t.status), fontWeight: 600 }}>{t.status}{t.archived ? " · Removed" : ""}</span>
-                    <span style={{ color: meta.color, whiteSpace: "nowrap" }}>Due {t.due || "—"}</span>
+                <div
+                  key={t.id}
+                  style={{
+                    background: C.paper,
+                    border: `1px solid ${C.line}`,
+                    borderLeft: `3px solid ${stageColor(t.status)}`,
+                    borderRadius: 8,
+                    padding: "10px 12px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      lineHeight: 1.4,
+                      overflowWrap: "anywhere",
+                    }}
+                  >
+                    {t.title}
                   </div>
-                </button>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      marginTop: 6,
+                      fontSize: 11.5,
+                    }}
+                  >
+                    <span
+                      style={{ color: stageColor(t.status), fontWeight: 600 }}
+                    >
+                      {t.status}
+                    </span>
+                    <span style={{ color: meta.color, whiteSpace: "nowrap" }}>
+                      Due {t.due || "—"}
+                    </span>
+                  </div>
+                </div>
               );
             })}
           </div>
@@ -1480,7 +3549,19 @@ function EmployeeModal({ empId, tasks, onClose, setSelectedEmp, setTaskDetail, o
 }
 
 function MiniStat({ label, value }) {
-  return <div style={{ background: C.paper, borderRadius: 8, padding: "8px 10px", textAlign: "center" }}><div style={{ fontSize: 17, fontWeight: 700 }}>{value}</div><div style={{ fontSize: 10.5, color: C.slate }}>{label}</div></div>;
+  return (
+    <div
+      style={{
+        background: C.paper,
+        borderRadius: 8,
+        padding: "8px 10px",
+        textAlign: "center",
+      }}
+    >
+      <div style={{ fontSize: 17, fontWeight: 700 }}>{value}</div>
+      <div style={{ fontSize: 10.5, color: C.slate }}>{label}</div>
+    </div>
+  );
 }
 
 /* ---------------------------------------------------------------
@@ -1488,109 +3569,408 @@ function MiniStat({ label, value }) {
 ----------------------------------------------------------------*/
 function exportTaskReport(employees, tasks) {
   const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const rows = [["Employee", "Department", "Completed Tasks", "Total Tasks", "Completion %"]];
-  employees.forEach(e => {
-    const empTasks = tasks.filter(t => isOnTask(t, e.id)); // shared tasks count for everyone on them
-    const completed = empTasks.filter(t => t.status === "Completed").length;
-    const pct = empTasks.length ? Math.round((completed / empTasks.length) * 100) : 0;
-    rows.push([e.name, deptById[e.dept]?.name || e.dept, completed, empTasks.length, `${pct}%`]);
+  const rows = [
+    [
+      "Employee",
+      "Department",
+      "Completed Tasks",
+      "Total Tasks",
+      "Completion %",
+    ],
+  ];
+  employees.forEach((e) => {
+    const empTasks = tasks.filter((t) => isOnTask(t, e.id)); // shared tasks count for everyone on them
+    const completed = empTasks.filter((t) => t.status === "Completed").length;
+    const pct = empTasks.length
+      ? Math.round((completed / empTasks.length) * 100)
+      : 0;
+    rows.push([
+      e.name,
+      deptById[e.dept]?.name || e.dept,
+      completed,
+      empTasks.length,
+      `${pct}%`,
+    ]);
   });
   rows.push([]);
   rows.push(["Completed Task Log"]);
   rows.push(["Employee", "Task", "Department", "Due Date"]);
-  const byId = Object.fromEntries(employees.map(e => [e.id, e]));
-  tasks.filter(t => t.status === "Completed").forEach(t => {
-    rows.push([byId[t.assignee]?.name || t.assignee || "Unassigned", t.title, deptById[t.dept]?.name || t.dept, t.due]);
-  });
-  const csv = rows.map(r => r.map(esc).join(",")).join("\n");
+  const byId = Object.fromEntries(employees.map((e) => [e.id, e]));
+  tasks
+    .filter((t) => t.status === "Completed")
+    .forEach((t) => {
+      rows.push([
+        byId[t.assignee]?.name || t.assignee || "Unassigned",
+        t.title,
+        deptById[t.dept]?.name || t.dept,
+        t.due,
+      ]);
+    });
+  const csv = rows.map((r) => r.map(esc).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = `motherbase-task-report-${today()}.csv`;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  a.href = url;
+  a.download = `motherbase-task-report-${today()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
 
-function Tasks({ tasks, archivedTasks, reportTasks, taskView, setTaskView, setTaskStatus, bulkUpdateTasks, viewerEmp, canCreate, setShowAddTask, setTaskDetail, onRepeat, onArchive, dark }) {
+function Tasks({
+  tasks,
+  archivedTasks,
+  reportTasks,
+  taskView,
+  setTaskView,
+  setTaskStatus,
+  bulkUpdateTasks,
+  viewerEmp,
+  canCreate,
+  setShowAddTask,
+  setTaskDetail,
+  onRepeat,
+  onArchive,
+  dark,
+}) {
   const { employees } = useEmp();
   const [deptFilter, setDeptFilter] = useState("all");
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [checkedTaskIds, setCheckedTaskIds] = useState(() => {
-    try { return new Set(JSON.parse(localStorage.getItem("mb-checked-tasks") || "[]")); } catch { return new Set(); }
+    try {
+      return new Set(
+        JSON.parse(localStorage.getItem("mb-checked-tasks") || "[]"),
+      );
+    } catch {
+      return new Set();
+    }
   });
 
   useEffect(() => {
-    try { localStorage.setItem("mb-checked-tasks", JSON.stringify(Array.from(checkedTaskIds))); } catch {}
+    try {
+      localStorage.setItem(
+        "mb-checked-tasks",
+        JSON.stringify(Array.from(checkedTaskIds)),
+      );
+    } catch {}
   }, [checkedTaskIds]);
 
-  const boardTasks = useMemo(() => deptFilter === "all" ? tasks : tasks.filter(t => t.dept === deptFilter), [tasks, deptFilter]);
-  const checkedTasks = boardTasks.filter(task => checkedTaskIds.has(task.id));
+  const boardTasks = useMemo(
+    () =>
+      deptFilter === "all" ? tasks : tasks.filter((t) => t.dept === deptFilter),
+    [tasks, deptFilter],
+  );
+  const checkedTasks = boardTasks.filter((task) => checkedTaskIds.has(task.id));
   const toggleCheckedTask = (taskId) => {
-    setCheckedTaskIds(previous => {
+    setCheckedTaskIds((previous) => {
       const next = new Set(previous);
-      if (next.has(taskId)) next.delete(taskId); else next.add(taskId);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
       return next;
     });
   };
 
   return (
-    <div className={selectionMode ? "mb-selection-mode" : undefined} style={{ position: "relative", minHeight: "calc(100vh - 112px)", overflow: "hidden", borderRadius: 16, padding: 18, margin: -8 }}>
+    <div
+      className={selectionMode ? "mb-selection-mode" : undefined}
+      style={{
+        position: "relative",
+        minHeight: "calc(100vh - 112px)",
+        overflow: "hidden",
+        borderRadius: 16,
+        padding: 18,
+        margin: -8,
+      }}
+    >
       <div style={{ position: "relative", zIndex: 1 }}>
-        <PageHeader eyebrow="Task Management" title="Tasks" actions={
-          <div className="mb-task-toolbar" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <ToggleBtn active={taskView==="kanban"} onClick={()=>setTaskView("kanban")} icon={KanbanSquare} label="Kanban" />
-            <ToggleBtn active={taskView==="list"} onClick={()=>setTaskView("list")} icon={Table2} label="List" />
-            <ToggleBtn active={taskView==="calendar"} onClick={()=>setTaskView("calendar")} icon={CalendarDays} label="Calendar" />
-            {canCreate && (
-              <button onClick={() => exportTaskReport(employees, reportTasks || tasks)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.card, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 8, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", marginLeft: 6 }}>
-                Export Report
+        <PageHeader
+          eyebrow="Task Management"
+          title="Tasks"
+          actions={
+            <div
+              className="mb-task-toolbar"
+              style={{ display: "flex", gap: 8, alignItems: "center" }}
+            >
+              <ToggleBtn
+                active={taskView === "kanban"}
+                onClick={() => setTaskView("kanban")}
+                icon={KanbanSquare}
+                label="Kanban"
+              />
+              <ToggleBtn
+                active={taskView === "list"}
+                onClick={() => setTaskView("list")}
+                icon={Table2}
+                label="List"
+              />
+              <ToggleBtn
+                active={taskView === "calendar"}
+                onClick={() => setTaskView("calendar")}
+                icon={CalendarDays}
+                label="Calendar"
+              />
+              {canCreate && (
+                <button
+                  onClick={() =>
+                    exportTaskReport(employees, reportTasks || tasks)
+                  }
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    background: C.card,
+                    border: `1px solid ${C.line}`,
+                    color: C.ink,
+                    borderRadius: 8,
+                    padding: "7px 12px",
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    marginLeft: 6,
+                  }}
+                >
+                  Export Report
+                </button>
+              )}
+              <button
+                type="button"
+                aria-pressed={selectionMode}
+                onClick={() => setSelectionMode((mode) => !mode)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: selectionMode ? C.navySoft : C.card,
+                  border: `1px solid ${selectionMode ? C.navySoft : C.line}`,
+                  color: selectionMode ? "#fff" : C.ink,
+                  borderRadius: 8,
+                  padding: "7px 12px",
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                <Check size={14} />{" "}
+                {selectionMode ? "Done selecting" : "Select tasks"}
               </button>
-            )}
-            <button type="button" aria-pressed={selectionMode} onClick={() => setSelectionMode(mode => !mode)} style={{ display: "flex", alignItems: "center", gap: 6, background: selectionMode ? C.navySoft : C.card, border: `1px solid ${selectionMode ? C.navySoft : C.line}`, color: selectionMode ? "#fff" : C.ink, borderRadius: 8, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><Check size={14} /> {selectionMode ? "Done selecting" : "Select tasks"}</button>
-            {canCreate && <button onClick={() => setShowBulkEdit(true)} disabled={!checkedTasks.length} style={{ display: "flex", alignItems: "center", gap: 6, background: C.card, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 8, padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: checkedTasks.length ? "pointer" : "not-allowed", opacity: checkedTasks.length ? 1 : 0.55 }}><Pencil size={14} /> Bulk edit{checkedTasks.length ? ` (${checkedTasks.length})` : ""}</button>}
-            {canCreate && <button onClick={() => setShowAddTask(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}><Plus size={15} /> Add Task</button>}
-          </div>
-        } />
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 14, alignItems: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 10, padding: "7px 10px" }}>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: C.slate }}>Department</span>
-            <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} style={{ background: "transparent", border: "none", color: C.ink, fontSize: 12.5, fontFamily: "inherit", outline: "none" }}>
+              {canCreate && (
+                <button
+                  onClick={() => setShowBulkEdit(true)}
+                  disabled={!checkedTasks.length}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    background: C.card,
+                    border: `1px solid ${C.line}`,
+                    color: C.ink,
+                    borderRadius: 8,
+                    padding: "7px 12px",
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: checkedTasks.length ? "pointer" : "not-allowed",
+                    opacity: checkedTasks.length ? 1 : 0.55,
+                  }}
+                >
+                  <Pencil size={14} /> Bulk edit
+                  {checkedTasks.length ? ` (${checkedTasks.length})` : ""}
+                </button>
+              )}
+              {canCreate && (
+                <button
+                  onClick={() => setShowAddTask(true)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    background: C.amber,
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "8px 14px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  <Plus size={15} /> Add Task
+                </button>
+              )}
+            </div>
+          }
+        />
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 10,
+            marginBottom: 14,
+            alignItems: "center",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              background: "var(--mb-glass-surface)",
+              border: "1px solid var(--mb-glass-border)",
+              borderRadius: 10,
+              padding: "7px 10px",
+            }}
+          >
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: C.slate }}>
+              Department
+            </span>
+            <select
+              value={deptFilter}
+              onChange={(e) => setDeptFilter(e.target.value)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: C.ink,
+                fontSize: 12.5,
+                fontFamily: "inherit",
+                outline: "none",
+              }}
+            >
               <option value="all">All departments</option>
-              {DEPARTMENTS.map(dep => <option key={dep.id} value={dep.id}>{dep.name}</option>)}
+              {DEPARTMENTS.map((dep) => (
+                <option key={dep.id} value={dep.id}>
+                  {dep.name}
+                </option>
+              ))}
             </select>
           </div>
-          <div style={{ fontSize: 11.5, color: C.slate, background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 999, padding: "6px 10px" }}>
+          <div
+            style={{
+              fontSize: 11.5,
+              color: C.slate,
+              background: "var(--mb-glass-surface)",
+              border: "1px solid var(--mb-glass-border)",
+              borderRadius: 999,
+              padding: "6px 10px",
+            }}
+          >
             {checkedTasks.length} checked
           </div>
         </div>
-        {!canCreate && <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 14 }}>Viewing as {viewerEmp.name} ({ROLE_LABEL[viewerEmp.role]}) — you can update status and progress on your own tasks. Completion needs your supervisor's sign-off.</div>}
-        {taskView === "kanban" && <KanbanView tasks={boardTasks} archivedTasks={archivedTasks} setTaskStatus={setTaskStatus} bulkUpdateTasks={bulkUpdateTasks} viewerEmp={viewerEmp} setTaskDetail={setTaskDetail} onRepeat={onRepeat} onArchive={onArchive} dark={dark} checkedTaskIds={checkedTaskIds} onToggleChecked={toggleCheckedTask} selectionMode={selectionMode} />}
-        {taskView === "list" && <ListView tasks={boardTasks} setTaskDetail={setTaskDetail} dark={dark} checkedTaskIds={checkedTaskIds} onToggleChecked={toggleCheckedTask} />}
-        {taskView === "calendar" && <CalendarView tasks={boardTasks} setTaskDetail={setTaskDetail} dark={dark} checkedTaskIds={checkedTaskIds} onToggleChecked={toggleCheckedTask} />}
-        {showBulkEdit && <BulkEditModal tasks={checkedTasks} checkedTaskIds={checkedTaskIds} onToggleChecked={toggleCheckedTask} onClose={() => setShowBulkEdit(false)} onApply={bulkUpdateTasks} />}
+        {!canCreate && (
+          <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 14 }}>
+            Viewing as {viewerEmp.name} ({ROLE_LABEL[viewerEmp.role]}) — you can
+            update status and progress on your own tasks. Completion needs your
+            supervisor's sign-off.
+          </div>
+        )}
+        {taskView === "kanban" && (
+          <KanbanView
+            tasks={boardTasks}
+            archivedTasks={archivedTasks}
+            setTaskStatus={setTaskStatus}
+            bulkUpdateTasks={bulkUpdateTasks}
+            viewerEmp={viewerEmp}
+            setTaskDetail={setTaskDetail}
+            onRepeat={onRepeat}
+            onArchive={onArchive}
+            dark={dark}
+            checkedTaskIds={checkedTaskIds}
+            onToggleChecked={toggleCheckedTask}
+            selectionMode={selectionMode}
+          />
+        )}
+        {taskView === "list" && (
+          <ListView
+            tasks={boardTasks}
+            setTaskDetail={setTaskDetail}
+            dark={dark}
+            checkedTaskIds={checkedTaskIds}
+            onToggleChecked={toggleCheckedTask}
+          />
+        )}
+        {taskView === "calendar" && (
+          <CalendarView
+            tasks={boardTasks}
+            setTaskDetail={setTaskDetail}
+            dark={dark}
+            checkedTaskIds={checkedTaskIds}
+            onToggleChecked={toggleCheckedTask}
+          />
+        )}
+        {showBulkEdit && (
+          <BulkEditModal
+            tasks={checkedTasks}
+            checkedTaskIds={checkedTaskIds}
+            onToggleChecked={toggleCheckedTask}
+            onClose={() => setShowBulkEdit(false)}
+            onApply={bulkUpdateTasks}
+          />
+        )}
       </div>
     </div>
   );
 }
 
-const ellipsis = { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+const ellipsis = {
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
 const STAGE_HINT = { "For Review": "Submit for sign-off" };
-const stageColor = (s) => ({ Backlog: C.slate, "To Do": C.blue, "In Progress": C.amber, "For Review": "#7C6BD6", Completed: C.completed }[s] || C.slate);
+const stageColor = (s) =>
+  ({
+    Backlog: C.slate,
+    "To Do": C.blue,
+    "In Progress": C.amber,
+    "For Review": "#7C6BD6",
+    Completed: C.completed,
+  })[s] || C.slate;
 
 // One entry per person, alphabetical, "Unassigned" last.
 function groupByAssignee(items, byId) {
   const map = new Map();
-  items.forEach(t => { const k = t.assignee || ""; if (!map.has(k)) map.set(k, []); map.get(k).push(t); });
+  items.forEach((t) => {
+    const k = t.assignee || "";
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(t);
+  });
   return [...map.entries()]
-    .map(([assignee, cards]) => ({ assignee, name: byId[assignee]?.name || "Unassigned", cards }))
-    .sort((a, b) => (a.assignee === "") - (b.assignee === "") || a.name.localeCompare(b.name));
+    .map(([assignee, cards]) => ({
+      assignee,
+      name: byId[assignee]?.name || "Unassigned",
+      cards,
+    }))
+    .sort(
+      (a, b) =>
+        (a.assignee === "") - (b.assignee === "") ||
+        a.name.localeCompare(b.name),
+    );
 }
 
 function IconBtn({ children, onClick, title, disabled }) {
   return (
-    <button type="button" onClick={onClick} title={title} aria-label={title} disabled={disabled}
-      style={{ width: 34, height: 34, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: C.card, border: `1px solid ${C.line}`, borderRadius: 9, color: C.ink, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.4 : 1 }}>
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      disabled={disabled}
+      style={{
+        width: 34,
+        height: 34,
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: C.card,
+        border: `1px solid ${C.line}`,
+        borderRadius: 9,
+        color: C.ink,
+        cursor: disabled ? "default" : "pointer",
+        opacity: disabled ? 0.4 : 1,
+      }}
+    >
       {children}
     </button>
   );
@@ -1598,8 +3978,28 @@ function IconBtn({ children, onClick, title, disabled }) {
 
 function MiniBtn({ children, onClick, icon: Icon, title }) {
   return (
-    <button type="button" onClick={onClick} title={title}
-      style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 32, padding: "6px 10px", background: C.card, color: C.ink, border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      style={{
+        flex: 1,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        minHeight: 32,
+        padding: "6px 10px",
+        background: C.card,
+        color: C.ink,
+        border: `1px solid ${C.line}`,
+        borderRadius: 8,
+        fontSize: 12,
+        fontWeight: 600,
+        fontFamily: "inherit",
+        cursor: "pointer",
+      }}
+    >
       <Icon size={13} color={C.slate} /> {children}
     </button>
   );
@@ -1617,56 +4017,196 @@ function StageMenu({ current, onSelect, canComplete, variant = "card" }) {
     if (!open) return;
     window.addEventListener("scroll", close, true);
     window.addEventListener("resize", close);
-    return () => { window.removeEventListener("scroll", close, true); window.removeEventListener("resize", close); };
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
   }, [open]);
 
   const toggle = (e) => {
     e.stopPropagation();
-    if (open) { close(); return; }
+    if (open) {
+      close();
+      return;
+    }
     const r = anchorRef.current.getBoundingClientRect();
-    const width = 232, menuH = COLUMNS.length * 46 + 40;
-    const flip = window.innerHeight - r.bottom < menuH + 12 && r.top > menuH + 12;
-    const top = Math.max(8, Math.min(flip ? r.top - menuH - 6 : r.bottom + 6, window.innerHeight - menuH - 8));
-    const left = Math.max(8, Math.min(variant === "icon" ? r.right - width : r.left, window.innerWidth - width - 8));
+    const width = 232,
+      menuH = COLUMNS.length * 46 + 40;
+    const flip =
+      window.innerHeight - r.bottom < menuH + 12 && r.top > menuH + 12;
+    const top = Math.max(
+      8,
+      Math.min(
+        flip ? r.top - menuH - 6 : r.bottom + 6,
+        window.innerHeight - menuH - 8,
+      ),
+    );
+    const left = Math.max(
+      8,
+      Math.min(
+        variant === "icon" ? r.right - width : r.left,
+        window.innerWidth - width - 8,
+      ),
+    );
     setPos({ top, left, width });
   };
 
   return (
-    <div ref={anchorRef} style={variant === "icon" ? { display: "inline-flex" } : { width: "100%" }}>
+    <div
+      ref={anchorRef}
+      style={
+        variant === "icon" ? { display: "inline-flex" } : { width: "100%" }
+      }
+    >
       {variant === "icon" ? (
-        <IconBtn onClick={toggle} title="Move to another stage"><ArrowRightLeft size={15} /></IconBtn>
+        <IconBtn onClick={toggle} title="Move to another stage">
+          <ArrowRightLeft size={15} />
+        </IconBtn>
       ) : (
-        <button type="button" onClick={toggle} aria-haspopup="menu" aria-expanded={open}
-          style={{ display: "flex", alignItems: "center", gap: 7, width: "100%", minHeight: 32, padding: "6px 10px", background: C.card, color: C.ink, border: `1px solid ${open ? C.slate : C.line}`, borderRadius: 8, fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", textAlign: "left" }}>
+        <button
+          type="button"
+          onClick={toggle}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 7,
+            width: "100%",
+            minHeight: 32,
+            padding: "6px 10px",
+            background: C.card,
+            color: C.ink,
+            border: `1px solid ${open ? C.slate : C.line}`,
+            borderRadius: 8,
+            fontSize: 12,
+            fontWeight: 600,
+            fontFamily: "inherit",
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+        >
           <ArrowRightLeft size={13} color={C.slate} />
           <span style={{ flex: 1 }}>Move to…</span>
-          <ChevronDown size={14} color={C.slate} style={{ transform: open ? "rotate(180deg)" : "none" }} />
+          <ChevronDown
+            size={14}
+            color={C.slate}
+            style={{ transform: open ? "rotate(180deg)" : "none" }}
+          />
         </button>
       )}
-      {open && createPortal(
-        <>
-          <div onClick={(e) => { e.stopPropagation(); close(); }} style={{ position: "fixed", inset: 0, zIndex: 300 }} />
-          <div role="menu" onClick={(e) => e.stopPropagation()}
-            style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width, zIndex: 301, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 6, boxShadow: "0 10px 30px rgba(0,0,0,0.2)", color: C.ink }}>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: C.slate, textTransform: "uppercase", letterSpacing: 0.4, padding: "6px 10px 4px" }}>Move to stage</div>
-            {COLUMNS.map(stage => {
-              const blocked = stage === "Completed" && !canComplete;
-              const hint = blocked ? "Needs your supervisor's sign-off" : stage === "Completed" ? "Mark as done" : STAGE_HINT[stage];
-              return (
-                <button key={stage} type="button" role="menuitem" disabled={blocked}
-                  onClick={(e) => { e.stopPropagation(); close(); if (stage !== current) onSelect(stage); }}
-                  style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 10px", background: stage === current ? C.paper : "transparent", border: "none", borderRadius: 8, textAlign: "left", fontFamily: "inherit", color: C.ink, cursor: blocked ? "not-allowed" : "pointer", opacity: blocked ? 0.5 : 1 }}>
-                  <span style={{ width: 9, height: 9, borderRadius: 9, background: stageColor(stage), flexShrink: 0 }} />
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: "block", fontSize: 13, fontWeight: 600 }}>{stage}</span>
-                    {hint && <span style={{ display: "block", fontSize: 11, color: C.slate }}>{hint}</span>}
-                  </span>
-                  {stage === current && <Check size={14} color={C.sage} />}
-                </button>
-              );
-            })}
-          </div>
-        </>, document.body)}
+      {open &&
+        createPortal(
+          <>
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                close();
+              }}
+              style={{ position: "fixed", inset: 0, zIndex: 300 }}
+            />
+            <div
+              role="menu"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: "fixed",
+                top: pos.top,
+                left: pos.left,
+                width: pos.width,
+                zIndex: 301,
+                background: C.card,
+                border: `1px solid ${C.line}`,
+                borderRadius: 12,
+                padding: 6,
+                boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+                color: C.ink,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  color: C.slate,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.4,
+                  padding: "6px 10px 4px",
+                }}
+              >
+                Move to stage
+              </div>
+              {COLUMNS.map((stage) => {
+                const blocked = stage === "Completed" && !canComplete;
+                const hint = blocked
+                  ? "Needs your supervisor's sign-off"
+                  : stage === "Completed"
+                    ? "Mark as done"
+                    : STAGE_HINT[stage];
+                return (
+                  <button
+                    key={stage}
+                    type="button"
+                    role="menuitem"
+                    disabled={blocked}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      close();
+                      if (stage !== current) onSelect(stage);
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      width: "100%",
+                      padding: "8px 10px",
+                      background: stage === current ? C.paper : "transparent",
+                      border: "none",
+                      borderRadius: 8,
+                      textAlign: "left",
+                      fontFamily: "inherit",
+                      color: C.ink,
+                      cursor: blocked ? "not-allowed" : "pointer",
+                      opacity: blocked ? 0.5 : 1,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 9,
+                        height: 9,
+                        borderRadius: 9,
+                        background: stageColor(stage),
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span
+                        style={{
+                          display: "block",
+                          fontSize: 13,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {stage}
+                      </span>
+                      {hint && (
+                        <span
+                          style={{
+                            display: "block",
+                            fontSize: 11,
+                            color: C.slate,
+                          }}
+                        >
+                          {hint}
+                        </span>
+                      )}
+                    </span>
+                    {stage === current && <Check size={14} color={C.sage} />}
+                  </button>
+                );
+              })}
+            </div>
+          </>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -1674,52 +4214,148 @@ function StageMenu({ current, onSelect, canComplete, variant = "card" }) {
 // What sits at the bottom of a card: the move menu, or Repeat/Remove once it's completed.
 function TaskCardActions({ t, viewerEmp, setTaskStatus, onRepeat, onArchive }) {
   const isEmployee = viewerEmp.role === "employee";
-  const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
+  const stop = (fn) => (e) => {
+    e.stopPropagation();
+    fn();
+  };
   if (t.archived) {
     return isEmployee ? null : (
-      <div style={{ marginTop: 8 }}><MiniBtn icon={ArchiveRestore} onClick={stop(() => onArchive(t, false))}>Restore to board</MiniBtn></div>
+      <div style={{ marginTop: 8 }}>
+        <MiniBtn
+          icon={ArchiveRestore}
+          onClick={stop(() => onArchive(t, false))}
+        >
+          Restore to board
+        </MiniBtn>
+      </div>
     );
   }
   if (t.status === "Completed") {
     return isEmployee ? null : (
       <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-        <MiniBtn icon={Repeat} title="Make a fresh copy of this task" onClick={stop(() => onRepeat(t))}>Repeat</MiniBtn>
-        <MiniBtn icon={Archive} title="Remove from the board — it stays saved" onClick={stop(() => onArchive(t, true))}>Remove</MiniBtn>
+        <MiniBtn
+          icon={Repeat}
+          title="Make a fresh copy of this task"
+          onClick={stop(() => onRepeat(t))}
+        >
+          Repeat
+        </MiniBtn>
+        <MiniBtn
+          icon={Archive}
+          title="Remove from the board — it stays saved"
+          onClick={stop(() => onArchive(t, true))}
+        >
+          Remove
+        </MiniBtn>
       </div>
     );
   }
   if (isEmployee && !isOnTask(t, viewerEmp.id)) return null;
   return (
     <div style={{ marginTop: 8 }}>
-      <StageMenu current={t.status} canComplete={!isEmployee} onSelect={(stage) => setTaskStatus(t.id, stage)} />
+      <StageMenu
+        current={t.status}
+        canComplete={!isEmployee}
+        onSelect={(stage) => setTaskStatus(t.id, stage)}
+      />
     </div>
   );
 }
 
 function Chip({ children, color, bg }) {
-  return <span style={{ fontSize: 10.5, fontWeight: 700, color, background: bg, borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>{children}</span>;
+  return (
+    <span
+      style={{
+        fontSize: 10.5,
+        fontWeight: 700,
+        color,
+        background: bg,
+        borderRadius: 20,
+        padding: "2px 8px",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {children}
+    </span>
+  );
 }
 
-function TaskSelectButton({ checked, indeterminate = false, dark, label, onClick, className, style }) {
+function TaskSelectButton({
+  checked,
+  indeterminate = false,
+  dark,
+  label,
+  onClick,
+  className,
+  style,
+}) {
   const active = checked || indeterminate;
   return (
-    <button className={className} type="button" role="checkbox" aria-checked={indeterminate ? "mixed" : checked} aria-label={label}
-      onClick={e => { e.stopPropagation(); onClick(); }}
-      style={{ width: 20, height: 20, flexShrink: 0, borderRadius: 6, border: `1px solid ${active ? "rgba(166, 144, 255, 0.9)" : dark ? "rgba(255,255,255,0.12)" : C.line}`, background: active ? "linear-gradient(180deg, #8a7aff, #6552d6)" : dark ? "rgba(255,255,255,0.02)" : C.paper, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", cursor: "pointer", padding: 0, ...style }}>
-      {checked ? <Check size={12} /> : indeterminate ? <Minus size={12} /> : null}
+    <button
+      className={className}
+      type="button"
+      role="checkbox"
+      aria-checked={indeterminate ? "mixed" : checked}
+      aria-label={label}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      style={{
+        width: 20,
+        height: 20,
+        flexShrink: 0,
+        borderRadius: 6,
+        border: `1px solid ${active ? "rgba(166, 144, 255, 0.9)" : dark ? "rgba(255,255,255,0.12)" : C.line}`,
+        background: active
+          ? "linear-gradient(180deg, #8a7aff, #6552d6)"
+          : dark
+            ? "rgba(255,255,255,0.02)"
+            : C.paper,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "#fff",
+        cursor: "pointer",
+        padding: 0,
+        ...style,
+      }}
+    >
+      {checked ? (
+        <Check size={12} />
+      ) : indeterminate ? (
+        <Minus size={12} />
+      ) : null}
     </button>
   );
 }
 
 // A stack-of-cards tile that stands for everything one person has in a column.
-function GroupHolder({ group, onOpen, dark, checkedTaskIds, onToggleGroup, selectionMode, bulkUpdateTasks, canBulkEdit }) {
+function GroupHolder({
+  group,
+  onOpen,
+  dark,
+  checkedTaskIds,
+  onToggleGroup,
+  selectionMode,
+  bulkUpdateTasks,
+  canBulkEdit,
+}) {
   const { byId, onlineIds } = useEmp();
   const emp = byId[group.assignee];
-  const overdue = group.cards.filter(t => statusMeta(t).label === "Overdue").length;
-  const high = group.cards.filter(t => t.priority === "High" && t.status !== "Completed").length;
-  const checkedCount = group.cards.filter(t => checkedTaskIds.has(t.id)).length;
+  const overdue = group.cards.filter(
+    (t) => statusMeta(t).label === "Overdue",
+  ).length;
+  const high = group.cards.filter(
+    (t) => t.priority === "High" && t.status !== "Completed",
+  ).length;
+  const checkedCount = group.cards.filter((t) =>
+    checkedTaskIds.has(t.id),
+  ).length;
   const allChecked = checkedCount === group.cards.length;
-  const selectedCards = group.cards.filter(task => checkedTaskIds.has(task.id));
+  const selectedCards = group.cards.filter((task) =>
+    checkedTaskIds.has(task.id),
+  );
   const shownTasks = group.cards.slice(0, 2);
   const moreCount = group.cards.length - shownTasks.length;
   const [moving, setMoving] = useState(false);
@@ -1728,169 +4364,658 @@ function GroupHolder({ group, onOpen, dark, checkedTaskIds, onToggleGroup, selec
     const patch = { status };
     if (status === "Completed") patch.progress = 100;
     setMoving(true);
-    await bulkUpdateTasks(selectedCards.map(task => task.id), patch);
+    await bulkUpdateTasks(
+      selectedCards.map((task) => task.id),
+      patch,
+    );
     setMoving(false);
   };
   return (
-    <div className={`mb-group-select-wrap${selectionMode ? " is-selection-mode" : ""}${checkedCount ? " has-checked" : ""}`} style={{ position: "relative", marginBottom: 8 }}>
-      <TaskSelectButton className="mb-group-select-control" checked={allChecked} indeterminate={checkedCount > 0 && !allChecked} dark={dark}
-        onClick={onToggleGroup} label={allChecked ? `Deselect all tasks for ${group.name}` : `Select all ${group.cards.length} tasks for ${group.name}`}
-        style={{ position: "absolute", zIndex: 3, top: 14, right: 14 }} />
-      <button type="button" onClick={onOpen} aria-label={`Open ${group.cards.length} tasks for ${group.name}`} style={{ display: "block", width: "100%", textAlign: "left", fontFamily: "inherit", color: C.ink, cursor: "pointer", background: dark ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))" : "var(--mb-glass-surface)", border: `1px solid ${checkedCount ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`, borderRadius: 16, padding: 12, paddingRight: canBulkEdit && checkedCount ? 170 : 42, backdropFilter: "blur(14px) saturate(140%)", boxShadow: checkedCount ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)" : dark ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)" : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)" }}>
+    <div
+      className={`mb-group-select-wrap${selectionMode ? " is-selection-mode" : ""}${checkedCount ? " has-checked" : ""}`}
+      style={{ position: "relative", marginBottom: 8 }}
+    >
+      <TaskSelectButton
+        className="mb-group-select-control"
+        checked={allChecked}
+        indeterminate={checkedCount > 0 && !allChecked}
+        dark={dark}
+        onClick={onToggleGroup}
+        label={
+          allChecked
+            ? `Deselect all tasks for ${group.name}`
+            : `Select all ${group.cards.length} tasks for ${group.name}`
+        }
+        style={{ position: "absolute", zIndex: 3, top: 14, right: 14 }}
+      />
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`Open ${group.cards.length} tasks for ${group.name}`}
+        style={{
+          display: "block",
+          width: "100%",
+          textAlign: "left",
+          fontFamily: "inherit",
+          color: C.ink,
+          cursor: "pointer",
+          background: dark
+            ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))"
+            : "var(--mb-glass-surface)",
+          border: `1px solid ${checkedCount ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`,
+          borderRadius: 16,
+          padding: 12,
+          paddingRight: canBulkEdit && checkedCount ? 170 : 42,
+          backdropFilter: "blur(14px) saturate(140%)",
+          boxShadow: checkedCount
+            ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)"
+            : dark
+              ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)"
+              : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)",
+        }}
+      >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Avatar name={group.name} size={34} color={deptById[emp?.dept]?.color} online={onlineIds?.has(group.assignee)} />
+          <Avatar
+            name={group.name}
+            size={34}
+            color={deptById[emp?.dept]?.color}
+            online={onlineIds?.has(group.assignee)}
+          />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700, ...ellipsis }}>{group.name}</div>
-            <div style={{ fontSize: 11, color: C.slate, ...ellipsis }}>{emp?.position || "No assignee"}</div>
+            <div style={{ fontSize: 13.5, fontWeight: 700, ...ellipsis }}>
+              {group.name}
+            </div>
+            <div style={{ fontSize: 11, color: C.slate, ...ellipsis }}>
+              {emp?.position || "No assignee"}
+            </div>
           </div>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", background: C.navySoft, borderRadius: 20, padding: "2px 9px" }}>{checkedCount ? `${checkedCount}/${group.cards.length}` : group.cards.length}</span>
-        </div>
-        <div style={{ marginTop: 10, borderTop: `1px solid ${C.line}`, paddingTop: 8 }}>
-          {shownTasks.map(task => <div key={task.id} style={{ fontSize: 12, color: C.slate, padding: "1px 0", ...ellipsis }}>• {task.title}</div>)}
-          {moreCount > 0 && <div style={{ fontSize: 11.5, color: C.slate, fontWeight: 600, paddingTop: 2 }}>+ {moreCount} more</div>}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8, gap: 6 }}>
-          <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {overdue > 0 && <Chip color={C.coral} bg={C.coralSoft}>{overdue} overdue</Chip>}
-            {high > 0 && <Chip color={C.coral} bg={C.coralSoft}>{high} high</Chip>}
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: "#fff",
+              background: C.navySoft,
+              borderRadius: 20,
+              padding: "2px 9px",
+            }}
+          >
+            {checkedCount
+              ? `${checkedCount}/${group.cards.length}`
+              : group.cards.length}
           </span>
-          <span style={{ display: "flex", alignItems: "center", fontSize: 11.5, fontWeight: 600, color: C.ink, whiteSpace: "nowrap" }}>View all <ChevronRight size={14} /></span>
+        </div>
+        <div
+          style={{
+            marginTop: 10,
+            borderTop: `1px solid ${C.line}`,
+            paddingTop: 8,
+          }}
+        >
+          {shownTasks.map((task) => (
+            <div
+              key={task.id}
+              style={{
+                fontSize: 12,
+                color: C.slate,
+                padding: "1px 0",
+                ...ellipsis,
+              }}
+            >
+              • {task.title}
+            </div>
+          ))}
+          {moreCount > 0 && (
+            <div
+              style={{
+                fontSize: 11.5,
+                color: C.slate,
+                fontWeight: 600,
+                paddingTop: 2,
+              }}
+            >
+              + {moreCount} more
+            </div>
+          )}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginTop: 8,
+            gap: 6,
+          }}
+        >
+          <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {overdue > 0 && (
+              <Chip color={C.coral} bg={C.coralSoft}>
+                {overdue} overdue
+              </Chip>
+            )}
+            {high > 0 && (
+              <Chip color={C.coral} bg={C.coralSoft}>
+                {high} high
+              </Chip>
+            )}
+          </span>
+          <span
+            style={{
+              display: "flex",
+              alignItems: "center",
+              fontSize: 11.5,
+              fontWeight: 600,
+              color: C.ink,
+              whiteSpace: "nowrap",
+            }}
+          >
+            View all <ChevronRight size={14} />
+          </span>
         </div>
       </button>
-      {canBulkEdit && checkedCount > 0 && <select aria-label={`Move ${checkedCount} checked tasks for ${group.name}`} value="" disabled={moving} onClick={e => e.stopPropagation()} onChange={e => moveSelected(e.target.value)} style={{ position: "absolute", zIndex: 3, top: 9, right: 42, width: 116, ...inputStyle, fontSize: 10.5, padding: "4px 5px", background: C.card }}>
-        <option value="">{moving ? "Moving…" : "Move checked…"}</option>
-        {COLUMNS.map(stage => <option key={stage} value={stage}>{stage}</option>)}
-      </select>}
+      {canBulkEdit && checkedCount > 0 && (
+        <select
+          aria-label={`Move ${checkedCount} checked tasks for ${group.name}`}
+          value=""
+          disabled={moving}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => moveSelected(e.target.value)}
+          style={{
+            position: "absolute",
+            zIndex: 3,
+            top: 9,
+            right: 42,
+            width: 116,
+            ...inputStyle,
+            fontSize: 10.5,
+            padding: "4px 5px",
+            background: C.card,
+          }}
+        >
+          <option value="">{moving ? "Moving…" : "Move checked…"}</option>
+          {COLUMNS.map((stage) => (
+            <option key={stage} value={stage}>
+              {stage}
+            </option>
+          ))}
+        </select>
+      )}
     </div>
   );
 }
 
-function GroupModal({ group, onClose, setTaskDetail, renderActions, dark, checkedTaskIds, onToggleChecked, selectionMode, bulkUpdateTasks, canBulkEdit }) {
+function GroupModal({
+  group,
+  onClose,
+  setTaskDetail,
+  renderActions,
+  dark,
+  checkedTaskIds,
+  onToggleChecked,
+  selectionMode,
+  bulkUpdateTasks,
+  canBulkEdit,
+}) {
   const { byId, onlineIds } = useEmp();
   const [moving, setMoving] = useState(false);
-  const selectedCards = group.cards.filter(task => checkedTaskIds.has(task.id));
+  const selectedCards = group.cards.filter((task) =>
+    checkedTaskIds.has(task.id),
+  );
   const allChecked = selectedCards.length === group.cards.length;
   const toggleAll = () => {
-    group.cards.filter(task => checkedTaskIds.has(task.id) === allChecked).forEach(task => onToggleChecked(task.id));
+    group.cards
+      .filter((task) => checkedTaskIds.has(task.id) === allChecked)
+      .forEach((task) => onToggleChecked(task.id));
   };
   const moveSelected = async (status) => {
     if (!status || !selectedCards.length || moving) return;
     const patch = { status };
     if (status === "Completed") patch.progress = 100;
     setMoving(true);
-    await bulkUpdateTasks(selectedCards.map(task => task.id), patch);
+    await bulkUpdateTasks(
+      selectedCards.map((task) => task.id),
+      patch,
+    );
     setMoving(false);
   };
   return (
     <ModalShell onClose={onClose} width={900}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, paddingRight: 44, marginBottom: 14, flexWrap: "wrap" }}>
-        <Avatar name={group.name} size={42} color={deptById[byId[group.assignee]?.dept]?.color} online={onlineIds?.has(group.assignee)} />
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          paddingRight: 44,
+          marginBottom: 14,
+          flexWrap: "wrap",
+        }}
+      >
+        <Avatar
+          name={group.name}
+          size={42}
+          color={deptById[byId[group.assignee]?.dept]?.color}
+          online={onlineIds?.has(group.assignee)}
+        />
         <div style={{ flex: 1, minWidth: 150 }}>
-          <div className="mb-display" style={{ fontSize: 19, fontWeight: 600 }}>{group.name}</div>
-          <div style={{ fontSize: 12, color: C.slate }}>{byId[group.assignee]?.position ? `${byId[group.assignee].position} · ` : ""}{group.cards.length} individual tasks</div>
+          <div className="mb-display" style={{ fontSize: 19, fontWeight: 600 }}>
+            {group.name}
+          </div>
+          <div style={{ fontSize: 12, color: C.slate }}>
+            {byId[group.assignee]?.position
+              ? `${byId[group.assignee].position} · `
+              : ""}
+            {group.cards.length} individual tasks
+          </div>
         </div>
-        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: C.slate, cursor: "pointer" }}>
-          <TaskSelectButton checked={allChecked} indeterminate={selectedCards.length > 0 && !allChecked} dark={dark} onClick={toggleAll} label={allChecked ? `Deselect all tasks for ${group.name}` : `Select all tasks for ${group.name}`} />
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 11.5,
+            color: C.slate,
+            cursor: "pointer",
+          }}
+        >
+          <TaskSelectButton
+            checked={allChecked}
+            indeterminate={selectedCards.length > 0 && !allChecked}
+            dark={dark}
+            onClick={toggleAll}
+            label={
+              allChecked
+                ? `Deselect all tasks for ${group.name}`
+                : `Select all tasks for ${group.name}`
+            }
+          />
           Select all
         </label>
-        {canBulkEdit && selectedCards.length > 0 && <select aria-label={`Move ${selectedCards.length} checked tasks for ${group.name}`} value="" disabled={moving} onChange={e => moveSelected(e.target.value)} style={{ ...inputStyle, width: "auto", maxWidth: 170, fontSize: 12, padding: "7px 8px" }}>
-          <option value="">{moving ? "Moving…" : `Move ${selectedCards.length} checked to…`}</option>
-          {COLUMNS.map(stage => <option key={stage} value={stage}>{stage}</option>)}
-        </select>}
+        {canBulkEdit && selectedCards.length > 0 && (
+          <select
+            aria-label={`Move ${selectedCards.length} checked tasks for ${group.name}`}
+            value=""
+            disabled={moving}
+            onChange={(e) => moveSelected(e.target.value)}
+            style={{
+              ...inputStyle,
+              width: "auto",
+              maxWidth: 170,
+              fontSize: 12,
+              padding: "7px 8px",
+            }}
+          >
+            <option value="">
+              {moving ? "Moving…" : `Move ${selectedCards.length} checked to…`}
+            </option>
+            {COLUMNS.map((stage) => (
+              <option key={stage} value={stage}>
+                {stage}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
-      <div className="mb-group-task-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16, maxHeight: "70vh", overflowY: "auto", padding: 6 }}>
-        {group.cards.map(task => <TaskCard key={task.id} t={task} onOpen={() => setTaskDetail(task.id)} dark={dark} isChecked={checkedTaskIds.has(task.id)} onToggleChecked={() => onToggleChecked(task.id)} selectionMode={selectionMode}>{renderActions(task)}</TaskCard>)}
+      <div
+        className="mb-group-task-grid"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+          gap: 16,
+          maxHeight: "70vh",
+          overflowY: "auto",
+          padding: 6,
+        }}
+      >
+        {group.cards.map((task) => (
+          <TaskCard
+            key={task.id}
+            t={task}
+            onOpen={() => setTaskDetail(task.id)}
+            dark={dark}
+            isChecked={checkedTaskIds.has(task.id)}
+            onToggleChecked={() => onToggleChecked(task.id)}
+            selectionMode={selectionMode}
+          >
+            {renderActions(task)}
+          </TaskCard>
+        ))}
       </div>
     </ModalShell>
   );
 }
 
-function KanbanView({ tasks, archivedTasks = [], setTaskStatus, bulkUpdateTasks, viewerEmp, setTaskDetail, onRepeat, onArchive, dark, checkedTaskIds, onToggleChecked, selectionMode }) {
+function KanbanView({
+  tasks,
+  archivedTasks = [],
+  setTaskStatus,
+  bulkUpdateTasks,
+  viewerEmp,
+  setTaskDetail,
+  onRepeat,
+  onArchive,
+  dark,
+  checkedTaskIds,
+  onToggleChecked,
+  selectionMode,
+}) {
   const { byId } = useEmp();
   const [openGroup, setOpenGroup] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
   const [mobileStage, setMobileStage] = useState("To Do");
   const canManage = viewerEmp.role !== "employee";
-  const sourceFor = (col) => (col === "Completed" && showArchived ? archivedTasks : tasks);
-  const actions = (t) => <TaskCardActions t={t} viewerEmp={viewerEmp} setTaskStatus={setTaskStatus} onRepeat={onRepeat} onArchive={onArchive} />;
+  const sourceFor = (col) =>
+    col === "Completed" && showArchived ? archivedTasks : tasks;
+  const actions = (t) => (
+    <TaskCardActions
+      t={t}
+      viewerEmp={viewerEmp}
+      setTaskStatus={setTaskStatus}
+      onRepeat={onRepeat}
+      onArchive={onArchive}
+    />
+  );
   const toggleGroup = (group) => {
-    const allChecked = group.cards.every(task => checkedTaskIds.has(task.id));
-    group.cards.filter(task => checkedTaskIds.has(task.id) === allChecked).forEach(task => onToggleChecked(task.id));
+    const allChecked = group.cards.every((task) => checkedTaskIds.has(task.id));
+    group.cards
+      .filter((task) => checkedTaskIds.has(task.id) === allChecked)
+      .forEach((task) => onToggleChecked(task.id));
   };
-  const openGroupData = openGroup && groupByAssignee(sourceFor(openGroup.col).filter(task => task.status === openGroup.col), byId)
-    .find(group => group.assignee === openGroup.assignee);
-  useEffect(() => { if (openGroup && !openGroupData) setOpenGroup(null); }, [openGroup, openGroupData]);
+  const openGroupData =
+    openGroup &&
+    groupByAssignee(
+      sourceFor(openGroup.col).filter((task) => task.status === openGroup.col),
+      byId,
+    ).find((group) => group.assignee === openGroup.assignee);
+  useEffect(() => {
+    if (openGroup && !openGroupData) setOpenGroup(null);
+  }, [openGroup, openGroupData]);
   return (
     <>
       <div className="mb-kanban-mobile" style={{ marginBottom: 14 }}>
-        <div role="tablist" aria-label="Task stages" style={{ display: "flex", gap: 8, overflowX: "auto", padding: "2px 2px 10px", scrollbarWidth: "none" }}>
-          {COLUMNS.map(col => {
-            const count = sourceFor(col).filter(t => t.status === col).length;
+        <div
+          role="tablist"
+          aria-label="Task stages"
+          style={{
+            display: "flex",
+            gap: 8,
+            overflowX: "auto",
+            padding: "2px 2px 10px",
+            scrollbarWidth: "none",
+          }}
+        >
+          {COLUMNS.map((col) => {
+            const count = sourceFor(col).filter((t) => t.status === col).length;
             const selected = mobileStage === col;
             return (
-              <button key={col} type="button" role="tab" aria-selected={selected} onClick={() => setMobileStage(col)}
-                style={{ display: "inline-flex", alignItems: "center", gap: 7, flex: "0 0 auto", minHeight: 42, padding: "7px 12px", borderRadius: 22, border: `1px solid ${selected ? stageColor(col) : C.line}`, background: selected ? stageColor(col) : C.card, color: selected ? "#fff" : C.ink, fontFamily: "inherit", fontSize: 12.5, fontWeight: 700, cursor: "pointer", boxShadow: selected ? `0 3px 10px ${stageColor(col)}40` : "none" }}>
+              <button
+                key={col}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => setMobileStage(col)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 7,
+                  flex: "0 0 auto",
+                  minHeight: 42,
+                  padding: "7px 12px",
+                  borderRadius: 22,
+                  border: `1px solid ${selected ? stageColor(col) : C.line}`,
+                  background: selected ? stageColor(col) : C.card,
+                  color: selected ? "#fff" : C.ink,
+                  fontFamily: "inherit",
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  boxShadow: selected
+                    ? `0 3px 10px ${stageColor(col)}40`
+                    : "none",
+                }}
+              >
                 {col === "For Review" ? "Review" : col}
-                <span style={{ minWidth: 20, height: 20, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 5px", borderRadius: 12, background: selected ? "rgba(255,255,255,0.2)" : C.paper, color: selected ? "#fff" : C.slate, fontSize: 10.5 }}>{count}</span>
+                <span
+                  style={{
+                    minWidth: 20,
+                    height: 20,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "0 5px",
+                    borderRadius: 12,
+                    background: selected ? "rgba(255,255,255,0.2)" : C.paper,
+                    color: selected ? "#fff" : C.slate,
+                    fontSize: 10.5,
+                  }}
+                >
+                  {count}
+                </span>
               </button>
             );
           })}
         </div>
-        {mobileStage === "Completed" && canManage && (archivedTasks.length > 0 || showArchived) && (
-          <button type="button" onClick={() => setShowArchived(v => !v)}
-            style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", padding: "0 2px 10px", fontSize: 11.5, fontWeight: 600, color: C.slate, cursor: "pointer", fontFamily: "inherit" }}>
-            {showArchived ? <><ChevronLeft size={13} /> Back to completed</> : <><Archive size={12} /> Removed from board ({archivedTasks.length})</>}
-          </button>
-        )}
+        {mobileStage === "Completed" &&
+          canManage &&
+          (archivedTasks.length > 0 || showArchived) && (
+            <button
+              type="button"
+              onClick={() => setShowArchived((v) => !v)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                background: "none",
+                border: "none",
+                padding: "0 2px 10px",
+                fontSize: 11.5,
+                fontWeight: 600,
+                color: C.slate,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {showArchived ? (
+                <>
+                  <ChevronLeft size={13} /> Back to completed
+                </>
+              ) : (
+                <>
+                  <Archive size={12} /> Removed from board (
+                  {archivedTasks.length})
+                </>
+              )}
+            </button>
+          )}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {groupByAssignee(sourceFor(mobileStage).filter(t => t.status === mobileStage), byId).map(group => group.cards.length > 1 ? (
-            <GroupHolder key={`mobile-${mobileStage}-${group.assignee}`} group={group} onOpen={() => setOpenGroup({ col: mobileStage, assignee: group.assignee })} dark={dark} checkedTaskIds={checkedTaskIds} selectionMode={selectionMode} onToggleGroup={() => toggleGroup(group)} bulkUpdateTasks={bulkUpdateTasks} canBulkEdit={canManage} />
-          ) : (
-            <TaskCard key={group.cards[0].id} t={group.cards[0]} onOpen={() => setTaskDetail(group.cards[0].id)} dark={dark} isChecked={checkedTaskIds.has(group.cards[0].id)} onToggleChecked={() => onToggleChecked(group.cards[0].id)} selectionMode={selectionMode}>{actions(group.cards[0])}</TaskCard>
-          ))}
-          {sourceFor(mobileStage).filter(t => t.status === mobileStage).length === 0 && (
-            <Empty text={showArchived && mobileStage === "Completed" ? "Nothing removed." : "No tasks in this stage."} />
+          {sourceFor(mobileStage)
+            .filter((t) => t.status === mobileStage)
+            .map((t) => (
+              <TaskCard
+                key={t.id}
+                t={t}
+                onOpen={() => setTaskDetail(t.id)}
+                dark={dark}
+                isChecked={checkedTaskIds.has(t.id)}
+                onToggleChecked={() => onToggleChecked(t.id)}
+                selectionMode={selectionMode}
+              >
+                {actions(t)}
+              </TaskCard>
+            ))}
+          {sourceFor(mobileStage).filter((t) => t.status === mobileStage)
+            .length === 0 && (
+            <Empty
+              text={
+                showArchived && mobileStage === "Completed"
+                  ? "Nothing removed."
+                  : "No tasks in this stage."
+              }
+            />
           )}
         </div>
       </div>
-      <div className="mb-kanban-desktop" style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8 }}>
-        {COLUMNS.map(col => {
-          const items = sourceFor(col).filter(t => t.status === col);
+      <div
+        className="mb-kanban-desktop"
+        style={{
+          display: "flex",
+          gap: 12,
+          overflowX: "auto",
+          paddingBottom: 8,
+        }}
+      >
+        {COLUMNS.map((col) => {
+          const items = sourceFor(col).filter((t) => t.status === col);
           const groups = groupByAssignee(items, byId);
           const laneCount = ["Backlog", "For Review"].includes(col) ? 1 : 2;
-          const lanes = Array.from({ length: laneCount }, (_, laneIndex) => groups.filter((_, index) => index % laneCount === laneIndex));
+          const lanes = Array.from({ length: laneCount }, (_, laneIndex) =>
+            groups.filter((_, index) => index % laneCount === laneIndex),
+          );
           const archivedView = col === "Completed" && showArchived;
           return (
-            <div key={col} style={{ minWidth: laneCount === 1 ? 250 : 510, flex: `0 0 ${laneCount === 1 ? 250 : 510}px`, display: "flex", flexDirection: "column", gap: 8 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2, padding: "0 2px" }}>
-                <span style={{
-                  display: "inline-flex", alignItems: "center", fontSize: 11.5, fontWeight: 700, letterSpacing: 0.2, color: "#fff",
-                  background: archivedView ? C.slate : stageColor(col), borderRadius: 999, padding: "6px 11px",
-                  boxShadow: `0 8px 18px ${(archivedView ? C.slate : stageColor(col))}55`,
-                }}>
+            <div
+              key={col}
+              style={{
+                minWidth: laneCount === 1 ? 250 : 510,
+                flex: `0 0 ${laneCount === 1 ? 250 : 510}px`,
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 2,
+                  padding: "0 2px",
+                }}
+              >
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    letterSpacing: 0.2,
+                    color: "#fff",
+                    background: archivedView ? C.slate : stageColor(col),
+                    borderRadius: 999,
+                    padding: "6px 11px",
+                    boxShadow: `0 8px 18px ${archivedView ? C.slate : stageColor(col)}55`,
+                  }}
+                >
                   {archivedView ? "Removed" : col}
                 </span>
-                <span style={{ fontSize: 11.5, fontWeight: 700, color: C.ink, background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 999, minWidth: 26, textAlign: "center", padding: "5px 8px", boxShadow: "0 4px 10px rgba(15, 23, 42, 0.04)" }}>{items.length}</span>
+                <span
+                  style={{
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    color: C.ink,
+                    background: "var(--mb-glass-surface)",
+                    border: "1px solid var(--mb-glass-border)",
+                    borderRadius: 999,
+                    minWidth: 26,
+                    textAlign: "center",
+                    padding: "5px 8px",
+                    boxShadow: "0 4px 10px rgba(15, 23, 42, 0.04)",
+                  }}
+                >
+                  {items.length}
+                </span>
               </div>
-              {col === "Completed" && canManage && (archivedTasks.length > 0 || showArchived) && (
-                <button type="button" onClick={() => setShowArchived(v => !v)}
-                  style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", padding: "0 2px 4px", fontSize: 11.5, fontWeight: 600, color: C.slate, cursor: "pointer", fontFamily: "inherit" }}>
-                  {showArchived ? <><ChevronLeft size={13} /> Back to completed</> : <><Archive size={12} /> Removed from board ({archivedTasks.length})</>}
-                </button>
-              )}
-              <div style={{ display: "grid", gridTemplateColumns: `repeat(${laneCount}, minmax(210px, 1fr))`, gap: 8 }}>
+              {col === "Completed" &&
+                canManage &&
+                (archivedTasks.length > 0 || showArchived) && (
+                  <button
+                    type="button"
+                    onClick={() => setShowArchived((v) => !v)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                      background: "none",
+                      border: "none",
+                      padding: "0 2px 4px",
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      color: C.slate,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    {showArchived ? (
+                      <>
+                        <ChevronLeft size={13} /> Back to completed
+                      </>
+                    ) : (
+                      <>
+                        <Archive size={12} /> Removed from board (
+                        {archivedTasks.length})
+                      </>
+                    )}
+                  </button>
+                )}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: `repeat(${laneCount}, minmax(210px, 1fr))`,
+                  gap: 8,
+                }}
+              >
                 {Array.from({ length: laneCount }).map((_, laneIndex) => {
                   const laneGroups = lanes[laneIndex] || [];
                   return (
-                    <div key={`${col}-lane-${laneIndex}`} style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div
+                      key={`${col}-lane-${laneIndex}`}
+                      style={{
+                        minWidth: 0,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
+                      }}
+                    >
                       {laneGroups.length === 0 ? (
-                        <div style={{ fontSize: 12, color: C.slate, padding: "10px 4px" }}>{archivedView ? "Nothing removed." : "No tasks."}</div>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: C.slate,
+                            padding: "10px 4px",
+                          }}
+                        >
+                          {archivedView ? "Nothing removed." : "No tasks."}
+                        </div>
                       ) : (
-                        laneGroups.map(g => g.cards.length > 1 ? (
-                          <GroupHolder key={`g-${col}-${laneIndex}-${g.assignee}`} group={g} onOpen={() => setOpenGroup({ col, assignee: g.assignee })} dark={dark} checkedTaskIds={checkedTaskIds} selectionMode={selectionMode} onToggleGroup={() => toggleGroup(g)} bulkUpdateTasks={bulkUpdateTasks} canBulkEdit={canManage} />
-                        ) : (
-                          <TaskCard key={g.cards[0].id} t={g.cards[0]} onOpen={() => setTaskDetail(g.cards[0].id)} dark={dark} isChecked={checkedTaskIds.has(g.cards[0].id)} onToggleChecked={() => onToggleChecked(g.cards[0].id)} selectionMode={selectionMode}>{actions(g.cards[0])}</TaskCard>
-                        ))
+                        laneGroups.map((g) =>
+                          g.cards.length > 1 ? (
+                            <GroupHolder
+                              key={`g-${col}-${laneIndex}-${g.assignee}`}
+                              group={g}
+                              onOpen={() =>
+                                setOpenGroup({ col, assignee: g.assignee })
+                              }
+                              dark={dark}
+                              checkedTaskIds={checkedTaskIds}
+                              selectionMode={selectionMode}
+                              onToggleGroup={() => toggleGroup(g)}
+                              bulkUpdateTasks={bulkUpdateTasks}
+                              canBulkEdit={canManage}
+                            />
+                          ) : (
+                            <TaskCard
+                              key={g.cards[0].id}
+                              t={g.cards[0]}
+                              onOpen={() => setTaskDetail(g.cards[0].id)}
+                              dark={dark}
+                              isChecked={checkedTaskIds.has(g.cards[0].id)}
+                              onToggleChecked={() =>
+                                onToggleChecked(g.cards[0].id)
+                              }
+                              selectionMode={selectionMode}
+                            >
+                              {actions(g.cards[0])}
+                            </TaskCard>
+                          ),
+                        )
                       )}
                     </div>
                   );
@@ -1901,9 +5026,18 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, bulkUpdateTasks,
         })}
       </div>
       {openGroupData && (
-        <GroupModal group={openGroupData}
-          onClose={() => setOpenGroup(null)} setTaskDetail={setTaskDetail} renderActions={actions} dark={dark} checkedTaskIds={checkedTaskIds}
-          onToggleChecked={onToggleChecked} selectionMode={selectionMode} bulkUpdateTasks={bulkUpdateTasks} canBulkEdit={canManage} />
+        <GroupModal
+          group={openGroupData}
+          onClose={() => setOpenGroup(null)}
+          setTaskDetail={setTaskDetail}
+          renderActions={actions}
+          dark={dark}
+          checkedTaskIds={checkedTaskIds}
+          onToggleChecked={onToggleChecked}
+          selectionMode={selectionMode}
+          bulkUpdateTasks={bulkUpdateTasks}
+          canBulkEdit={canManage}
+        />
       )}
     </>
   );
@@ -1913,17 +5047,56 @@ function KanbanView({ tasks, archivedTasks = [], setTaskStatus, bulkUpdateTasks,
 function TeamAvatars({ ids, size = 24, max = 3 }) {
   const { byId, onlineIds } = useEmp();
   if (!ids.length) return <Avatar name="Unassigned" size={size} />;
-  const shown = ids.slice(0, max), extra = ids.length - shown.length;
-  const ring = { border: `2px solid ${C.card}`, borderRadius: "50%", background: C.card };
+  const shown = ids.slice(0, max),
+    extra = ids.length - shown.length;
+  const ring = {
+    border: `2px solid ${C.card}`,
+    borderRadius: "50%",
+    background: C.card,
+  };
   return (
-    <div style={{ display: "flex", alignItems: "center" }} title={ids.map(id => byId[id]?.name || id).join(", ")}>
+    <div
+      style={{ display: "flex", alignItems: "center" }}
+      title={ids.map((id) => byId[id]?.name || id).join(", ")}
+    >
       {shown.map((id, i) => (
-        <div key={id} style={{ ...ring, marginLeft: i ? -8 : 0, position: "relative", zIndex: max - i, display: "flex" }}>
-          <Avatar name={byId[id]?.name || id} size={size} color={deptById[byId[id]?.dept]?.color} online={i === 0 && onlineIds?.has(id)} />
+        <div
+          key={id}
+          style={{
+            ...ring,
+            marginLeft: i ? -8 : 0,
+            position: "relative",
+            zIndex: max - i,
+            display: "flex",
+          }}
+        >
+          <Avatar
+            name={byId[id]?.name || id}
+            size={size}
+            color={deptById[byId[id]?.dept]?.color}
+            online={i === 0 && onlineIds?.has(id)}
+          />
         </div>
       ))}
       {extra > 0 && (
-        <div style={{ ...ring, marginLeft: -8, width: size + 4, height: size + 4, display: "flex", alignItems: "center", justifyContent: "center", background: C.line, fontSize: 10, fontWeight: 700, color: C.ink, boxSizing: "border-box" }}>+{extra}</div>
+        <div
+          style={{
+            ...ring,
+            marginLeft: -8,
+            width: size + 4,
+            height: size + 4,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: C.line,
+            fontSize: 10,
+            fontWeight: 700,
+            color: C.ink,
+            boxSizing: "border-box",
+          }}
+        >
+          +{extra}
+        </div>
       )}
     </div>
   );
@@ -1937,89 +5110,347 @@ function priorityFlagColor(t) {
   return C.blue; // Low
 }
 
-function TaskCard({ t, children, onOpen, dark, isChecked = false, onToggleChecked, selectionMode = false }) {
+function TaskCard({
+  t,
+  children,
+  onOpen,
+  dark,
+  isChecked = false,
+  onToggleChecked,
+  selectionMode = false,
+}) {
   const { byId, onlineIds } = useEmp();
   const meta = statusMeta(t);
   const emp = byId[t.assignee] || { name: "Unassigned" };
-  const subtaskProgress = t.subtasks?.length ? `${t.subtasks.filter(s=>s.done).length}/${t.subtasks.length}` : null;
+  const subtaskProgress = t.subtasks?.length
+    ? `${t.subtasks.filter((s) => s.done).length}/${t.subtasks.length}`
+    : null;
   const progressPercent = taskProgress(t);
   const flagColor = priorityFlagColor(t);
   const flagLabel = t.status === "Completed" ? "Completed" : t.priority;
   return (
-    <div className={`mb-task-card${isChecked ? " is-checked" : ""}${selectionMode ? " is-selection-mode" : ""}`} onClick={onOpen} style={{ background: dark ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))" : "var(--mb-glass-surface)", border: `1px solid ${isChecked ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`, borderRadius: 16, padding: 12, cursor: "pointer", opacity: t.archived ? 0.8 : 1, backdropFilter: "blur(14px) saturate(140%)", boxShadow: isChecked ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)" : dark ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)" : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-        {onToggleChecked ? <TaskSelectButton className="mb-task-select-control" checked={isChecked} dark={dark}
-          onClick={onToggleChecked} label={isChecked ? "Uncheck task" : "Check task"} /> : <span style={{ width: 20, height: 20 }} />}
+    <div
+      className={`mb-task-card${isChecked ? " is-checked" : ""}${selectionMode ? " is-selection-mode" : ""}`}
+      onClick={onOpen}
+      style={{
+        background: dark
+          ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))"
+          : "var(--mb-glass-surface)",
+        border: `1px solid ${isChecked ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`,
+        borderRadius: 16,
+        padding: 12,
+        cursor: "pointer",
+        opacity: t.archived ? 0.8 : 1,
+        backdropFilter: "blur(14px) saturate(140%)",
+        boxShadow: isChecked
+          ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)"
+          : dark
+            ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)"
+            : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 6,
+        }}
+      >
+        {onToggleChecked ? (
+          <TaskSelectButton
+            className="mb-task-select-control"
+            checked={isChecked}
+            dark={dark}
+            onClick={onToggleChecked}
+            label={isChecked ? "Uncheck task" : "Check task"}
+          />
+        ) : (
+          <span style={{ width: 20, height: 20 }} />
+        )}
         {t.recurring && (
-          <span title="Recurring" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", marginLeft: "auto" }}><Repeat size={12} color={C.slate} /></span>
+          <span
+            title="Recurring"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              marginLeft: "auto",
+            }}
+          >
+            <Repeat size={12} color={C.slate} />
+          </span>
         )}
       </div>
-      <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6, lineHeight: 1.3, textDecoration: isChecked ? "line-through" : "none", opacity: isChecked ? 0.82 : 1 }}>{t.title}</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: meta.color, fontWeight: 600, marginBottom: 3 }}>
+      <div
+        style={{
+          fontSize: 13.5,
+          fontWeight: 600,
+          marginBottom: 6,
+          lineHeight: 1.3,
+          textDecoration: isChecked ? "line-through" : "none",
+          opacity: isChecked ? 0.82 : 1,
+        }}
+      >
+        {t.title}
+      </div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+          fontSize: 11,
+          color: meta.color,
+          fontWeight: 600,
+          marginBottom: 3,
+        }}
+      >
         <CalendarDays size={12} /> {t.due}
-        {meta.label !== "On track" && meta.label !== "Completed" && <span>· {meta.label}</span>}
+        {meta.label !== "On track" && meta.label !== "Completed" && (
+          <span>· {meta.label}</span>
+        )}
       </div>
-      <div style={{ fontSize: 11, color: C.slate, marginBottom: 10 }}>{deptById[t.dept]?.name}</div>
-      <div style={{ height: 4, background: "var(--mb-glass-border)", borderRadius: 4, overflow: "hidden", marginBottom: 10 }}>
-        <div style={{ height: "100%", width: `${progressPercent}%`, background: C.amber, transition: "width 0.22s ease" }} />
+      <div style={{ fontSize: 11, color: C.slate, marginBottom: 10 }}>
+        {deptById[t.dept]?.name}
       </div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10.5, fontWeight: 700, color: "#fff", background: flagColor, borderRadius: 999, padding: "4px 9px 4px 7px", boxShadow: "0 8px 16px rgba(15, 23, 42, 0.12)" }}>
+      <div
+        style={{
+          height: 4,
+          background: "var(--mb-glass-border)",
+          borderRadius: 4,
+          overflow: "hidden",
+          marginBottom: 10,
+        }}
+      >
+        <div
+          style={{
+            height: "100%",
+            width: `${progressPercent}%`,
+            background: C.amber,
+            transition: "width 0.22s ease",
+          }}
+        />
+      </div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            fontSize: 10.5,
+            fontWeight: 700,
+            color: "#fff",
+            background: flagColor,
+            borderRadius: 999,
+            padding: "4px 9px 4px 7px",
+            boxShadow: "0 8px 16px rgba(15, 23, 42, 0.12)",
+          }}
+        >
           <Flag size={10} fill="#fff" strokeWidth={0} /> {flagLabel}
         </span>
         <TeamAvatars ids={taskTeam(t)} />
       </div>
-      {subtaskProgress && <div style={{ fontSize: 10.5, color: C.slate, marginTop: 7 }}>{subtaskProgress} subtasks · {progressPercent}%</div>}
+      {subtaskProgress && (
+        <div style={{ fontSize: 10.5, color: C.slate, marginTop: 7 }}>
+          {subtaskProgress} subtasks · {progressPercent}%
+        </div>
+      )}
       {children}
     </div>
   );
 }
 
-function ListView({ tasks, setTaskDetail, dark, checkedTaskIds, onToggleChecked }) {
+function ListView({
+  tasks,
+  setTaskDetail,
+  dark,
+  checkedTaskIds,
+  onToggleChecked,
+}) {
   const { byId } = useEmp();
   return (
-    <div style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 16, overflow: "hidden", boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)" }}>
+    <div
+      style={{
+        background: "var(--mb-glass-surface)",
+        border: "1px solid var(--mb-glass-border)",
+        borderRadius: 16,
+        overflow: "hidden",
+        boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)",
+      }}
+    >
       <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
-        <thead><tr style={{ background: C.paper, textAlign: "left" }}><th aria-label="Checked" style={{ width: 36 }} />{["Task","Employee","Department","Priority","Due","Status"].map(h => <th key={h} style={{ padding: "10px 16px", fontSize: 11.5, color: C.slate, fontWeight: 600 }}>{h}</th>)}</tr></thead>
-        <tbody>
-          {tasks.map(t => {
-            const meta = statusMeta(t);
-            return (
-              <tr key={t.id} className={`mb-task-row${checkedTaskIds.has(t.id) ? " is-checked" : ""}`} onClick={() => setTaskDetail(t.id)} style={{ borderTop: `1px solid ${C.line}`, cursor: "pointer", background: checkedTaskIds.has(t.id) ? "rgba(132, 108, 220, 0.08)" : "transparent" }}>
-                <td style={{ padding: "8px 10px" }}><input className="mb-task-select-control" type="checkbox" checked={checkedTaskIds.has(t.id)} onClick={e => e.stopPropagation()} onChange={() => onToggleChecked(t.id)} aria-label={`Select ${t.title} for bulk edit`} /></td>
-                <td style={{ padding: "10px 16px", fontWeight: 600 }}>{t.title}</td>
-                <td style={{ padding: "10px 16px" }}>{byId[t.assignee]?.name || "Unassigned"}</td>
-                <td style={{ padding: "10px 16px" }}><DeptTag id={t.dept} /></td>
-                <td style={{ padding: "10px 16px", color: priColor(t.priority), fontWeight: 600 }}>{t.priority}</td>
-                <td style={{ padding: "10px 16px", color: meta.color, fontWeight: 600 }}>{t.due}</td>
-                <td style={{ padding: "10px 16px", color: C.slate }}>{t.status}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+        <table
+          style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}
+        >
+          <thead>
+            <tr style={{ background: C.paper, textAlign: "left" }}>
+              <th aria-label="Checked" style={{ width: 36 }} />
+              {[
+                "Task",
+                "Employee",
+                "Department",
+                "Priority",
+                "Due",
+                "Status",
+              ].map((h) => (
+                <th
+                  key={h}
+                  style={{
+                    padding: "10px 16px",
+                    fontSize: 11.5,
+                    color: C.slate,
+                    fontWeight: 600,
+                  }}
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {tasks.map((t) => {
+              const meta = statusMeta(t);
+              return (
+                <tr
+                  key={t.id}
+                  className={`mb-task-row${checkedTaskIds.has(t.id) ? " is-checked" : ""}`}
+                  onClick={() => setTaskDetail(t.id)}
+                  style={{
+                    borderTop: `1px solid ${C.line}`,
+                    cursor: "pointer",
+                    background: checkedTaskIds.has(t.id)
+                      ? "rgba(132, 108, 220, 0.08)"
+                      : "transparent",
+                  }}
+                >
+                  <td style={{ padding: "8px 10px" }}>
+                    <input
+                      className="mb-task-select-control"
+                      type="checkbox"
+                      checked={checkedTaskIds.has(t.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => onToggleChecked(t.id)}
+                      aria-label={`Select ${t.title} for bulk edit`}
+                    />
+                  </td>
+                  <td style={{ padding: "10px 16px", fontWeight: 600 }}>
+                    {t.title}
+                  </td>
+                  <td style={{ padding: "10px 16px" }}>
+                    {byId[t.assignee]?.name || "Unassigned"}
+                  </td>
+                  <td style={{ padding: "10px 16px" }}>
+                    <DeptTag id={t.dept} />
+                  </td>
+                  <td
+                    style={{
+                      padding: "10px 16px",
+                      color: priColor(t.priority),
+                      fontWeight: 600,
+                    }}
+                  >
+                    {t.priority}
+                  </td>
+                  <td
+                    style={{
+                      padding: "10px 16px",
+                      color: meta.color,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {t.due}
+                  </td>
+                  <td style={{ padding: "10px 16px", color: C.slate }}>
+                    {t.status}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 }
 
-function CalendarView({ tasks, setTaskDetail, dark, checkedTaskIds, onToggleChecked }) {
+function CalendarView({
+  tasks,
+  setTaskDetail,
+  dark,
+  checkedTaskIds,
+  onToggleChecked,
+}) {
   const { byId } = useEmp();
   const grouped = {};
-  tasks.forEach(t => { grouped[t.due] = grouped[t.due] || []; grouped[t.due].push(t); });
+  tasks.forEach((t) => {
+    grouped[t.due] = grouped[t.due] || [];
+    grouped[t.due].push(t);
+  });
   const dates = Object.keys(grouped).sort();
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {dates.length === 0 && <Empty text="No tasks scheduled." />}
-      {dates.map(dt => (
-        <div key={dt} style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 14, padding: 14, boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)" }}>
-          <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 8, color: dt < today() ? C.coral : dt === today() ? C.amber : C.ink }}>{dt} {dt === today() && "· Today"}</div>
+      {dates.map((dt) => (
+        <div
+          key={dt}
+          style={{
+            background: "var(--mb-glass-surface)",
+            border: "1px solid var(--mb-glass-border)",
+            borderRadius: 14,
+            padding: 14,
+            boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12.5,
+              fontWeight: 700,
+              marginBottom: 8,
+              color: dt < today() ? C.coral : dt === today() ? C.amber : C.ink,
+            }}
+          >
+            {dt} {dt === today() && "· Today"}
+          </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {grouped[dt].map(t => (
-              <div key={t.id} className={`mb-task-row${checkedTaskIds.has(t.id) ? " is-checked" : ""}`} onClick={() => setTaskDetail(t.id)} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer", background: checkedTaskIds.has(t.id) ? "rgba(132, 108, 220, 0.08)" : "transparent", borderRadius: 6, padding: "2px 4px" }}>
-                <input className="mb-task-select-control" type="checkbox" checked={checkedTaskIds.has(t.id)} onClick={e => e.stopPropagation()} onChange={() => onToggleChecked(t.id)} aria-label={`Select ${t.title} for bulk edit`} />
-                <span style={{ fontWeight: 600, color: priColor(t.priority) }}>{t.priority}</span><span>{t.title}</span><span style={{ color: C.slate }}>— {byId[t.assignee]?.name || "Unassigned"}</span>
+            {grouped[dt].map((t) => (
+              <div
+                key={t.id}
+                className={`mb-task-row${checkedTaskIds.has(t.id) ? " is-checked" : ""}`}
+                onClick={() => setTaskDetail(t.id)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  fontSize: 13,
+                  cursor: "pointer",
+                  background: checkedTaskIds.has(t.id)
+                    ? "rgba(132, 108, 220, 0.08)"
+                    : "transparent",
+                  borderRadius: 6,
+                  padding: "2px 4px",
+                }}
+              >
+                <input
+                  className="mb-task-select-control"
+                  type="checkbox"
+                  checked={checkedTaskIds.has(t.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={() => onToggleChecked(t.id)}
+                  aria-label={`Select ${t.title} for bulk edit`}
+                />
+                <span style={{ fontWeight: 600, color: priColor(t.priority) }}>
+                  {t.priority}
+                </span>
+                <span>{t.title}</span>
+                <span style={{ color: C.slate }}>
+                  — {byId[t.assignee]?.name || "Unassigned"}
+                </span>
               </div>
             ))}
           </div>
@@ -2029,7 +5460,13 @@ function CalendarView({ tasks, setTaskDetail, dark, checkedTaskIds, onToggleChec
   );
 }
 
-function BulkEditModal({ tasks, checkedTaskIds, onToggleChecked, onClose, onApply }) {
+function BulkEditModal({
+  tasks,
+  checkedTaskIds,
+  onToggleChecked,
+  onClose,
+  onApply,
+}) {
   const [status, setStatus] = useState("");
   const [priority, setPriority] = useState("");
   const [due, setDue] = useState("");
@@ -2047,34 +5484,128 @@ function BulkEditModal({ tasks, checkedTaskIds, onToggleChecked, onClose, onAppl
     if (category.trim()) patch.category = category.trim();
     if (!Object.keys(patch).length) return;
     setSaving(true);
-    const succeeded = await onApply(tasks.map(task => task.id), patch);
+    const succeeded = await onApply(
+      tasks.map((task) => task.id),
+      patch,
+    );
     setSaving(false);
     if (succeeded) onClose();
   };
 
   return (
     <ModalShell onClose={onClose} width={560}>
-      <div className="mb-display" style={{ fontSize: 19, fontWeight: 600, marginBottom: 4 }}>Bulk edit tasks</div>
-      <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 10 }}>Only checked tasks are included. Uncheck any you want to leave out.</div>
-      <div style={{ maxHeight: 150, overflowY: "auto", borderBottom: `1px solid ${C.line}`, marginBottom: 14 }}>
-        {tasks.map(task => (
-          <label key={task.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 2px", fontSize: 12.5, cursor: "pointer" }}>
-            <input type="checkbox" checked={checkedTaskIds.has(task.id)} onChange={() => onToggleChecked(task.id)} />
-            <span style={{ flex: 1, minWidth: 0, ...ellipsis }}>{task.title}</span>
+      <div
+        className="mb-display"
+        style={{ fontSize: 19, fontWeight: 600, marginBottom: 4 }}
+      >
+        Bulk edit tasks
+      </div>
+      <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 10 }}>
+        Only checked tasks are included. Uncheck any you want to leave out.
+      </div>
+      <div
+        style={{
+          maxHeight: 150,
+          overflowY: "auto",
+          borderBottom: `1px solid ${C.line}`,
+          marginBottom: 14,
+        }}
+      >
+        {tasks.map((task) => (
+          <label
+            key={task.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "7px 2px",
+              fontSize: 12.5,
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={checkedTaskIds.has(task.id)}
+              onChange={() => onToggleChecked(task.id)}
+            />
+            <span style={{ flex: 1, minWidth: 0, ...ellipsis }}>
+              {task.title}
+            </span>
             <span style={{ color: C.slate, fontSize: 11 }}>{task.status}</span>
           </label>
         ))}
         {tasks.length === 0 && <Empty text="No tasks match this department." />}
       </div>
-      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <FormRow label="Status"><select value={status} onChange={e => setStatus(e.target.value)} style={inputStyle}><option value="">No change</option>{COLUMNS.map(stage => <option key={stage}>{stage}</option>)}</select></FormRow>
-        <FormRow label="Priority"><select value={priority} onChange={e => setPriority(e.target.value)} style={inputStyle}><option value="">No change</option><option>High</option><option>Medium</option><option>Low</option></select></FormRow>
-        <FormRow label="Due date"><input type="date" value={due} onChange={e => setDue(e.target.value)} style={inputStyle} /></FormRow>
-        <FormRow label="Category"><input value={category} onChange={e => setCategory(e.target.value)} placeholder="No change" style={inputStyle} /></FormRow>
+      <div
+        className="mb-grid-2"
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
+      >
+        <FormRow label="Status">
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            style={inputStyle}
+          >
+            <option value="">No change</option>
+            {COLUMNS.map((stage) => (
+              <option key={stage}>{stage}</option>
+            ))}
+          </select>
+        </FormRow>
+        <FormRow label="Priority">
+          <select
+            value={priority}
+            onChange={(e) => setPriority(e.target.value)}
+            style={inputStyle}
+          >
+            <option value="">No change</option>
+            <option>High</option>
+            <option>Medium</option>
+            <option>Low</option>
+          </select>
+        </FormRow>
+        <FormRow label="Due date">
+          <input
+            type="date"
+            value={due}
+            onChange={(e) => setDue(e.target.value)}
+            style={inputStyle}
+          />
+        </FormRow>
+        <FormRow label="Category">
+          <input
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            placeholder="No change"
+            style={inputStyle}
+          />
+        </FormRow>
       </div>
-      <button type="button" onClick={apply} disabled={!tasks.length || saving || (!status && !priority && !due && !category.trim())}
-        style={{ marginTop: 8, width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: tasks.length && !saving ? "pointer" : "not-allowed", opacity: tasks.length && !saving ? 1 : 0.55 }}>
-        {saving ? "Applying changes…" : `Apply to ${tasks.length} checked task${tasks.length === 1 ? "" : "s"}`}
+      <button
+        type="button"
+        onClick={apply}
+        disabled={
+          !tasks.length ||
+          saving ||
+          (!status && !priority && !due && !category.trim())
+        }
+        style={{
+          marginTop: 8,
+          width: "100%",
+          background: C.amber,
+          color: "#fff",
+          border: "none",
+          borderRadius: 8,
+          padding: "10px 0",
+          fontWeight: 600,
+          fontSize: 14,
+          cursor: tasks.length && !saving ? "pointer" : "not-allowed",
+          opacity: tasks.length && !saving ? 1 : 0.55,
+        }}
+      >
+        {saving
+          ? "Applying changes…"
+          : `Apply to ${tasks.length} checked task${tasks.length === 1 ? "" : "s"}`}
       </button>
     </ModalShell>
   );
@@ -2084,9 +5615,25 @@ function CommentBubble({ c, byId, small }) {
   return (
     <div style={{ display: "flex", gap: 9 }}>
       <Avatar name={byId[c.author]?.name || c.author} size={small ? 22 : 26} />
-      <div style={{ flex: 1, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: "7px 10px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-          <span style={{ fontSize: small ? 11 : 12, fontWeight: 700 }}>{byId[c.author]?.name || c.author}</span>
+      <div
+        style={{
+          flex: 1,
+          background: C.card,
+          border: `1px solid ${C.line}`,
+          borderRadius: 10,
+          padding: "7px 10px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            marginBottom: 2,
+          }}
+        >
+          <span style={{ fontSize: small ? 11 : 12, fontWeight: 700 }}>
+            {byId[c.author]?.name || c.author}
+          </span>
           <span style={{ fontSize: 10.5, color: C.slate }}>{c.time}</span>
         </div>
         <div style={{ fontSize: small ? 12 : 13 }}>{c.text}</div>
@@ -2095,7 +5642,18 @@ function CommentBubble({ c, byId, small }) {
   );
 }
 
-function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, updateTask, refetchTasks, taskOps, onRepeat, onArchive }) {
+function TaskDetailModal({
+  task,
+  onClose,
+  addComment,
+  viewerEmp,
+  setTaskStatus,
+  updateTask,
+  refetchTasks,
+  taskOps,
+  onRepeat,
+  onArchive,
+}) {
   const { byId, employees } = useEmp();
   const [draft, setDraft] = useState("");
   const [signoffNote, setSignoffNote] = useState("");
@@ -2110,14 +5668,26 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
   const team = taskTeam(task);
   const sup = byId[task.supervisor] || { name: "—" };
   const comments = task.comments || [];
-  const topLevel = comments.filter(c => !c.parent);
-  const repliesOf = (id) => comments.filter(c => c.parent === id);
-  const submitComment = () => { if (!draft.trim()) return; addComment(task.id, draft.trim()); setDraft(""); };
-  const submitReply = (parentId) => { if (!replyDraft.trim()) return; addComment(task.id, replyDraft.trim(), parentId); setReplyDraft(""); setReplyingTo(null); };
+  const topLevel = comments.filter((c) => !c.parent);
+  const repliesOf = (id) => comments.filter((c) => c.parent === id);
+  const submitComment = () => {
+    if (!draft.trim()) return;
+    addComment(task.id, draft.trim());
+    setDraft("");
+  };
+  const submitReply = (parentId) => {
+    if (!replyDraft.trim()) return;
+    addComment(task.id, replyDraft.trim(), parentId);
+    setReplyDraft("");
+    setReplyingTo(null);
+  };
 
   const canEditTask = viewerEmp.role !== "employee";
   // Same rule as the board: managers/execs can move anything, an employee only their own open tasks.
-  const canMove = !task.archived && (viewerEmp.role !== "employee" || (isOnTask(task, viewerEmp.id) && task.status !== "Completed"));
+  const canMove =
+    !task.archived &&
+    (viewerEmp.role !== "employee" ||
+      (isOnTask(task, viewerEmp.id) && task.status !== "Completed"));
   const canTickSub = (st) => canEditTask || st.assignee === viewerEmp.id;
   const progressPercent = taskProgress(task);
   const addSub = async () => {
@@ -2126,20 +5696,39 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
     setNewSub("");
     await taskOps.addSubtask(task, newSub.trim(), who);
   };
-  const removeTask = async () => { if (await onArchive(task, true)) onClose(); };
-  const restoreTask = async () => { await onArchive(task, false); };
+  const removeTask = async () => {
+    if (await onArchive(task, true)) onClose();
+  };
+  const restoreTask = async () => {
+    await onArchive(task, false);
+  };
 
   // The approver is whoever isn't the assignee and isn't a plain employee — i.e. the
   // supervisor, a manager up the chain, or an exec/admin reviewing someone else's work.
-  const isApprover = task.status === "For Review" && !isOnTask(task, viewerEmp.id) && viewerEmp.role !== "employee";
+  const isApprover =
+    task.status === "For Review" &&
+    !isOnTask(task, viewerEmp.id) &&
+    viewerEmp.role !== "employee";
   const approve = () => {
-    if (signoffNote.trim()) addComment(task.id, `Approved by ${viewerEmp.name}: ${signoffNote.trim()}`);
+    if (signoffNote.trim())
+      addComment(
+        task.id,
+        `Approved by ${viewerEmp.name}: ${signoffNote.trim()}`,
+      );
     setTaskStatus(task.id, "Completed");
     onClose();
   };
   const sendBack = () => {
-    if (!signoffNote.trim()) { alert("Add a short note explaining what still needs to be done before sending it back."); return; }
-    addComment(task.id, `Sent back by ${viewerEmp.name}: ${signoffNote.trim()}`);
+    if (!signoffNote.trim()) {
+      alert(
+        "Add a short note explaining what still needs to be done before sending it back.",
+      );
+      return;
+    }
+    addComment(
+      task.id,
+      `Sent back by ${viewerEmp.name}: ${signoffNote.trim()}`,
+    );
     setTaskStatus(task.id, "In Progress");
     onClose();
   };
@@ -2148,112 +5737,468 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
     setUploading(true);
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const path = `${task.id}/${Date.now()}-${safeName}`;
-    const { error: upErr } = await supabase.storage.from("app-task-attachment").upload(path, file);
-    if (upErr) { alert(upErr.message); setUploading(false); return; }
-    const { error: rowErr } = await supabase.from("task_attachments").insert({ task_id: task.id, file_name: file.name, file_path: path, uploaded_by: viewerEmp.id });
+    const { error: upErr } = await supabase.storage
+      .from("app-task-attachment")
+      .upload(path, file);
+    if (upErr) {
+      alert(upErr.message);
+      setUploading(false);
+      return;
+    }
+    const { error: rowErr } = await supabase
+      .from("task_attachments")
+      .insert({
+        task_id: task.id,
+        file_name: file.name,
+        file_path: path,
+        uploaded_by: viewerEmp.id,
+      });
     if (rowErr) alert("File didn't upload: " + rowErr.message);
     await refetchTasks();
     setUploading(false);
   };
 
-  const recurrenceLabel = !task.recurring ? "One-time"
-    : task.recurring === "Custom" ? `Custom — every ${task.recurringCustomDays || "?"} day(s)`
-    : task.recurring;
+  const recurrenceLabel = !task.recurring
+    ? "One-time"
+    : task.recurring === "Custom"
+      ? `Custom — every ${task.recurringCustomDays || "?"} day(s)`
+      : task.recurring;
 
   return (
     <ModalShell onClose={onClose} width={560}>
       {/* right padding keeps the title clear of the close (X) button */}
       <div style={{ paddingRight: 40, marginBottom: 12 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: priColor(task.priority), marginBottom: 4 }}>{task.priority} PRIORITY</div>
-        <div className="mb-display" style={{ fontSize: 19, fontWeight: 600 }}>{task.title}</div>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-        <DeptTag id={task.dept} />
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {canMove && <StageMenu variant="icon" current={task.status} canComplete={viewerEmp.role !== "employee"} onSelect={(stage) => setTaskStatus(task.id, stage)} />}
-          {canEditTask && <IconBtn onClick={() => setShowEdit(true)} title="Edit task"><Pencil size={15} /></IconBtn>}
-          {canEditTask && task.status === "Completed" && !task.archived && <IconBtn onClick={() => onRepeat(task)} title="Repeat this task"><Repeat size={15} /></IconBtn>}
-          {canEditTask && task.status === "Completed" && !task.archived && <IconBtn onClick={removeTask} title="Remove from board (stays saved)"><Archive size={15} /></IconBtn>}
-          {canEditTask && task.archived && <IconBtn onClick={restoreTask} title="Restore to board"><ArchiveRestore size={15} /></IconBtn>}
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: priColor(task.priority),
+            marginBottom: 4,
+          }}
+        >
+          {task.priority} PRIORITY
+        </div>
+        <div className="mb-display" style={{ fontSize: 19, fontWeight: 600 }}>
+          {task.title}
         </div>
       </div>
-      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, margin: "16px 0" }}>
-        <Field label={team.length > 1 ? "Lead" : "Assigned to"} value={emp.name} /><Field label="Supervisor" value={sup.name} />
-        <Field label="Due date" value={task.due} /><Field label="Status" value={task.status} />
-        <Field label="Category" value={task.category} /><Field label="Recurrence" value={recurrenceLabel} />
-        {task.backup && <Field label="Backup assignee" value={byId[task.backup]?.name || "—"} />}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        <DeptTag id={task.dept} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {canMove && (
+            <StageMenu
+              variant="icon"
+              current={task.status}
+              canComplete={viewerEmp.role !== "employee"}
+              onSelect={(stage) => setTaskStatus(task.id, stage)}
+            />
+          )}
+          {canEditTask && (
+            <IconBtn onClick={() => setShowEdit(true)} title="Edit task">
+              <Pencil size={15} />
+            </IconBtn>
+          )}
+          {canEditTask && task.status === "Completed" && !task.archived && (
+            <IconBtn onClick={() => onRepeat(task)} title="Repeat this task">
+              <Repeat size={15} />
+            </IconBtn>
+          )}
+          {canEditTask && task.status === "Completed" && !task.archived && (
+            <IconBtn
+              onClick={removeTask}
+              title="Remove from board (stays saved)"
+            >
+              <Archive size={15} />
+            </IconBtn>
+          )}
+          {canEditTask && task.archived && (
+            <IconBtn onClick={restoreTask} title="Restore to board">
+              <ArchiveRestore size={15} />
+            </IconBtn>
+          )}
+        </div>
+      </div>
+      <div
+        className="mb-grid-2"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 10,
+          margin: "16px 0",
+        }}
+      >
+        <Field
+          label={team.length > 1 ? "Lead" : "Assigned to"}
+          value={emp.name}
+        />
+        <Field label="Supervisor" value={sup.name} />
+        <Field label="Due date" value={task.due} />
+        <Field label="Status" value={task.status} />
+        <Field label="Category" value={task.category} />
+        <Field label="Recurrence" value={recurrenceLabel} />
+        {task.backup && (
+          <Field
+            label="Backup assignee"
+            value={byId[task.backup]?.name || "—"}
+          />
+        )}
         <Field label="Created by" value={byId[task.createdBy]?.name || "—"} />
       </div>
-      <SectionLabel>Progress · {progressPercent}%{task.subtasks?.length ? ` (${task.subtasks.filter(st => st.done).length}/${task.subtasks.length} subtasks)` : ""}</SectionLabel>
-      <div style={{ height: 8, background: C.paper, borderRadius: 4, overflow: "hidden", margin: "8px 0 18px" }}><div style={{ height: "100%", width: `${progressPercent}%`, background: C.amber, transition: "width 0.22s ease" }} /></div>
+      <SectionLabel>
+        Progress · {progressPercent}%
+        {task.subtasks?.length
+          ? ` (${task.subtasks.filter((st) => st.done).length}/${task.subtasks.length} subtasks)`
+          : ""}
+      </SectionLabel>
+      <div
+        style={{
+          height: 8,
+          background: C.paper,
+          borderRadius: 4,
+          overflow: "hidden",
+          margin: "8px 0 18px",
+        }}
+      >
+        <div
+          style={{
+            height: "100%",
+            width: `${progressPercent}%`,
+            background: C.amber,
+            transition: "width 0.22s ease",
+          }}
+        />
+      </div>
       <SectionLabel>Team — {team.length}</SectionLabel>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "8px 0 6px" }}>
-        {team.map(id => (
-          <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 20, padding: "3px 6px 3px 4px", fontSize: 12 }}>
-            <Avatar name={byId[id]?.name || id} size={20} color={deptById[byId[id]?.dept]?.color} />
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 6,
+          margin: "8px 0 6px",
+        }}
+      >
+        {team.map((id) => (
+          <span
+            key={id}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              background: "var(--mb-glass-surface)",
+              border: "1px solid var(--mb-glass-border)",
+              borderRadius: 20,
+              padding: "3px 6px 3px 4px",
+              fontSize: 12,
+            }}
+          >
+            <Avatar
+              name={byId[id]?.name || id}
+              size={20}
+              color={deptById[byId[id]?.dept]?.color}
+            />
             <span style={{ fontWeight: 600 }}>{byId[id]?.name || id}</span>
-            {id === task.assignee
-              ? <span style={{ fontSize: 9.5, fontWeight: 700, color: "#fff", background: C.navySoft, borderRadius: 20, padding: "1px 6px" }}>LEAD</span>
-              : canEditTask && <button type="button" onClick={() => taskOps.removeAssignee(task, id)} title={`Remove ${byId[id]?.name}`} aria-label={`Remove ${byId[id]?.name}`} style={{ background: "none", border: "none", cursor: "pointer", color: C.slate, padding: 0, display: "flex" }}><X size={12} /></button>}
+            {id === task.assignee ? (
+              <span
+                style={{
+                  fontSize: 9.5,
+                  fontWeight: 700,
+                  color: "#fff",
+                  background: C.navySoft,
+                  borderRadius: 20,
+                  padding: "1px 6px",
+                }}
+              >
+                LEAD
+              </span>
+            ) : (
+              canEditTask && (
+                <button
+                  type="button"
+                  onClick={() => taskOps.removeAssignee(task, id)}
+                  title={`Remove ${byId[id]?.name}`}
+                  aria-label={`Remove ${byId[id]?.name}`}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: C.slate,
+                    padding: 0,
+                    display: "flex",
+                  }}
+                >
+                  <X size={12} />
+                </button>
+              )
+            )}
           </span>
         ))}
       </div>
-      {canEditTask && employees.some(e => !team.includes(e.id)) && (
-        <select value="" onChange={e => e.target.value && taskOps.addAssignee(task, e.target.value)} aria-label="Add a person" style={{ ...inputStyle, width: "auto", maxWidth: "100%", marginBottom: 14, fontSize: 12.5 }}>
+      {canEditTask && employees.some((e) => !team.includes(e.id)) && (
+        <select
+          value=""
+          onChange={(e) =>
+            e.target.value && taskOps.addAssignee(task, e.target.value)
+          }
+          aria-label="Add a person"
+          style={{
+            ...inputStyle,
+            width: "auto",
+            maxWidth: "100%",
+            marginBottom: 14,
+            fontSize: 12.5,
+          }}
+        >
           <option value="">+ Add a person…</option>
-          {employees.filter(e => !team.includes(e.id)).map(e => <option key={e.id} value={e.id}>{e.name} — {e.position}</option>)}
+          {employees
+            .filter((e) => !team.includes(e.id))
+            .map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.name} — {e.position}
+              </option>
+            ))}
         </select>
       )}
 
       {(task.subtasks?.length > 0 || canEditTask) && (
         <>
-          <SectionLabel>Subtasks{task.subtasks.length ? ` — ${task.subtasks.filter(s=>s.done).length}/${task.subtasks.length} completed` : ""}</SectionLabel>
+          <SectionLabel>
+            Subtasks
+            {task.subtasks.length
+              ? ` — ${task.subtasks.filter((s) => s.done).length}/${task.subtasks.length} completed`
+              : ""}
+          </SectionLabel>
           <div style={{ margin: "8px 0 18px" }}>
-            {task.subtasks.length === 0 && <div style={{ fontSize: 12.5, color: C.slate, padding: "2px 0 6px" }}>No subtasks yet.</div>}
-            {task.subtasks.map(st => (
-              <div key={st.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, padding: "7px 9px", marginBottom: 6, background: st.assignee === viewerEmp.id ? "rgba(130, 106, 214, 0.12)" : "var(--mb-glass-surface)", border: `1px solid ${st.assignee === viewerEmp.id ? "rgba(130, 106, 214, 0.28)" : "var(--mb-glass-border)"}`, borderLeft: `3px solid ${st.assignee === viewerEmp.id ? C.amber : st.assignee ? C.line : C.slate}`, borderRadius: 8 }}>
-                <input type="checkbox" checked={st.done} disabled={!canTickSub(st)} onChange={e => taskOps.toggleSubtask(st.id, e.target.checked)} aria-label={`Mark "${st.title}" done${st.assignee ? `, assigned to ${byId[st.assignee]?.name || st.assignee}` : ", unassigned"}`} />
-                <span style={{ flex: 1, minWidth: 0, textDecoration: st.done ? "line-through" : "none", color: st.done ? C.slate : C.ink }}>{st.title}</span>
+            {task.subtasks.length === 0 && (
+              <div
+                style={{ fontSize: 12.5, color: C.slate, padding: "2px 0 6px" }}
+              >
+                No subtasks yet.
+              </div>
+            )}
+            {task.subtasks.map((st) => (
+              <div
+                key={st.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: 13,
+                  padding: "7px 9px",
+                  marginBottom: 6,
+                  background:
+                    st.assignee === viewerEmp.id
+                      ? "rgba(130, 106, 214, 0.12)"
+                      : "var(--mb-glass-surface)",
+                  border: `1px solid ${st.assignee === viewerEmp.id ? "rgba(130, 106, 214, 0.28)" : "var(--mb-glass-border)"}`,
+                  borderLeft: `3px solid ${st.assignee === viewerEmp.id ? C.amber : st.assignee ? C.line : C.slate}`,
+                  borderRadius: 8,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={st.done}
+                  disabled={!canTickSub(st)}
+                  onChange={(e) =>
+                    taskOps.toggleSubtask(st.id, e.target.checked)
+                  }
+                  aria-label={`Mark "${st.title}" done${st.assignee ? `, assigned to ${byId[st.assignee]?.name || st.assignee}` : ", unassigned"}`}
+                />
+                <span
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    textDecoration: st.done ? "line-through" : "none",
+                    color: st.done ? C.slate : C.ink,
+                  }}
+                >
+                  {st.title}
+                </span>
                 {canEditTask ? (
-                  <select value={team.includes(st.assignee) ? st.assignee : ""} onChange={e => taskOps.setSubtaskAssignee(st.id, e.target.value)} aria-label={`Who has "${st.title}"`} style={{ ...inputStyle, width: 132, flexShrink: 0, padding: "4px 6px", fontSize: 11.5 }}>
+                  <select
+                    value={team.includes(st.assignee) ? st.assignee : ""}
+                    onChange={(e) =>
+                      taskOps.setSubtaskAssignee(st.id, e.target.value)
+                    }
+                    aria-label={`Who has "${st.title}"`}
+                    style={{
+                      ...inputStyle,
+                      width: 132,
+                      flexShrink: 0,
+                      padding: "4px 6px",
+                      fontSize: 11.5,
+                    }}
+                  >
                     <option value="">Unassigned</option>
-                    {team.map(id => <option key={id} value={id}>{byId[id]?.name}</option>)}
+                    {team.map((id) => (
+                      <option key={id} value={id}>
+                        {byId[id]?.name}
+                      </option>
+                    ))}
                   </select>
                 ) : (
-                  <span style={{ fontSize: 10.5, color: st.assignee === viewerEmp.id ? C.amber : C.slate, fontWeight: st.assignee === viewerEmp.id ? 700 : 500, whiteSpace: "nowrap" }}>
-                    {st.assignee === viewerEmp.id ? "Yours" : st.assignee ? `Assigned to ${byId[st.assignee]?.name || "another employee"}` : "Unassigned · manager only"}
+                  <span
+                    style={{
+                      fontSize: 10.5,
+                      color: st.assignee === viewerEmp.id ? C.amber : C.slate,
+                      fontWeight: st.assignee === viewerEmp.id ? 700 : 500,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {st.assignee === viewerEmp.id
+                      ? "Yours"
+                      : st.assignee
+                        ? `Assigned to ${byId[st.assignee]?.name || "another employee"}`
+                        : "Unassigned · manager only"}
                   </span>
                 )}
-                {canEditTask && <button type="button" onClick={() => taskOps.deleteSubtask(st.id)} aria-label={`Delete "${st.title}"`} style={{ background: "none", border: "none", cursor: "pointer", color: C.slate, padding: 2, display: "flex" }}><Trash2 size={13} /></button>}
+                {canEditTask && (
+                  <button
+                    type="button"
+                    onClick={() => taskOps.deleteSubtask(st.id)}
+                    aria-label={`Delete "${st.title}"`}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: C.slate,
+                      padding: 2,
+                      display: "flex",
+                    }}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
               </div>
             ))}
             {canEditTask && (
               <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                <input value={newSub} onChange={e => setNewSub(e.target.value)} placeholder="Add a subtask…" onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addSub(); } }} style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
-                <select value={team.includes(newSubWho) ? newSubWho : ""} onChange={e => setNewSubWho(e.target.value)} aria-label="New subtask assignee" style={{ ...inputStyle, width: 132, flexShrink: 0 }}>
+                <input
+                  value={newSub}
+                  onChange={(e) => setNewSub(e.target.value)}
+                  placeholder="Add a subtask…"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addSub();
+                    }
+                  }}
+                  style={{ ...inputStyle, flex: 1, minWidth: 0 }}
+                />
+                <select
+                  value={team.includes(newSubWho) ? newSubWho : ""}
+                  onChange={(e) => setNewSubWho(e.target.value)}
+                  aria-label="New subtask assignee"
+                  style={{ ...inputStyle, width: 132, flexShrink: 0 }}
+                >
                   <option value="">Unassigned</option>
-                  {team.map(id => <option key={id} value={id}>{byId[id]?.name}</option>)}
+                  {team.map((id) => (
+                    <option key={id} value={id}>
+                      {byId[id]?.name}
+                    </option>
+                  ))}
                 </select>
-                <IconBtn onClick={addSub} title="Add subtask"><Plus size={15} /></IconBtn>
+                <IconBtn onClick={addSub} title="Add subtask">
+                  <Plus size={15} />
+                </IconBtn>
               </div>
             )}
           </div>
         </>
       )}
       {task.needsSignoff && task.status !== "Completed" && !isApprover && (
-        <div style={{ marginBottom: 14, fontSize: 12, color: C.slate, background: C.paper, borderRadius: 8, padding: 10 }}><ShieldCheck size={13} style={{ verticalAlign: -2, marginRight: 5 }} /> This task requires sign-off from {sup.name} before it counts as complete.</div>
+        <div
+          style={{
+            marginBottom: 14,
+            fontSize: 12,
+            color: C.slate,
+            background: C.paper,
+            borderRadius: 8,
+            padding: 10,
+          }}
+        >
+          <ShieldCheck
+            size={13}
+            style={{ verticalAlign: -2, marginRight: 5 }}
+          />{" "}
+          This task requires sign-off from {sup.name} before it counts as
+          complete.
+        </div>
       )}
       {isApprover && (
-        <div style={{ marginBottom: 16, background: C.paper, borderRadius: 10, padding: 12 }}>
+        <div
+          style={{
+            marginBottom: 16,
+            background: C.paper,
+            borderRadius: 10,
+            padding: 12,
+          }}
+        >
           <SectionLabel>Sign-off decision</SectionLabel>
-          <div style={{ fontSize: 12, color: C.slate, margin: "6px 0 10px" }}>{team.length > 1 ? `${emp.name} and the team submitted` : `${emp.name} submitted`} this for your review. Approve it if it's genuinely done, or send it back if it isn't — a note is required when sending back.</div>
-          <textarea placeholder="Note for the assignee (required if sending back)" value={signoffNote} onChange={e=>setSignoffNote(e.target.value)}
-            style={{ ...inputStyle, minHeight: 60, marginBottom: 10, resize: "vertical" }} />
+          <div style={{ fontSize: 12, color: C.slate, margin: "6px 0 10px" }}>
+            {team.length > 1
+              ? `${emp.name} and the team submitted`
+              : `${emp.name} submitted`}{" "}
+            this for your review. Approve it if it's genuinely done, or send it
+            back if it isn't — a note is required when sending back.
+          </div>
+          <textarea
+            placeholder="Note for the assignee (required if sending back)"
+            value={signoffNote}
+            onChange={(e) => setSignoffNote(e.target.value)}
+            style={{
+              ...inputStyle,
+              minHeight: 60,
+              marginBottom: 10,
+              resize: "vertical",
+            }}
+          />
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={approve} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: C.sage, color: "#fff", border: "none", borderRadius: 8, padding: "9px 0", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+            <button
+              onClick={approve}
+              style={{
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                background: C.sage,
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                padding: "9px 0",
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+            >
               <CheckCircle2 size={14} /> Approve
             </button>
-            <button onClick={sendBack} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: C.coral, color: "#fff", border: "none", borderRadius: 8, padding: "9px 0", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+            <button
+              onClick={sendBack}
+              style={{
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                background: C.coral,
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                padding: "9px 0",
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+            >
               <Undo2 size={14} /> Send back — not complete
             </button>
           </div>
@@ -2261,40 +6206,144 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
       )}
 
       <SectionLabel>Files — {task.attachments?.length || 0}</SectionLabel>
-      <div style={{ margin: "8px 0 10px", display: "flex", flexDirection: "column", gap: 6 }}>
-        {(task.attachments || []).length === 0 && <div style={{ fontSize: 12.5, color: C.slate }}>No files attached yet.</div>}
-        {(task.attachments || []).map(a => {
-          const { data } = supabase.storage.from("app-task-attachment").getPublicUrl(a.path);
+      <div
+        style={{
+          margin: "8px 0 10px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+        }}
+      >
+        {(task.attachments || []).length === 0 && (
+          <div style={{ fontSize: 12.5, color: C.slate }}>
+            No files attached yet.
+          </div>
+        )}
+        {(task.attachments || []).map((a) => {
+          const { data } = supabase.storage
+            .from("app-task-attachment")
+            .getPublicUrl(a.path);
           return (
-            <a key={a.id} href={data?.publicUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: C.white, display: "flex", justifyContent: "space-between", background: C.card, border: `1px solid ${C.line}`, borderRadius: 8, padding: "6px 10px", textDecoration: "none" }}>
-              <span>{a.name}</span><span style={{ color: C.slate, fontSize: 11 }}>{byId[a.uploadedBy]?.name || a.uploadedBy} · {a.time}</span>
+            <a
+              key={a.id}
+              href={data?.publicUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                fontSize: 12.5,
+                color: C.white,
+                display: "flex",
+                justifyContent: "space-between",
+                background: C.card,
+                border: `1px solid ${C.line}`,
+                borderRadius: 8,
+                padding: "6px 10px",
+                textDecoration: "none",
+              }}
+            >
+              <span>{a.name}</span>
+              <span style={{ color: C.slate, fontSize: 11 }}>
+                {byId[a.uploadedBy]?.name || a.uploadedBy} · {a.time}
+              </span>
             </a>
           );
         })}
       </div>
-      <label style={{ display: "inline-block", fontSize: 12.5, fontWeight: 600, color: C.white, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", marginBottom: 18 }}>
+      <label
+        style={{
+          display: "inline-block",
+          fontSize: 12.5,
+          fontWeight: 600,
+          color: C.white,
+          background: C.paper,
+          border: `1px solid ${C.line}`,
+          borderRadius: 8,
+          padding: "7px 12px",
+          cursor: "pointer",
+          marginBottom: 18,
+        }}
+      >
         {uploading ? "Uploading…" : "+ Attach a file"}
-        <input type="file" disabled={uploading} style={{ display: "none" }} onChange={async (e) => { const f = e.target.files?.[0]; if (f) await uploadFile(f); e.target.value = ""; }} />
+        <input
+          type="file"
+          disabled={uploading}
+          style={{ display: "none" }}
+          onChange={async (e) => {
+            const f = e.target.files?.[0];
+            if (f) await uploadFile(f);
+            e.target.value = "";
+          }}
+        />
       </label>
 
       <SectionLabel>Comments &amp; questions — {comments.length}</SectionLabel>
-      <div style={{ margin: "10px 0 14px", display: "flex", flexDirection: "column", gap: 10, maxHeight: 260, overflowY: "auto" }}>
-        {comments.length === 0 && <div style={{ fontSize: 12.5, color: C.slate }}>No comments yet.</div>}
+      <div
+        style={{
+          margin: "10px 0 14px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+          maxHeight: 260,
+          overflowY: "auto",
+        }}
+      >
+        {comments.length === 0 && (
+          <div style={{ fontSize: 12.5, color: C.slate }}>No comments yet.</div>
+        )}
         {topLevel.map((c) => (
           <div key={c.id ?? c.time}>
             <CommentBubble c={c} byId={byId} />
             {c.id && (
-              <button onClick={() => setReplyingTo(replyingTo === c.id ? null : c.id)} style={{ fontSize: 11, color: C.slate, background: "none", border: "none", cursor: "pointer", marginLeft: 35, marginTop: 3, padding: 0 }}>
+              <button
+                onClick={() => setReplyingTo(replyingTo === c.id ? null : c.id)}
+                style={{
+                  fontSize: 11,
+                  color: C.slate,
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  marginLeft: 35,
+                  marginTop: 3,
+                  padding: 0,
+                }}
+              >
                 Reply
               </button>
             )}
-            {repliesOf(c.id).map(r => (
-              <div key={r.id} style={{ marginLeft: 35, marginTop: 6 }}><CommentBubble c={r} byId={byId} small /></div>
+            {repliesOf(c.id).map((r) => (
+              <div key={r.id} style={{ marginLeft: 35, marginTop: 6 }}>
+                <CommentBubble c={r} byId={byId} small />
+              </div>
             ))}
             {replyingTo === c.id && (
-              <div style={{ marginLeft: 35, marginTop: 6, display: "flex", gap: 6 }}>
-                <input value={replyDraft} onChange={e=>setReplyDraft(e.target.value)} placeholder="Write a reply…" style={{ ...inputStyle, flex: 1 }} />
-                <button onClick={() => submitReply(c.id)} style={{ background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "0 12px", fontSize: 12, cursor: "pointer" }}>Send</button>
+              <div
+                style={{
+                  marginLeft: 35,
+                  marginTop: 6,
+                  display: "flex",
+                  gap: 6,
+                }}
+              >
+                <input
+                  value={replyDraft}
+                  onChange={(e) => setReplyDraft(e.target.value)}
+                  placeholder="Write a reply…"
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                <button
+                  onClick={() => submitReply(c.id)}
+                  style={{
+                    background: C.amber,
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "0 12px",
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  Send
+                </button>
               </div>
             )}
           </div>
@@ -2303,12 +6352,40 @@ function TaskDetailModal({ task, onClose, addComment, viewerEmp, setTaskStatus, 
       <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
         <Avatar name={viewerEmp.name} size={26} />
         <div style={{ flex: 1 }}>
-          <textarea value={draft} onChange={e => setDraft(e.target.value)} placeholder={`Leave a note or ask a question as ${viewerEmp.name}…`} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
-          <button onClick={submitComment} style={{ marginTop: 6, background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Add Comment</button>
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={`Leave a note or ask a question as ${viewerEmp.name}…`}
+            rows={2}
+            style={{ ...inputStyle, resize: "vertical" }}
+          />
+          <button
+            onClick={submitComment}
+            style={{
+              marginTop: 6,
+              background: C.amber,
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              padding: "6px 14px",
+              fontSize: 12.5,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Add Comment
+          </button>
         </div>
       </div>
       {showEdit && (
-        <EditTaskModal task={task} onClose={() => setShowEdit(false)} onSave={(patch) => { updateTask(task.id, patch); setShowEdit(false); }} />
+        <EditTaskModal
+          task={task}
+          onClose={() => setShowEdit(false)}
+          onSave={(patch) => {
+            updateTask(task.id, patch);
+            setShowEdit(false);
+          }}
+        />
       )}
     </ModalShell>
   );
@@ -2321,17 +6398,101 @@ function RepeatTaskModal({ task, onClose, onConfirm }) {
   const [busy, setBusy] = useState(false);
   return (
     <ModalShell onClose={onClose} width={420}>
-      <div className="mb-display" style={{ fontSize: 19, fontWeight: 600, marginBottom: 4, paddingRight: 36 }}>Repeat task</div>
-      <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 14 }}>Creates a fresh copy in To Do for {byId[task.assignee]?.name || "the same person"}. Comments and files aren't copied.</div>
-      <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 12px", marginBottom: 14, fontSize: 13.5, fontWeight: 600 }}>{task.title}</div>
-      <FormRow label="New due date"><input type="date" value={due} onChange={e => setDue(e.target.value)} style={inputStyle} /></FormRow>
-      <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12.5, marginBottom: 14, cursor: "pointer" }}>
-        <input type="checkbox" checked={archiveOriginal} onChange={e => setArchiveOriginal(e.target.checked)} style={{ marginTop: 2 }} />
-        <span>Also remove the finished card from the board<br /><span style={{ color: C.slate }}>It stays saved and still counts in completion reports.</span></span>
+      <div
+        className="mb-display"
+        style={{
+          fontSize: 19,
+          fontWeight: 600,
+          marginBottom: 4,
+          paddingRight: 36,
+        }}
+      >
+        Repeat task
+      </div>
+      <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 14 }}>
+        Creates a fresh copy in To Do for{" "}
+        {byId[task.assignee]?.name || "the same person"}. Comments and files
+        aren't copied.
+      </div>
+      <div
+        style={{
+          background: C.card,
+          border: `1px solid ${C.line}`,
+          borderRadius: 10,
+          padding: "10px 12px",
+          marginBottom: 14,
+          fontSize: 13.5,
+          fontWeight: 600,
+        }}
+      >
+        {task.title}
+      </div>
+      <FormRow label="New due date">
+        <input
+          type="date"
+          value={due}
+          onChange={(e) => setDue(e.target.value)}
+          style={inputStyle}
+        />
+      </FormRow>
+      <label
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 8,
+          fontSize: 12.5,
+          marginBottom: 14,
+          cursor: "pointer",
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={archiveOriginal}
+          onChange={(e) => setArchiveOriginal(e.target.checked)}
+          style={{ marginTop: 2 }}
+        />
+        <span>
+          Also remove the finished card from the board
+          <br />
+          <span style={{ color: C.slate }}>
+            It stays saved and still counts in completion reports.
+          </span>
+        </span>
       </label>
-      {task.recurring && <div style={{ fontSize: 12, color: C.slate, background: C.paper, borderRadius: 8, padding: 10, marginBottom: 14 }}>This task already repeats automatically, so the copy will be a one-time task.</div>}
-      <button disabled={busy || !due} onClick={async () => { setBusy(true); await onConfirm(due, archiveOriginal); }}
-        style={{ width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: "pointer", opacity: busy || !due ? 0.6 : 1 }}>
+      {task.recurring && (
+        <div
+          style={{
+            fontSize: 12,
+            color: C.slate,
+            background: C.paper,
+            borderRadius: 8,
+            padding: 10,
+            marginBottom: 14,
+          }}
+        >
+          This task already repeats automatically, so the copy will be a
+          one-time task.
+        </div>
+      )}
+      <button
+        disabled={busy || !due}
+        onClick={async () => {
+          setBusy(true);
+          await onConfirm(due, archiveOriginal);
+        }}
+        style={{
+          width: "100%",
+          background: C.amber,
+          color: "#fff",
+          border: "none",
+          borderRadius: 8,
+          padding: "10px 0",
+          fontWeight: 600,
+          fontSize: 14,
+          cursor: "pointer",
+          opacity: busy || !due ? 0.6 : 1,
+        }}
+      >
         {busy ? "Creating…" : "Create copy"}
       </button>
     </ModalShell>
@@ -2352,54 +6513,177 @@ function EditTaskModal({ task, onClose, onSave }) {
     if (!title.trim() || !assignee) return;
     const assigneeEmp = byId[assignee];
     onSave({
-      title: title.trim(), assignee_id: assignee, dept_id: assigneeEmp.dept,
-      supervisor_id: assigneeEmp.sup || task.supervisor, priority, due_date: due, category,
-      recurring: recurring || null, recurring_custom_days: recurring === "Custom" ? (Number(customDays) || 7) : null,
+      title: title.trim(),
+      assignee_id: assignee,
+      dept_id: assigneeEmp.dept,
+      supervisor_id: assigneeEmp.sup || task.supervisor,
+      priority,
+      due_date: due,
+      category,
+      recurring: recurring || null,
+      recurring_custom_days:
+        recurring === "Custom" ? Number(customDays) || 7 : null,
     });
   };
 
   return (
     <ModalShell onClose={onClose} width={460}>
-      <div className="mb-display" style={{ fontSize: 19, fontWeight: 600, marginBottom: 16 }}>Edit Task</div>
-      <FormRow label="Task title"><input value={title} onChange={e=>setTitle(e.target.value)} style={inputStyle} /></FormRow>
+      <div
+        className="mb-display"
+        style={{ fontSize: 19, fontWeight: 600, marginBottom: 16 }}
+      >
+        Edit Task
+      </div>
+      <FormRow label="Task title">
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          style={inputStyle}
+        />
+      </FormRow>
       <FormRow label="Assign to">
-        <select value={assignee} onChange={e=>setAssignee(e.target.value)} style={inputStyle}>
-          {employees.map(e => <option key={e.id} value={e.id}>{e.name} — {e.position}</option>)}
+        <select
+          value={assignee}
+          onChange={(e) => setAssignee(e.target.value)}
+          style={inputStyle}
+        >
+          {employees.map((e) => (
+            <option key={e.id} value={e.id}>
+              {e.name} — {e.position}
+            </option>
+          ))}
         </select>
       </FormRow>
-      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <FormRow label="Priority"><select value={priority} onChange={e=>setPriority(e.target.value)} style={inputStyle}><option>High</option><option>Medium</option><option>Low</option></select></FormRow>
-        <FormRow label="Due date"><input type="date" value={due} onChange={e=>setDue(e.target.value)} style={inputStyle} /></FormRow>
+      <div
+        className="mb-grid-2"
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
+      >
+        <FormRow label="Priority">
+          <select
+            value={priority}
+            onChange={(e) => setPriority(e.target.value)}
+            style={inputStyle}
+          >
+            <option>High</option>
+            <option>Medium</option>
+            <option>Low</option>
+          </select>
+        </FormRow>
+        <FormRow label="Due date">
+          <input
+            type="date"
+            value={due}
+            onChange={(e) => setDue(e.target.value)}
+            style={inputStyle}
+          />
+        </FormRow>
       </div>
-      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <FormRow label="Category"><input value={category} onChange={e=>setCategory(e.target.value)} style={inputStyle} /></FormRow>
+      <div
+        className="mb-grid-2"
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
+      >
+        <FormRow label="Category">
+          <input
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            style={inputStyle}
+          />
+        </FormRow>
         <FormRow label="Recurring?">
-          <select value={recurring} onChange={e=>setRecurring(e.target.value)} style={inputStyle}>
-            <option value="">One-time</option><option>Daily</option><option>Weekly</option><option>Biweekly</option><option>Monthly</option><option>Quarterly</option><option>Custom</option>
+          <select
+            value={recurring}
+            onChange={(e) => setRecurring(e.target.value)}
+            style={inputStyle}
+          >
+            <option value="">One-time</option>
+            <option>Daily</option>
+            <option>Weekly</option>
+            <option>Biweekly</option>
+            <option>Monthly</option>
+            <option>Quarterly</option>
+            <option>Custom</option>
           </select>
         </FormRow>
       </div>
       {recurring === "Custom" && (
-        <FormRow label="Repeat every N days"><input type="number" min={1} value={customDays} onChange={e=>setCustomDays(e.target.value)} style={inputStyle} /></FormRow>
+        <FormRow label="Repeat every N days">
+          <input
+            type="number"
+            min={1}
+            value={customDays}
+            onChange={(e) => setCustomDays(e.target.value)}
+            style={inputStyle}
+          />
+        </FormRow>
       )}
-      <button onClick={submit} style={{ marginTop: 14, width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Save Changes</button>
+      <button
+        onClick={submit}
+        style={{
+          marginTop: 14,
+          width: "100%",
+          background: C.amber,
+          color: "#fff",
+          border: "none",
+          borderRadius: 8,
+          padding: "10px 0",
+          fontWeight: 600,
+          fontSize: 14,
+          cursor: "pointer",
+        }}
+      >
+        Save Changes
+      </button>
     </ModalShell>
   );
 }
 
 function Field({ label, value }) {
-  return <div><div style={{ fontSize: 10.5, color: C.slate, marginBottom: 2 }}>{label}</div><div style={{ fontSize: 13.5, fontWeight: 600 }}>{value}</div></div>;
+  return (
+    <div>
+      <div style={{ fontSize: 10.5, color: C.slate, marginBottom: 2 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 13.5, fontWeight: 600 }}>{value}</div>
+    </div>
+  );
 }
 
 // A scrollable checklist of people, used to pick extra assignees.
 function PeoplePicker({ options, selected, onToggle }) {
   return (
-    <div style={{ border: `1px solid var(--mb-control-border, ${C.line})`, borderRadius: 8, maxHeight: 142, overflowY: "auto", padding: "4px 6px", background: "var(--mb-control-bg, transparent)" }}>
-      {options.map(e => (
-        <label key={e.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 4px", fontSize: 12.5, cursor: "pointer" }}>
-          <input type="checkbox" checked={selected.includes(e.id)} onChange={() => onToggle(e.id)} />
+    <div
+      style={{
+        border: `1px solid var(--mb-control-border, ${C.line})`,
+        borderRadius: 8,
+        maxHeight: 142,
+        overflowY: "auto",
+        padding: "4px 6px",
+        background: "var(--mb-control-bg, transparent)",
+      }}
+    >
+      {options.map((e) => (
+        <label
+          key={e.id}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "5px 4px",
+            fontSize: 12.5,
+            cursor: "pointer",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={selected.includes(e.id)}
+            onChange={() => onToggle(e.id)}
+          />
           <span style={{ flex: 1, minWidth: 0, ...ellipsis }}>{e.name}</span>
-          <span style={{ fontSize: 11, color: C.slate, ...ellipsis, maxWidth: 140 }}>{e.position}</span>
+          <span
+            style={{ fontSize: 11, color: C.slate, ...ellipsis, maxWidth: 140 }}
+          >
+            {e.position}
+          </span>
         </label>
       ))}
     </div>
@@ -2410,8 +6694,8 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
   const { employees, byId } = useEmp();
   const [title, setTitle] = useState("");
   const [assignee, setAssignee] = useState(employees[0]?.id || "");
-  const [extra, setExtra] = useState([]);       // additional people besides the lead
-  const [subs, setSubs] = useState([]);         // [{ title, assignee }]
+  const [extra, setExtra] = useState([]); // additional people besides the lead
+  const [subs, setSubs] = useState([]); // [{ title, assignee }]
   const [subDraft, setSubDraft] = useState("");
   const [subWho, setSubWho] = useState("");
   const [priority, setPriority] = useState("Medium");
@@ -2424,18 +6708,42 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
 
   const team = [assignee, ...extra].filter(Boolean);
   const subWhoValid = team.includes(subWho) ? subWho : "";
-  const changeLead = (id) => { setAssignee(id); setExtra(x => x.filter(i => i !== id)); };
-  const toggleExtra = (id) => setExtra(x => x.includes(id) ? x.filter(i => i !== id) : [...x, id]);
-  const addSub = () => { if (!subDraft.trim()) return; setSubs(x => [...x, { title: subDraft.trim(), assignee: subWhoValid }]); setSubDraft(""); };
+  const changeLead = (id) => {
+    setAssignee(id);
+    setExtra((x) => x.filter((i) => i !== id));
+  };
+  const toggleExtra = (id) =>
+    setExtra((x) => (x.includes(id) ? x.filter((i) => i !== id) : [...x, id]));
+  const addSub = () => {
+    if (!subDraft.trim()) return;
+    setSubs((x) => [...x, { title: subDraft.trim(), assignee: subWhoValid }]);
+    setSubDraft("");
+  };
 
   const submit = async () => {
     if (!title.trim() || !assignee || saving) return;
     setSaving(true);
     const assigneeEmp = byId[assignee];
     const taskId = await onCreate({
-      title, assignee, extraAssignees: extra, dept: assigneeEmp.dept, supervisor: assigneeEmp.sup || createdBy, priority, status: due < today() ? "Backlog" : "To Do", due, progress: 0, category,
-      recurring: recurring || null, recurringCustomDays: recurring === "Custom" ? Number(customDays) || 7 : null, createdBy, needsSignoff: true,
-      subtasks: subs.map(x => ({ title: x.title, assignee: team.includes(x.assignee) ? x.assignee : "" })), // drop owners who were un-ticked
+      title,
+      assignee,
+      extraAssignees: extra,
+      dept: assigneeEmp.dept,
+      supervisor: assigneeEmp.sup || createdBy,
+      priority,
+      status: due < today() ? "Backlog" : "To Do",
+      due,
+      progress: 0,
+      category,
+      recurring: recurring || null,
+      recurringCustomDays:
+        recurring === "Custom" ? Number(customDays) || 7 : null,
+      createdBy,
+      needsSignoff: true,
+      subtasks: subs.map((x) => ({
+        title: x.title,
+        assignee: team.includes(x.assignee) ? x.assignee : "",
+      })), // drop owners who were un-ticked
     });
     if (taskId && file) await onAttach(taskId, file);
     setSaving(false);
@@ -2444,57 +6752,199 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
 
   return (
     <ModalShell onClose={onClose} width={500}>
-      <div className="mb-display" style={{ fontSize: 19, fontWeight: 600, marginBottom: 16 }}>Create Task</div>
-      <FormRow label="Task title"><input value={title} onChange={e=>setTitle(e.target.value)} style={inputStyle} /></FormRow>
+      <div
+        className="mb-display"
+        style={{ fontSize: 19, fontWeight: 600, marginBottom: 16 }}
+      >
+        Create Task
+      </div>
+      <FormRow label="Task title">
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          style={inputStyle}
+        />
+      </FormRow>
       <FormRow label="Lead assignee (owns the task and its sign-off)">
-        <select value={assignee} onChange={e=>changeLead(e.target.value)} style={inputStyle}>
-          {employees.map(e => <option key={e.id} value={e.id}>{e.name} — {e.position}</option>)}
+        <select
+          value={assignee}
+          onChange={(e) => changeLead(e.target.value)}
+          style={inputStyle}
+        >
+          {employees.map((e) => (
+            <option key={e.id} value={e.id}>
+              {e.name} — {e.position}
+            </option>
+          ))}
         </select>
       </FormRow>
-      <FormRow label={`Also assign (optional)${extra.length ? ` — ${extra.length} selected` : ""}`}>
-        <PeoplePicker options={employees.filter(e => e.id !== assignee)} selected={extra} onToggle={toggleExtra} />
+      <FormRow
+        label={`Also assign (optional)${extra.length ? ` — ${extra.length} selected` : ""}`}
+      >
+        <PeoplePicker
+          options={employees.filter((e) => e.id !== assignee)}
+          selected={extra}
+          onToggle={toggleExtra}
+        />
       </FormRow>
-      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <FormRow label="Priority"><select value={priority} onChange={e=>setPriority(e.target.value)} style={inputStyle}><option>High</option><option>Medium</option><option>Low</option></select></FormRow>
-        <FormRow label="Due date"><input type="date" value={due} onChange={e=>setDue(e.target.value)} style={inputStyle} /></FormRow>
+      <div
+        className="mb-grid-2"
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
+      >
+        <FormRow label="Priority">
+          <select
+            value={priority}
+            onChange={(e) => setPriority(e.target.value)}
+            style={inputStyle}
+          >
+            <option>High</option>
+            <option>Medium</option>
+            <option>Low</option>
+          </select>
+        </FormRow>
+        <FormRow label="Due date">
+          <input
+            type="date"
+            value={due}
+            onChange={(e) => setDue(e.target.value)}
+            style={inputStyle}
+          />
+        </FormRow>
       </div>
-      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <FormRow label="Category"><input value={category} onChange={e=>setCategory(e.target.value)} style={inputStyle} /></FormRow>
+      <div
+        className="mb-grid-2"
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
+      >
+        <FormRow label="Category">
+          <input
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            style={inputStyle}
+          />
+        </FormRow>
         <FormRow label="Recurring?">
-          <select value={recurring} onChange={e=>setRecurring(e.target.value)} style={inputStyle}>
-            <option value="">One-time</option><option>Daily</option><option>Weekly</option><option>Biweekly</option><option>Monthly</option><option>Quarterly</option><option>Custom</option>
+          <select
+            value={recurring}
+            onChange={(e) => setRecurring(e.target.value)}
+            style={inputStyle}
+          >
+            <option value="">One-time</option>
+            <option>Daily</option>
+            <option>Weekly</option>
+            <option>Biweekly</option>
+            <option>Monthly</option>
+            <option>Quarterly</option>
+            <option>Custom</option>
           </select>
         </FormRow>
       </div>
       {recurring === "Custom" && (
         <FormRow label="Repeat every N days">
-          <input type="number" min={1} value={customDays} onChange={e=>setCustomDays(e.target.value)} style={inputStyle} />
+          <input
+            type="number"
+            min={1}
+            value={customDays}
+            onChange={(e) => setCustomDays(e.target.value)}
+            style={inputStyle}
+          />
         </FormRow>
       )}
 
       <FormRow label="Subtasks (optional) — each can be given to one person on the task">
         {subs.map((x, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", fontSize: 12.5 }}>
-            <span style={{ flex: 1, minWidth: 0, ...ellipsis }}>• {x.title}</span>
-            <span style={{ fontSize: 11, color: C.slate, whiteSpace: "nowrap" }}>{team.includes(x.assignee) ? byId[x.assignee]?.name : "Unassigned"}</span>
-            <button type="button" onClick={() => setSubs(list => list.filter((_, j) => j !== i))} aria-label="Remove subtask" style={{ background: "none", border: "none", cursor: "pointer", color: C.slate, padding: 2 }}><X size={13} /></button>
+          <div
+            key={i}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "4px 0",
+              fontSize: 12.5,
+            }}
+          >
+            <span style={{ flex: 1, minWidth: 0, ...ellipsis }}>
+              • {x.title}
+            </span>
+            <span
+              style={{ fontSize: 11, color: C.slate, whiteSpace: "nowrap" }}
+            >
+              {team.includes(x.assignee)
+                ? byId[x.assignee]?.name
+                : "Unassigned"}
+            </span>
+            <button
+              type="button"
+              onClick={() => setSubs((list) => list.filter((_, j) => j !== i))}
+              aria-label="Remove subtask"
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: C.slate,
+                padding: 2,
+              }}
+            >
+              <X size={13} />
+            </button>
           </div>
         ))}
-        <div style={{ display: "flex", gap: 6, marginTop: subs.length ? 4 : 0 }}>
-          <input value={subDraft} onChange={e=>setSubDraft(e.target.value)} placeholder="Add a subtask…"
-            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addSub(); } }} style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
-          <select value={subWhoValid} onChange={e=>setSubWho(e.target.value)} style={{ ...inputStyle, width: 130, flexShrink: 0 }} aria-label="Subtask assignee">
+        <div
+          style={{ display: "flex", gap: 6, marginTop: subs.length ? 4 : 0 }}
+        >
+          <input
+            value={subDraft}
+            onChange={(e) => setSubDraft(e.target.value)}
+            placeholder="Add a subtask…"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addSub();
+              }
+            }}
+            style={{ ...inputStyle, flex: 1, minWidth: 0 }}
+          />
+          <select
+            value={subWhoValid}
+            onChange={(e) => setSubWho(e.target.value)}
+            style={{ ...inputStyle, width: 130, flexShrink: 0 }}
+            aria-label="Subtask assignee"
+          >
             <option value="">Unassigned</option>
-            {team.map(id => <option key={id} value={id}>{byId[id]?.name}</option>)}
+            {team.map((id) => (
+              <option key={id} value={id}>
+                {byId[id]?.name}
+              </option>
+            ))}
           </select>
-          <IconBtn onClick={addSub} title="Add subtask"><Plus size={15} /></IconBtn>
+          <IconBtn onClick={addSub} title="Add subtask">
+            <Plus size={15} />
+          </IconBtn>
         </div>
       </FormRow>
 
       <FormRow label="Attach a file (optional)">
-        <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} style={{ fontSize: 12.5 }} />
+        <input
+          type="file"
+          onChange={(e) => setFile(e.target.files?.[0] || null)}
+          style={{ fontSize: 12.5 }}
+        />
       </FormRow>
-      <button onClick={submit} disabled={saving} style={{ marginTop: 14, width: "100%", background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
+      <button
+        onClick={submit}
+        disabled={saving}
+        style={{
+          marginTop: 14,
+          width: "100%",
+          background: C.amber,
+          color: "#fff",
+          border: "none",
+          borderRadius: 8,
+          padding: "10px 0",
+          fontWeight: 600,
+          fontSize: 14,
+          cursor: "pointer",
+        }}
+      >
         {saving ? "Creating…" : "Create Task"}
       </button>
     </ModalShell>
@@ -2502,26 +6952,78 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
 }
 
 function FormRow({ label, children }) {
-  return <div style={{ marginBottom: 12 }}><div style={{ fontSize: 11.5, color: C.slate, marginBottom: 4 }}>{label}</div>{children}</div>;
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 11.5, color: C.slate, marginBottom: 4 }}>
+        {label}
+      </div>
+      {children}
+    </div>
+  );
 }
-const inputStyle = { width: "100%", border: "1px solid var(--mb-control-border, #E4E2DC)", borderRadius: 8, padding: "8px 0px", fontSize: 13.5, fontFamily: "inherit", background: "var(--mb-control-bg, #FFFFFF)", color: "var(--mb-control-fg, #20263D)" };
+const inputStyle = {
+  width: "100%",
+  border: "1px solid var(--mb-control-border, #E4E2DC)",
+  borderRadius: 8,
+  padding: "8px 0px",
+  fontSize: 13.5,
+  fontFamily: "inherit",
+  background: "var(--mb-control-bg, #FFFFFF)",
+  color: "var(--mb-control-fg, #20263D)",
+};
 
-function Notifications({ tasks, byId, notifications = [], onMarkRead, setPage, setTaskDetail }) {
+function Notifications({
+  tasks,
+  byId,
+  notifications = [],
+  onMarkRead,
+  setPage,
+  setTaskDetail,
+}) {
   const taskItems = [
-    ...tasks.filter(t => statusMeta(t).label === "Due today").map(t => ({ type: "due", t })),
-    ...tasks.filter(t => t.status === "For Review").map(t => ({ type: "review", t })),
-    ...tasks.filter(t => statusMeta(t).label === "Overdue").map(t => ({ type: "overdue", t })),
+    ...tasks
+      .filter((t) => statusMeta(t).label === "Due today")
+      .map((t) => ({ type: "due", t })),
+    ...tasks
+      .filter((t) => t.status === "For Review")
+      .map((t) => ({ type: "review", t })),
+    ...tasks
+      .filter((t) => statusMeta(t).label === "Overdue")
+      .map((t) => ({ type: "overdue", t })),
   ];
   // Comment notifications are DB rows so they can be marked read.
   const commentItems = notifications
-    .filter(n => n.type === "comment")
-    .map(n => ({ type: "comment", n, t: tasks.find(t => t.id === n.task_id) }));
+    .filter((n) => n.type === "comment")
+    .map((n) => ({
+      type: "comment",
+      n,
+      t: tasks.find((t) => t.id === n.task_id),
+    }));
 
-  const copy = { overdue: (t) => `"${t.title}" is overdue`, due: (t) => `"${t.title}" is due today`, review: (t) => `"${t.title}" is waiting on your sign-off` };
-  const iconFor = { overdue: CircleAlert, due: Clock, review: ShieldCheck, comment: MessageSquare };
-  const colorFor = { overdue: C.coral, due: C.amber, review: C.slate, comment: C.navy };
-  const isUrgent = (item) => item.type === "comment" ? !item.n.read : item.type !== "due";
-  const goToTask = (id) => { if (!setPage || !setTaskDetail || id == null) return; setTaskDetail(id); setPage("tasks"); };
+  const copy = {
+    overdue: (t) => `"${t.title}" is overdue`,
+    due: (t) => `"${t.title}" is due today`,
+    review: (t) => `"${t.title}" is waiting on your sign-off`,
+  };
+  const iconFor = {
+    overdue: CircleAlert,
+    due: Clock,
+    review: ShieldCheck,
+    comment: MessageSquare,
+  };
+  const colorFor = {
+    overdue: C.coral,
+    due: C.amber,
+    review: C.slate,
+    comment: C.navy,
+  };
+  const isUrgent = (item) =>
+    item.type === "comment" ? !item.n.read : item.type !== "due";
+  const goToTask = (id) => {
+    if (!setPage || !setTaskDetail || id == null) return;
+    setTaskDetail(id);
+    setPage("tasks");
+  };
 
   const openItem = (item) => {
     if (item.type === "comment") {
@@ -2534,22 +7036,72 @@ function Notifications({ tasks, byId, notifications = [], onMarkRead, setPage, s
 
   const renderItem = (item, index) => {
     const Icon = iconFor[item.type];
-    const label = item.type === "comment" ? item.n.message : copy[item.type](item.t);
-    const when = item.type === "comment" ? new Date(item.n.created_at).toLocaleDateString() : item.t.due;
+    const label =
+      item.type === "comment" ? item.n.message : copy[item.type](item.t);
+    const when =
+      item.type === "comment"
+        ? new Date(item.n.created_at).toLocaleDateString()
+        : item.t.due;
     const clickable = !!(setPage && setTaskDetail);
     return (
-      <div key={item.type === "comment" ? `c${item.n.id}` : `${item.type}-${item.t.id}-${index}`} onClick={() => clickable && openItem(item)}
-        style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 0", borderBottom: `1px solid ${C.line}`, cursor: clickable ? "pointer" : "default", opacity: item.type === "comment" && item.n.read ? 0.6 : 1 }}>
-        <span style={{ position: "relative", display: "inline-flex", marginTop: 2 }}>
+      <div
+        key={
+          item.type === "comment"
+            ? `c${item.n.id}`
+            : `${item.type}-${item.t.id}-${index}`
+        }
+        onClick={() => clickable && openItem(item)}
+        style={{
+          display: "flex",
+          gap: 10,
+          alignItems: "flex-start",
+          padding: "10px 0",
+          borderBottom: `1px solid ${C.line}`,
+          cursor: clickable ? "pointer" : "default",
+          opacity: item.type === "comment" && item.n.read ? 0.6 : 1,
+        }}
+      >
+        <span
+          style={{ position: "relative", display: "inline-flex", marginTop: 2 }}
+        >
           <Icon size={16} color={colorFor[item.type]} />
-          {isUrgent(item) && <span style={{ position: "absolute", top: -3, right: -3, width: 6, height: 6, borderRadius: 6, background: C.coral, border: `1.5px solid ${C.card}` }} />}
+          {isUrgent(item) && (
+            <span
+              style={{
+                position: "absolute",
+                top: -3,
+                right: -3,
+                width: 6,
+                height: 6,
+                borderRadius: 6,
+                background: C.coral,
+                border: `1.5px solid ${C.card}`,
+              }}
+            />
+          )}
         </span>
         <div style={{ fontSize: 13.5, flex: 1, minWidth: 0 }}>
           <div>{label}</div>
-          {item.type === "overdue" && <div style={{ fontSize: 11.5, color: C.slate, marginTop: 3 }}>Assigned to {taskTeam(item.t).map(id => byId[id]?.name).filter(Boolean).join(", ") || "Unassigned"}</div>}
+          {item.type === "overdue" && (
+            <div style={{ fontSize: 11.5, color: C.slate, marginTop: 3 }}>
+              Assigned to{" "}
+              {taskTeam(item.t)
+                .map((id) => byId[id]?.name)
+                .filter(Boolean)
+                .join(", ") || "Unassigned"}
+            </div>
+          )}
         </div>
-        <span style={{ fontSize: 11.5, color: C.slate, whiteSpace: "nowrap" }}>{when}</span>
-        {clickable && <ChevronRight size={14} color={C.slate} style={{ flexShrink: 0, marginTop: 2 }} />}
+        <span style={{ fontSize: 11.5, color: C.slate, whiteSpace: "nowrap" }}>
+          {when}
+        </span>
+        {clickable && (
+          <ChevronRight
+            size={14}
+            color={C.slate}
+            style={{ flexShrink: 0, marginTop: 2 }}
+          />
+        )}
       </div>
     );
   };
@@ -2557,22 +7109,60 @@ function Notifications({ tasks, byId, notifications = [], onMarkRead, setPage, s
   return (
     <div>
       <PageHeader eyebrow="In-app alerts" title="Notifications" />
-      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16, alignItems: "start" }}>
+      <div
+        className="mb-grid-2"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: 16,
+          alignItems: "start",
+        }}
+      >
         <Panel title={`Task alerts (${taskItems.length})`}>
-          {taskItems.length === 0 ? <Empty text="No task alerts." /> : taskItems.map((item, index) => (
-            <React.Fragment key={`${item.type}-${item.t.id}-${index}`}>
-              {item.type === "overdue" && index > 0 && taskItems[index - 1].type !== "overdue" && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 10, borderTop: `1px solid ${C.line}`, marginTop: 4 }}>
-                  <span style={{ fontSize: 10.5, color: C.slate, fontWeight: 600, textTransform: "uppercase" }}>Lower priority</span>
-                  <span style={{ flex: 1, borderTop: `1px solid ${C.line}` }} />
-                </div>
-              )}
-              {renderItem(item, index)}
-            </React.Fragment>
-          ))}
+          {taskItems.length === 0 ? (
+            <Empty text="No task alerts." />
+          ) : (
+            taskItems.map((item, index) => (
+              <React.Fragment key={`${item.type}-${item.t.id}-${index}`}>
+                {item.type === "overdue" &&
+                  index > 0 &&
+                  taskItems[index - 1].type !== "overdue" && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        paddingTop: 10,
+                        borderTop: `1px solid ${C.line}`,
+                        marginTop: 4,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: 10.5,
+                          color: C.slate,
+                          fontWeight: 600,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Lower priority
+                      </span>
+                      <span
+                        style={{ flex: 1, borderTop: `1px solid ${C.line}` }}
+                      />
+                    </div>
+                  )}
+                {renderItem(item, index)}
+              </React.Fragment>
+            ))
+          )}
         </Panel>
         <Panel title={`Comments (${commentItems.length})`}>
-          {commentItems.length === 0 ? <Empty text="No comments." /> : commentItems.map(renderItem)}
+          {commentItems.length === 0 ? (
+            <Empty text="No comments." />
+          ) : (
+            commentItems.map(renderItem)
+          )}
         </Panel>
       </div>
     </div>
@@ -2586,31 +7176,94 @@ function ChangePasswordPanel() {
   const [ok, setOk] = useState(false);
   const [loading, setLoading] = useState(false);
   const submit = async () => {
-    setError(""); setOk(false);
-    if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
-    if (password !== confirm) { setError("Passwords don't match."); return; }
+    setError("");
+    setOk(false);
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (password !== confirm) {
+      setError("Passwords don't match.");
+      return;
+    }
     setLoading(true);
     const { error } = await supabase.auth.updateUser({ password });
     setLoading(false);
     if (error) setError(error.message);
-    else { setOk(true); setPassword(""); setConfirm(""); }
+    else {
+      setOk(true);
+      setPassword("");
+      setConfirm("");
+    }
   };
   return (
     <Panel title="Change your password" style={{ marginTop: 16 }}>
-      <div className="mb-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, maxWidth: 420 }}>
-        <FormRow label="New password"><input type="password" value={password} onChange={e=>setPassword(e.target.value)} style={inputStyle} /></FormRow>
-        <FormRow label="Confirm password"><input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)} style={inputStyle} /></FormRow>
+      <div
+        className="mb-grid-2"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 10,
+          maxWidth: 420,
+        }}
+      >
+        <FormRow label="New password">
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={inputStyle}
+          />
+        </FormRow>
+        <FormRow label="Confirm password">
+          <input
+            type="password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            style={inputStyle}
+          />
+        </FormRow>
       </div>
-      {error && <div style={{ color: C.coral, fontSize: 12.5, marginBottom: 8 }}>{error}</div>}
-      {ok && <div style={{ color: C.sage, fontSize: 12.5, marginBottom: 8 }}>Password updated.</div>}
-      <button onClick={submit} disabled={loading} style={{ background: C.amber, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+      {error && (
+        <div style={{ color: C.coral, fontSize: 12.5, marginBottom: 8 }}>
+          {error}
+        </div>
+      )}
+      {ok && (
+        <div style={{ color: C.sage, fontSize: 12.5, marginBottom: 8 }}>
+          Password updated.
+        </div>
+      )}
+      <button
+        onClick={submit}
+        disabled={loading}
+        style={{
+          background: C.amber,
+          color: "#fff",
+          border: "none",
+          borderRadius: 8,
+          padding: "8px 16px",
+          fontSize: 13,
+          fontWeight: 600,
+          cursor: "pointer",
+        }}
+      >
         {loading ? "Saving…" : "Update password"}
       </button>
     </Panel>
   );
 }
 
-function SettingsPage({ isAdmin, dark, setDark, viewerEmp, completedTaskColor, defaultCompletedTaskColor, onCompletedTaskColorChange, onResetCompletedTaskColor }) {
+function SettingsPage({
+  isAdmin,
+  dark,
+  setDark,
+  viewerEmp,
+  completedTaskColor,
+  defaultCompletedTaskColor,
+  onCompletedTaskColorChange,
+  onResetCompletedTaskColor,
+}) {
   const perms = [
     ["View Organization", true, true, true, true],
     ["Edit Organization / Employees", true, true, true, false],
@@ -2626,54 +7279,214 @@ function SettingsPage({ isAdmin, dark, setDark, viewerEmp, completedTaskColor, d
     <div>
       <PageHeader eyebrow="Administration" title="Settings" />
       <Panel title="Appearance">
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", maxWidth: 420 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            maxWidth: 420,
+          }}
+        >
           <div>
             <div style={{ fontSize: 13.5, fontWeight: 600 }}>Dark mode</div>
-            <div style={{ fontSize: 11.5, color: C.slate }}>Switch the whole app to a dark color scheme.</div>
+            <div style={{ fontSize: 11.5, color: C.slate }}>
+              Switch the whole app to a dark color scheme.
+            </div>
           </div>
-          <button onClick={() => setDark(d => !d)} style={{
-            width: 46, height: 26, borderRadius: 20, border: "none", cursor: "pointer",
-            background: dark ? C.amber : C.line, position: "relative", flexShrink: 0,
-          }}>
-            <span style={{ position: "absolute", top: 3, left: dark ? 23 : 3, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.15s" }} />
+          <button
+            onClick={() => setDark((d) => !d)}
+            style={{
+              width: 46,
+              height: 26,
+              borderRadius: 20,
+              border: "none",
+              cursor: "pointer",
+              background: dark ? C.amber : C.line,
+              position: "relative",
+              flexShrink: 0,
+            }}
+          >
+            <span
+              style={{
+                position: "absolute",
+                top: 3,
+                left: dark ? 23 : 3,
+                width: 20,
+                height: 20,
+                borderRadius: "50%",
+                background: "#fff",
+                transition: "left 0.15s",
+              }}
+            />
           </button>
         </div>
       </Panel>
       <Panel title="Completed task cards" style={{ marginTop: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+            flexWrap: "wrap",
+          }}
+        >
           <div style={{ flex: "1 1 240px" }}>
             <div style={{ fontSize: 13.5, fontWeight: 600 }}>Card color</div>
-            <div style={{ fontSize: 11.5, color: C.slate }}>Customize completed task cards for {viewerEmp.name}. Maria Cortez defaults to purple.</div>
+            <div style={{ fontSize: 11.5, color: C.slate }}>
+              Customize completed task cards for {viewerEmp.name}. Maria Cortez
+              defaults to purple.
+            </div>
           </div>
-          <div aria-label="Completed task card preview" style={{ display: "flex", alignItems: "center", gap: 8, background: `${mixHex(completedTaskColor, dark ? C.card : "#FFFFFF", dark ? 0.82 : 0.84)}CC`, border: `1.5px solid ${completedTaskColor}99`, borderRadius: 8, padding: "8px 10px", fontSize: 12, fontWeight: 600 }}>
+          <div
+            aria-label="Completed task card preview"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              background: `${mixHex(completedTaskColor, dark ? C.card : "#FFFFFF", dark ? 0.82 : 0.84)}CC`,
+              border: `1.5px solid ${completedTaskColor}99`,
+              borderRadius: 8,
+              padding: "8px 10px",
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
             <CheckCircle2 size={15} color={completedTaskColor} /> Completed task
           </div>
-          <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11.5, color: C.slate }}>
-            <input type="color" aria-label="Completed task card color" value={completedTaskColor} onChange={e => onCompletedTaskColorChange(e.target.value)} style={{ width: 38, height: 32, padding: 2, border: `1px solid ${C.line}`, borderRadius: 6, background: C.card, cursor: "pointer" }} />
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              fontSize: 11.5,
+              color: C.slate,
+            }}
+          >
+            <input
+              type="color"
+              aria-label="Completed task card color"
+              value={completedTaskColor}
+              onChange={(e) => onCompletedTaskColorChange(e.target.value)}
+              style={{
+                width: 38,
+                height: 32,
+                padding: 2,
+                border: `1px solid ${C.line}`,
+                borderRadius: 6,
+                background: C.card,
+                cursor: "pointer",
+              }}
+            />
             {completedTaskColor.toUpperCase()}
           </label>
-          <button type="button" onClick={onResetCompletedTaskColor} style={{ background: "none", border: `1px solid ${C.line}`, borderRadius: 7, padding: "7px 10px", color: C.ink, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-            Reset to {defaultCompletedTaskColor === "#7C3AED" ? "purple" : "green"}
+          <button
+            type="button"
+            onClick={onResetCompletedTaskColor}
+            style={{
+              background: "none",
+              border: `1px solid ${C.line}`,
+              borderRadius: 7,
+              padding: "7px 10px",
+              color: C.ink,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Reset to{" "}
+            {defaultCompletedTaskColor === "#7C3AED" ? "purple" : "green"}
           </button>
         </div>
       </Panel>
       <ChangePasswordPanel />
-      {!isAdmin && <div style={{ fontSize: 13, color: C.slate, margin: "16px 0 14px" }}>Only Super Admin can modify departments/permissions below. You're viewing read-only.</div>}
+      {!isAdmin && (
+        <div style={{ fontSize: 13, color: C.slate, margin: "16px 0 14px" }}>
+          Only Super Admin can modify departments/permissions below. You're
+          viewing read-only.
+        </div>
+      )}
       <Panel title="Departments" style={{ marginTop: 16 }}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{DEPARTMENTS.map(dep => <span key={dep.id} style={{ fontSize: 12.5, fontWeight: 600, color: dep.color, background: dep.color+"18", padding: "5px 12px", borderRadius: 20 }}>{dep.name}</span>)}</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {DEPARTMENTS.map((dep) => (
+            <span
+              key={dep.id}
+              style={{
+                fontSize: 12.5,
+                fontWeight: 600,
+                color: dep.color,
+                background: dep.color + "18",
+                padding: "5px 12px",
+                borderRadius: 20,
+              }}
+            >
+              {dep.name}
+            </span>
+          ))}
+        </div>
       </Panel>
       <Panel title="Permission matrix" style={{ marginTop: 16 }}>
-        <div style={{ fontSize: 12, color: C.slate, marginBottom: 10 }}>Note: editing org/employee records is restricted to Jose Paulo, Andrea, Maria, and Julian specifically (see Organization page).</div>
+        <div style={{ fontSize: 12, color: C.slate, marginBottom: 10 }}>
+          Note: editing org/employee records is restricted to Jose Paulo,
+          Andrea, Maria, and Julian specifically (see Organization page).
+        </div>
         <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-          <thead><tr><th style={{ textAlign: "left", padding: "6px 8px", color: C.slate, fontSize: 11 }}>Capability</th>{["Super Admin","Executive","Manager","Employee"].map(h => <th key={h} style={{ padding: "6px 8px", color: C.slate, fontSize: 11 }}>{h}</th>)}</tr></thead>
-          <tbody>{perms.map(([label, ...vals]) => (
-            <tr key={label} style={{ borderTop: `1px solid ${C.line}` }}>
-              <td style={{ padding: "7px 8px", fontWeight: 500 }}>{label}</td>
-              {vals.map((v,i) => <td key={i} style={{ textAlign: "center", padding: "7px 8px" }}>{v ? <CheckCircle2 size={14} color={C.sage} /> : <span style={{ color: C.line }}>—</span>}</td>)}
-            </tr>
-          ))}</tbody>
-        </table>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: 12.5,
+            }}
+          >
+            <thead>
+              <tr>
+                <th
+                  style={{
+                    textAlign: "left",
+                    padding: "6px 8px",
+                    color: C.slate,
+                    fontSize: 11,
+                  }}
+                >
+                  Capability
+                </th>
+                {["Super Admin", "Executive", "Manager", "Employee"].map(
+                  (h) => (
+                    <th
+                      key={h}
+                      style={{
+                        padding: "6px 8px",
+                        color: C.slate,
+                        fontSize: 11,
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ),
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {perms.map(([label, ...vals]) => (
+                <tr key={label} style={{ borderTop: `1px solid ${C.line}` }}>
+                  <td style={{ padding: "7px 8px", fontWeight: 500 }}>
+                    {label}
+                  </td>
+                  {vals.map((v, i) => (
+                    <td
+                      key={i}
+                      style={{ textAlign: "center", padding: "7px 8px" }}
+                    >
+                      {v ? (
+                        <CheckCircle2 size={14} color={C.sage} />
+                      ) : (
+                        <span style={{ color: C.line }}>—</span>
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </Panel>
     </div>
@@ -2684,35 +7497,256 @@ function SettingsPage({ isAdmin, dark, setDark, viewerEmp, completedTaskColor, d
    SHARED UI PRIMITIVES
 ----------------------------------------------------------------*/
 function PageHeader({ eyebrow, title, actions }) {
-  return <div className="mb-page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 20 }}><div><div style={{ fontSize: 11.5, color: C.slate, fontWeight: 600, marginBottom: 3 }}>{eyebrow}</div><div className="mb-display" style={{ fontSize: 26, fontWeight: 600 }}>{title}</div></div>{actions && <div className="mb-page-actions" style={{ display: "flex", justifyContent: "flex-end" }}>{actions}</div>}</div>;
-}
-function StatCard({ label, value, sub, accent }) {
-  return <div style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 16, padding: "14px 16px", boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)" }}><div style={{ fontSize: 11.5, color: C.slate, marginBottom: 4 }}>{label}</div><div className="mb-display" style={{ fontSize: 26, fontWeight: 600, color: accent || C.ink }}>{value}</div><div style={{ fontSize: 11, color: C.slate, marginTop: 2 }}>{sub}</div></div>;
-}
-function Panel({ title, children, style }) {
-  return <div style={{ background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 16, padding: 18, boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)", ...style }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>{title}</div>{children}</div>;
-}
-function SectionLabel({ children }) { return <div style={{ fontSize: 11, fontWeight: 700, color: C.slate, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 14 }}>{children}</div>; }
-function ToggleBtn({ active, onClick, icon: Icon, label }) {
-  return <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 10, border: `1px solid ${active ? C.navy : C.line}`, background: active ? C.navy : C.card, color: active ? "#fff" : C.ink, fontSize: 12.5, fontWeight: 600, cursor: "pointer", boxShadow: active ? "0 8px 18px rgba(17,24,39,0.08)" : "none" }}><Icon size={14} /> {label}</button>;
-}
-function SearchBar({ value, onChange, placeholder }) {
-  return <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--mb-glass-surface)", border: "1px solid var(--mb-glass-border)", borderRadius: 12, padding: "8px 12px", marginBottom: 16, maxWidth: 420, boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)" }}><Search size={15} color={C.slate} /><input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ background: "transparent", color: C.ink, border: "none", outline: "none", fontSize: 13.5, flex: 1, fontFamily: "inherit" }} /></div>;
-}
-function Avatar({ name, size = 32, online, color = C.navySoft }) {
   return (
-    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
-      <div style={{ width: size, height: size, borderRadius: size, background: color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: size*0.36, fontWeight: 700 }}>{initials(name)}</div>
-      {online && <span title="Online" style={{ position: "absolute", bottom: -1, right: -1, width: Math.max(8, size*0.28), height: Math.max(8, size*0.28), borderRadius: "50%", background: C.sage, border: `2px solid ${C.card}` }} />}
+    <div
+      className="mb-page-header"
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-end",
+        marginBottom: 20,
+      }}
+    >
+      <div>
+        <div
+          style={{
+            fontSize: 11.5,
+            color: C.slate,
+            fontWeight: 600,
+            marginBottom: 3,
+          }}
+        >
+          {eyebrow}
+        </div>
+        <div className="mb-display" style={{ fontSize: 26, fontWeight: 600 }}>
+          {title}
+        </div>
+      </div>
+      {actions && (
+        <div
+          className="mb-page-actions"
+          style={{ display: "flex", justifyContent: "flex-end" }}
+        >
+          {actions}
+        </div>
+      )}
     </div>
   );
 }
-function Empty({ text }) { return <div style={{ fontSize: 13, color: C.slate, padding: "10px 0" }}>{text}</div>; }
+function StatCard({ label, value, sub, accent }) {
+  return (
+    <div
+      style={{
+        background: "var(--mb-glass-surface)",
+        border: "1px solid var(--mb-glass-border)",
+        borderRadius: 16,
+        padding: "14px 16px",
+        boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
+      }}
+    >
+      <div style={{ fontSize: 11.5, color: C.slate, marginBottom: 4 }}>
+        {label}
+      </div>
+      <div
+        className="mb-display"
+        style={{ fontSize: 26, fontWeight: 600, color: accent || C.ink }}
+      >
+        {value}
+      </div>
+      <div style={{ fontSize: 11, color: C.slate, marginTop: 2 }}>{sub}</div>
+    </div>
+  );
+}
+function Panel({ title, children, style }) {
+  return (
+    <div
+      style={{
+        background: "var(--mb-glass-surface)",
+        border: "1px solid var(--mb-glass-border)",
+        borderRadius: 16,
+        padding: 18,
+        boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
+        ...style,
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+}
+function SectionLabel({ children }) {
+  return (
+    <div
+      style={{
+        fontSize: 11,
+        fontWeight: 700,
+        color: C.slate,
+        textTransform: "uppercase",
+        letterSpacing: 0.4,
+        marginTop: 14,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+function ToggleBtn({ active, onClick, icon: Icon, label }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "7px 12px",
+        borderRadius: 10,
+        border: `1px solid ${active ? C.navy : C.line}`,
+        background: active ? C.navy : C.card,
+        color: active ? "#fff" : C.ink,
+        fontSize: 12.5,
+        fontWeight: 600,
+        cursor: "pointer",
+        boxShadow: active ? "0 8px 18px rgba(17,24,39,0.08)" : "none",
+      }}
+    >
+      <Icon size={14} /> {label}
+    </button>
+  );
+}
+function SearchBar({ value, onChange, placeholder }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        background: "var(--mb-glass-surface)",
+        border: "1px solid var(--mb-glass-border)",
+        borderRadius: 12,
+        padding: "8px 12px",
+        marginBottom: 16,
+        maxWidth: 420,
+        boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)",
+      }}
+    >
+      <Search size={15} color={C.slate} />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{
+          background: "transparent",
+          color: C.ink,
+          border: "none",
+          outline: "none",
+          fontSize: 13.5,
+          flex: 1,
+          fontFamily: "inherit",
+        }}
+      />
+    </div>
+  );
+}
+function Avatar({ name, size = 32, online, color = C.navySoft }) {
+  return (
+    <div
+      style={{ position: "relative", width: size, height: size, flexShrink: 0 }}
+    >
+      <div
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size,
+          background: color,
+          color: "#fff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: size * 0.36,
+          fontWeight: 700,
+        }}
+      >
+        {initials(name)}
+      </div>
+      {online && (
+        <span
+          title="Online"
+          style={{
+            position: "absolute",
+            bottom: -1,
+            right: -1,
+            width: Math.max(8, size * 0.28),
+            height: Math.max(8, size * 0.28),
+            borderRadius: "50%",
+            background: C.sage,
+            border: `2px solid ${C.card}`,
+          }}
+        />
+      )}
+    </div>
+  );
+}
+function Empty({ text }) {
+  return (
+    <div style={{ fontSize: 13, color: C.slate, padding: "10px 0" }}>
+      {text}
+    </div>
+  );
+}
 function ModalShell({ children, onClose, width = 500 }) {
   return (
-    <div onClick={onClose} className="mb-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(9, 12, 18, 0.52)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "60px 20px", zIndex: 200, overflowY: "auto" }}>
-      <div onClick={e => e.stopPropagation()} className="mb-body mb-modal-card" style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 18, padding: 26, width, maxWidth: "100%", position: "relative", boxShadow: "0 20px 55px rgba(15, 23, 42, 0.14)" }}>
-        <button onClick={onClose} aria-label="Close" style={{ position: "absolute", top: 12, right: 12, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(148,163,184,0.08)", border: "none", borderRadius: 8, cursor: "pointer", color: C.slate }}><X size={18} /></button>
+    <div
+      onClick={onClose}
+      className="mb-modal-overlay"
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(9, 12, 18, 0.52)",
+        display: "flex",
+        alignItems: "flex-start",
+        justifyContent: "center",
+        padding: "60px 20px",
+        zIndex: 200,
+        overflowY: "auto",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="mb-body mb-modal-card"
+        style={{
+          background: C.card,
+          border: `1px solid ${C.line}`,
+          borderRadius: 18,
+          padding: 26,
+          width,
+          maxWidth: "100%",
+          position: "relative",
+          boxShadow: "0 20px 55px rgba(15, 23, 42, 0.14)",
+        }}
+      >
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          style={{
+            position: "absolute",
+            top: 12,
+            right: 12,
+            width: 32,
+            height: 32,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(148,163,184,0.08)",
+            border: "none",
+            borderRadius: 8,
+            cursor: "pointer",
+            color: C.slate,
+          }}
+        >
+          <X size={18} />
+        </button>
         {children}
       </div>
     </div>
