@@ -88,9 +88,9 @@ const DARK_THEME = {
   yellowSoft: "#362C1C",
 };
 const FONT = `
-  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap');
-  .mb-display { font-family: 'Fraunces', serif; font-optical-sizing: auto; }
-  .mb-body { font-family: 'Inter', -apple-system, sans-serif; }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+  .mb-display { font-family: 'Manrope', 'Inter', -apple-system, sans-serif; font-optical-sizing: auto; letter-spacing: -0.035em; }
+  .mb-body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 `;
 const RESPONSIVE_CSS = `
   .mb-topnav::-webkit-scrollbar { display: none; }
@@ -1084,10 +1084,13 @@ export default function App() {
     if (!error) setEmployees((data || []).map(mapEmployee));
   };
   const refetchTasks = async () => {
-    // Newer tables may not exist yet (their migrations not run) — step down through the
-    // older shapes so the task list always loads.
+    // Newer tables may not exist yet (their migrations not run). Preserve the team
+    // roster in fallback shapes so an unrelated missing embed cannot hide assignees.
     const shapes = [
       "*, subtasks(*), task_comments(*), task_attachments(*), task_assignees(*)",
+      "*, subtasks(*), task_comments(*), task_assignees(*)",
+      "*, subtasks(*), task_assignees(*)",
+      "*, task_assignees(*)",
       "*, subtasks(*), task_comments(*), task_attachments(*)",
       "*, subtasks(*), task_comments(*)",
     ];
