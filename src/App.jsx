@@ -88,9 +88,9 @@ const DARK_THEME = {
   yellowSoft: "#362C1C",
 };
 const FONT = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lexend:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
   .mb-display { font-family: 'Manrope', 'Inter', -apple-system, sans-serif; font-optical-sizing: auto; letter-spacing: -0.035em; }
-  .mb-body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .mb-body { font-family: 'Lexend', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 `;
 const RESPONSIVE_CSS = `
   .mb-topnav::-webkit-scrollbar { display: none; }
@@ -483,7 +483,7 @@ function Login() {
       >
         <div
           className="mb-display"
-          style={{ fontSize: 22, fontWeight: 600, marginBottom: 4 }}
+          style={{ fontSize: 22, color: C.dark, fontWeight: 600, marginBottom: 4 }}
         >
           The Motherbase
         </div>
@@ -592,7 +592,7 @@ function Login() {
             style={{
               background: "none",
               border: "none",
-              color: C.navy,
+              color: C.dark,
               fontSize: 12,
               fontWeight: 600,
               cursor: "pointer",
