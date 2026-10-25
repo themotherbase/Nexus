@@ -88,9 +88,10 @@ const DARK_THEME = {
   yellowSoft: "#362C1C",
 };
 const FONT = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lexend:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
-  .mb-display { font-family: 'Manrope', 'Inter', -apple-system, sans-serif; font-optical-sizing: auto; letter-spacing: -0.035em; }
-  .mb-body { font-family: 'Lexend', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+  body, .mb-body { font-family: 'Manrope', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .mb-display { font-family: 'Inter', 'Manrope', -apple-system, sans-serif; font-optical-sizing: auto; letter-spacing: -0.035em; }
+  button, input, select, textarea { font-family: inherit; }
 `;
 const RESPONSIVE_CSS = `
   .mb-topnav::-webkit-scrollbar { display: none; }
@@ -1105,29 +1106,42 @@ export default function App() {
     }
     if (!error) {
       const todayDate = today();
-      const backlogTasksToMove = (data || []).filter(
-        (task) =>
-          !task.archived &&
-          task.status === "Backlog" &&
-          (!task.due_date || task.due_date >= todayDate),
-      );
-      if (backlogTasksToMove.length) {
+      const statusUpdates = [
+        {
+          status: "To Do",
+          tasks: (data || []).filter(
+            (task) =>
+              !task.archived &&
+              task.status === "Backlog" &&
+              (!task.due_date || task.due_date >= todayDate),
+          ),
+        },
+        {
+          status: "Backlog",
+          tasks: (data || []).filter(
+            (task) =>
+              !task.archived &&
+              task.status === "To Do" &&
+              task.due_date &&
+              task.due_date < todayDate,
+          ),
+        },
+      ];
+      for (const { status, tasks } of statusUpdates) {
+        if (!tasks.length) continue;
         const { data: updatedTasks, error: updateError } = await supabase
           .from("tasks")
-          .update({ status: "To Do" })
+          .update({ status })
           .in(
             "id",
-            backlogTasksToMove.map((task) => task.id),
+            tasks.map((task) => task.id),
           )
           .select("id");
-        if (!updateError) {
-          const updatedIds = new Set(
-            (updatedTasks || []).map((task) => task.id),
-          );
-          data = data.map((task) =>
-            updatedIds.has(task.id) ? { ...task, status: "To Do" } : task,
-          );
-        }
+        if (updateError) continue;
+        const updatedIds = new Set((updatedTasks || []).map((task) => task.id));
+        data = data.map((task) =>
+          updatedIds.has(task.id) ? { ...task, status } : task,
+        );
       }
       setTasks((data || []).map(mapTask));
     }
