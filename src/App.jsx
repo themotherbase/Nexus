@@ -1415,24 +1415,43 @@ export default function App() {
   };
   // "Repeat" makes a fresh copy in To Do; optionally hides the finished card so the board stays tidy.
   const createRepeat = async (task, due, archiveOriginal) => {
-    const { error } = await supabase.from("tasks").insert({
-      title: task.title,
-      description: task.description ?? null,
-      dept_id: task.dept,
-      assignee_id: task.assignee,
-      supervisor_id: task.supervisor,
-      backup_id: task.backup ?? null,
-      priority: task.priority,
-      status: "To Do",
-      progress: 0,
-      category: task.category,
-      due_date: due,
-      needs_signoff: task.needsSignoff,
-      created_by: viewerEmp.id,
-    });
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert({
+        title: task.title,
+        description: task.description ?? null,
+        dept_id: task.dept,
+        assignee_id: task.assignee,
+        supervisor_id: task.supervisor,
+        backup_id: task.backup ?? null,
+        priority: task.priority,
+        status: "To Do",
+        progress: 0,
+        category: task.category,
+        due_date: due,
+        needs_signoff: task.needsSignoff,
+        created_by: viewerEmp.id,
+      })
+      .select("id")
+      .single();
     if (error) {
       alert("Couldn't repeat that task: " + error.message);
       return;
+    }
+    const extraAssignees = taskTeam(task).filter((id) => id !== task.assignee);
+    if (extraAssignees.length) {
+      const { error: rosterError } = await supabase
+        .from("task_assignees")
+        .insert(
+          extraAssignees.map((employee_id) => ({
+            task_id: data.id,
+            employee_id,
+          })),
+        );
+      if (rosterError)
+        alert(
+          `The repeated task was created, but adding the extra people failed. Has migration_multi_assignee.sql been run in Supabase?\n\n${rosterError.message}`,
+        );
     }
     if (archiveOriginal) await archiveTask(task, true);
     else await refetchTasks();
