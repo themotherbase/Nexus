@@ -1358,13 +1358,23 @@ export default function App() {
   };
 
   const updateTask = async (id, patch) => {
+    const currentTask = tasks.find((task) => task.id === id);
+    if (currentTask?.status === "Completed" || currentTask?.archived) return false;
     const { error } = await supabase.from("tasks").update(patch).eq("id", id);
     if (error) alert(error.message);
     await refetchTasks();
     return !error;
   };
   const bulkUpdateTasks = async (ids, patch) => {
-    const { error } = await supabase.from("tasks").update(patch).in("id", ids);
+    const editableIds = ids.filter((id) => {
+      const task = tasks.find((item) => item.id === id);
+      return task && task.status !== "Completed" && !task.archived;
+    });
+    if (!editableIds.length) return false;
+    const { error } = await supabase
+      .from("tasks")
+      .update(patch)
+      .in("id", editableIds);
     if (error) {
       alert(error.message);
       await refetchTasks();
@@ -1374,7 +1384,7 @@ export default function App() {
       const completedAt = new Date().toISOString();
       setCompletionTimes((previous) => {
         const next = { ...previous };
-        ids.forEach((id) => {
+        editableIds.forEach((id) => {
           if (patch.status === "Completed") next[id] = completedAt;
           else delete next[id];
         });
@@ -3698,7 +3708,12 @@ function Tasks({
       deptFilter === "all" ? tasks : tasks.filter((t) => t.dept === deptFilter),
     [tasks, deptFilter],
   );
-  const checkedTasks = boardTasks.filter((task) => checkedTaskIds.has(task.id));
+  const checkedTasks = boardTasks.filter(
+    (task) =>
+      checkedTaskIds.has(task.id) &&
+      task.status !== "Completed" &&
+      !task.archived,
+  );
   const toggleCheckedTask = (taskId) => {
     setCheckedTaskIds((previous) => {
       const next = new Set(previous);
@@ -4322,6 +4337,7 @@ function TaskSelectButton({
   dark,
   label,
   onClick,
+  disabled = false,
   className,
   style,
 }) {
@@ -4331,6 +4347,7 @@ function TaskSelectButton({
       className={className}
       type="button"
       role="checkbox"
+      disabled={disabled}
       aria-checked={indeterminate ? "mixed" : checked}
       aria-label={label}
       onClick={(e) => {
@@ -4352,7 +4369,8 @@ function TaskSelectButton({
         alignItems: "center",
         justifyContent: "center",
         color: "#fff",
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.45 : 1,
         padding: 0,
         ...style,
       }}
@@ -4385,11 +4403,15 @@ function GroupHolder({
   const high = group.cards.filter(
     (t) => t.priority === "High" && t.status !== "Completed",
   ).length;
-  const checkedCount = group.cards.filter((t) =>
-    checkedTaskIds.has(t.id),
+  const selectableCards = group.cards.filter(
+    (task) => task.status !== "Completed" && !task.archived,
+  );
+  const checkedCount = selectableCards.filter((task) =>
+    checkedTaskIds.has(task.id),
   ).length;
-  const allChecked = checkedCount === group.cards.length;
-  const selectedCards = group.cards.filter((task) =>
+  const allChecked =
+    selectableCards.length > 0 && checkedCount === selectableCards.length;
+  const selectedCards = selectableCards.filter((task) =>
     checkedTaskIds.has(task.id),
   );
   const shownTasks = group.cards.slice(0, 2);
@@ -4416,11 +4438,12 @@ function GroupHolder({
         checked={allChecked}
         indeterminate={checkedCount > 0 && !allChecked}
         dark={dark}
+        disabled={!selectableCards.length}
         onClick={onToggleGroup}
         label={
           allChecked
             ? `Deselect all tasks for ${group.name}`
-            : `Select all ${group.cards.length} tasks for ${group.name}`
+            : `Select ${selectableCards.length} open tasks for ${group.name}`
         }
         style={{ position: "absolute", zIndex: 3, top: 14, right: 14 }}
       />
@@ -4593,12 +4616,16 @@ function GroupModal({
 }) {
   const { byId, onlineIds } = useEmp();
   const [moving, setMoving] = useState(false);
-  const selectedCards = group.cards.filter((task) =>
+  const selectableCards = group.cards.filter(
+    (task) => task.status !== "Completed" && !task.archived,
+  );
+  const selectedCards = selectableCards.filter((task) =>
     checkedTaskIds.has(task.id),
   );
-  const allChecked = selectedCards.length === group.cards.length;
+  const allChecked =
+    selectableCards.length > 0 && selectedCards.length === selectableCards.length;
   const toggleAll = () => {
-    group.cards
+    selectableCards
       .filter((task) => checkedTaskIds.has(task.id) === allChecked)
       .forEach((task) => onToggleChecked(task.id));
   };
@@ -4656,6 +4683,7 @@ function GroupModal({
             checked={allChecked}
             indeterminate={selectedCards.length > 0 && !allChecked}
             dark={dark}
+            disabled={!selectableCards.length}
             onClick={toggleAll}
             label={
               allChecked
@@ -4750,8 +4778,13 @@ function KanbanView({
     />
   );
   const toggleGroup = (group) => {
-    const allChecked = group.cards.every((task) => checkedTaskIds.has(task.id));
-    group.cards
+    const selectableCards = group.cards.filter(
+      (task) => task.status !== "Completed" && !task.archived,
+    );
+    const allChecked =
+      selectableCards.length > 0 &&
+      selectableCards.every((task) => checkedTaskIds.has(task.id));
+    selectableCards
       .filter((task) => checkedTaskIds.has(task.id) === allChecked)
       .forEach((task) => onToggleChecked(task.id));
   };
@@ -5156,6 +5189,8 @@ function TaskCard({
   selectionMode = false,
 }) {
   const { byId, onlineIds } = useEmp();
+  const canSelect = t.status !== "Completed" && !t.archived;
+  const selected = canSelect && isChecked;
   const meta = statusMeta(t);
   const emp = byId[t.assignee] || { name: "Unassigned" };
   const subtaskProgress = t.subtasks?.length
@@ -5166,19 +5201,19 @@ function TaskCard({
   const flagLabel = t.status === "Completed" ? "Completed" : t.priority;
   return (
     <div
-      className={`mb-task-card${isChecked ? " is-checked" : ""}${selectionMode ? " is-selection-mode" : ""}`}
+      className={`mb-task-card${selected ? " is-checked" : ""}${selectionMode ? " is-selection-mode" : ""}`}
       onClick={onOpen}
       style={{
         background: dark
           ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))"
           : "var(--mb-glass-surface)",
-        border: `1px solid ${isChecked ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`,
+        border: `1px solid ${selected ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`,
         borderRadius: 16,
         padding: 12,
         cursor: "pointer",
         opacity: t.archived ? 0.8 : 1,
         backdropFilter: "blur(14px) saturate(140%)",
-        boxShadow: isChecked
+        boxShadow: selected
           ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)"
           : dark
             ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)"
@@ -5193,10 +5228,10 @@ function TaskCard({
           marginBottom: 6,
         }}
       >
-        {onToggleChecked ? (
+        {onToggleChecked && canSelect ? (
           <TaskSelectButton
             className="mb-task-select-control"
-            checked={isChecked}
+            checked={selected}
             dark={dark}
             onClick={onToggleChecked}
             label={isChecked ? "Uncheck task" : "Check task"}
@@ -5224,8 +5259,8 @@ function TaskCard({
           fontWeight: 600,
           marginBottom: 6,
           lineHeight: 1.3,
-          textDecoration: isChecked ? "line-through" : "none",
-          opacity: isChecked ? 0.82 : 1,
+          textDecoration: selected ? "line-through" : "none",
+          opacity: selected ? 0.82 : 1,
         }}
       >
         {t.title}
@@ -5352,15 +5387,17 @@ function ListView({
           <tbody>
             {tasks.map((t) => {
               const meta = statusMeta(t);
+              const canSelect = t.status !== "Completed" && !t.archived;
+              const selected = canSelect && checkedTaskIds.has(t.id);
               return (
                 <tr
                   key={t.id}
-                  className={`mb-task-row${checkedTaskIds.has(t.id) ? " is-checked" : ""}`}
+                  className={`mb-task-row${selected ? " is-checked" : ""}`}
                   onClick={() => setTaskDetail(t.id)}
                   style={{
                     borderTop: `1px solid ${C.line}`,
                     cursor: "pointer",
-                    background: checkedTaskIds.has(t.id)
+                    background: selected
                       ? "rgba(132, 108, 220, 0.08)"
                       : "transparent",
                   }}
@@ -5369,7 +5406,8 @@ function ListView({
                     <input
                       className="mb-task-select-control"
                       type="checkbox"
-                      checked={checkedTaskIds.has(t.id)}
+                      checked={selected}
+                      disabled={!canSelect}
                       onClick={(e) => e.stopPropagation()}
                       onChange={() => onToggleChecked(t.id)}
                       aria-label={`Select ${t.title} for bulk edit`}
@@ -5454,10 +5492,13 @@ function CalendarView({
             {dt} {dt === today() && "· Today"}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {grouped[dt].map((t) => (
-              <div
+            {grouped[dt].map((t) => {
+              const canSelect = t.status !== "Completed" && !t.archived;
+              const selected = canSelect && checkedTaskIds.has(t.id);
+              return (
+                <div
                 key={t.id}
-                className={`mb-task-row${checkedTaskIds.has(t.id) ? " is-checked" : ""}`}
+                className={`mb-task-row${selected ? " is-checked" : ""}`}
                 onClick={() => setTaskDetail(t.id)}
                 style={{
                   display: "flex",
@@ -5465,7 +5506,7 @@ function CalendarView({
                   gap: 10,
                   fontSize: 13,
                   cursor: "pointer",
-                  background: checkedTaskIds.has(t.id)
+                  background: selected
                     ? "rgba(132, 108, 220, 0.08)"
                     : "transparent",
                   borderRadius: 6,
@@ -5475,7 +5516,8 @@ function CalendarView({
                 <input
                   className="mb-task-select-control"
                   type="checkbox"
-                  checked={checkedTaskIds.has(t.id)}
+                  checked={selected}
+                  disabled={!canSelect}
                   onClick={(e) => e.stopPropagation()}
                   onChange={() => onToggleChecked(t.id)}
                   aria-label={`Select ${t.title} for bulk edit`}
@@ -5487,8 +5529,9 @@ function CalendarView({
                 <span style={{ color: C.slate }}>
                   — {byId[t.assignee]?.name || "Unassigned"}
                 </span>
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         </div>
       ))}
@@ -5718,13 +5761,16 @@ function TaskDetailModal({
     setReplyingTo(null);
   };
 
-  const canEditTask = viewerEmp.role !== "employee";
+  const canManageTask = viewerEmp.role !== "employee";
+  const isTaskLocked = task.status === "Completed" || task.archived;
+  const canEditTask = canManageTask && !isTaskLocked;
   // Same rule as the board: managers/execs can move anything, an employee only their own open tasks.
   const canMove =
-    !task.archived &&
-    (viewerEmp.role !== "employee" ||
+    !isTaskLocked &&
+    (canManageTask ||
       (isOnTask(task, viewerEmp.id) && task.status !== "Completed"));
-  const canTickSub = (st) => canEditTask || st.assignee === viewerEmp.id;
+  const canTickSub = (st) =>
+    !isTaskLocked && (canManageTask || st.assignee === viewerEmp.id);
   const progressPercent = taskProgress(task);
   const addSub = async () => {
     if (!newSub.trim()) return;
@@ -5770,6 +5816,7 @@ function TaskDetailModal({
   };
 
   const uploadFile = async (file) => {
+    if (isTaskLocked || uploading) return;
     setUploading(true);
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const path = `${task.id}/${Date.now()}-${safeName}`;
@@ -5842,12 +5889,12 @@ function TaskDetailModal({
               <Pencil size={15} />
             </IconBtn>
           )}
-          {canEditTask && task.status === "Completed" && !task.archived && (
+          {canManageTask && task.status === "Completed" && !task.archived && (
             <IconBtn onClick={() => onRepeat(task)} title="Repeat this task">
               <Repeat size={15} />
             </IconBtn>
           )}
-          {canEditTask && task.status === "Completed" && !task.archived && (
+          {canManageTask && task.status === "Completed" && !task.archived && (
             <IconBtn
               onClick={removeTask}
               title="Remove from board (stays saved)"
@@ -5855,7 +5902,7 @@ function TaskDetailModal({
               <Archive size={15} />
             </IconBtn>
           )}
-          {canEditTask && task.archived && (
+          {canManageTask && task.archived && (
             <IconBtn onClick={restoreTask} title="Restore to board">
               <ArchiveRestore size={15} />
             </IconBtn>
@@ -6285,7 +6332,7 @@ function TaskDetailModal({
           );
         })}
       </div>
-      <label
+      {!isTaskLocked && <label
         style={{
           display: "inline-block",
           fontSize: 12.5,
@@ -6310,7 +6357,7 @@ function TaskDetailModal({
             e.target.value = "";
           }}
         />
-      </label>
+      </label>}
 
       <SectionLabel>Comments &amp; questions — {comments.length}</SectionLabel>
       <div
@@ -6413,11 +6460,12 @@ function TaskDetailModal({
           </button>
         </div>
       </div>
-      {showEdit && (
+      {showEdit && canEditTask && (
         <EditTaskModal
           task={task}
           onClose={() => setShowEdit(false)}
           onSave={(patch) => {
+            if (!canEditTask) return;
             updateTask(task.id, patch);
             setShowEdit(false);
           }}
@@ -7001,7 +7049,7 @@ const inputStyle = {
   width: "100%",
   border: "1px solid var(--mb-control-border, #E4E2DC)",
   borderRadius: 8,
-  padding: "8px 0px",
+  padding: "8px 0px 0px 10px",
   fontSize: 13.5,
   fontFamily: "inherit",
   background: "var(--mb-control-bg, #FFFFFF)",
