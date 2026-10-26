@@ -1465,6 +1465,21 @@ export default function App() {
   };
   // "Repeat" makes a fresh copy in To Do; optionally hides the finished card so the board stays tidy.
   const createRepeat = async (task, due, archiveOriginal) => {
+    const { data: rosterRows, error: rosterReadError } = await supabase
+      .from("task_assignees")
+      .select("employee_id")
+      .eq("task_id", task.id);
+    if (rosterReadError) {
+      alert("Couldn't load the original task team: " + rosterReadError.message);
+      return;
+    }
+    const extraAssignees = [
+      ...new Set([
+        ...taskTeam(task),
+        ...(rosterRows || []).map((row) => row.employee_id),
+      ]),
+    ].filter((id) => id && id !== task.assignee);
+
     const { data, error } = await supabase
       .from("tasks")
       .insert({
@@ -1488,7 +1503,6 @@ export default function App() {
       alert("Couldn't repeat that task: " + error.message);
       return;
     }
-    const extraAssignees = taskTeam(task).filter((id) => id !== task.assignee);
     if (extraAssignees.length) {
       const { error: rosterError } = await supabase
         .from("task_assignees")
@@ -1498,10 +1512,33 @@ export default function App() {
             employee_id,
           })),
         );
-      if (rosterError)
+      const { data: savedRoster, error: verifyError } = await supabase
+        .from("task_assignees")
+        .select("employee_id")
+        .eq("task_id", data.id);
+      const savedEmployeeIds = new Set(
+        (savedRoster || []).map((row) => row.employee_id),
+      );
+      const missingAssignees = extraAssignees.filter(
+        (employeeId) => !savedEmployeeIds.has(employeeId),
+      );
+      if (rosterError || verifyError || missingAssignees.length) {
+        const reason =
+          rosterError?.message ||
+          verifyError?.message ||
+          "Some team members were not saved.";
+        const { error: rollbackError } = await supabase
+          .from("tasks")
+          .delete()
+          .eq("id", data.id);
         alert(
-          `The repeated task was created, but adding the extra people failed. Has migration_multi_assignee.sql been run in Supabase?\n\n${rosterError.message}`,
+          rollbackError
+            ? `The full team couldn't be copied (${reason}). The new task could not be removed; the original task was left unchanged.`
+            : `The full team couldn't be copied (${reason}) The incomplete repeat was removed, and the original task was left unchanged.`,
         );
+        await refetchTasks();
+        return;
+      }
     }
     if (archiveOriginal) await archiveTask(task, true);
     else await refetchTasks();
@@ -7099,7 +7136,7 @@ const inputStyle = {
   width: "100%",
   border: "1px solid var(--mb-control-border, #E4E2DC)",
   borderRadius: 8,
-  padding: "4px 4px 0px 10px",
+  padding: "8px 0px",
   fontSize: 13.5,
   fontFamily: "inherit",
   background: "var(--mb-control-bg, #FFFFFF)",
