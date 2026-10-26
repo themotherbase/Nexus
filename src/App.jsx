@@ -49,14 +49,14 @@ import motherbaseBackground from "../images/The Motherbase (Transparent).png";
    DESIGN TOKENS
 ----------------------------------------------------------------*/
 const C = {
-  navy: "#1B2340",
-  navySoft: "#2B3660",
-  ink: "#20263D",
-  paper: "#F1F0EC",
+  navy: "#FFFFFF",
+  navySoft: "#F2EFEB",
+  ink: "#25211F",
+  paper: "#F8F7F5",
   card: "#FFFFFF",
-  line: "#E4E2DC",
-  amber: "#DD9A34",
-  amberSoft: "#F6E6C7",
+  line: "#E7E2DC",
+  amber: "#C45116",
+  amberSoft: "#F9E5D8",
   coral: "#D8574C",
   coralSoft: "#F8E1DE",
   sage: "#4C8F6B",
@@ -69,23 +69,23 @@ const C = {
 };
 const LIGHT_THEME = { ...C };
 const DARK_THEME = {
-  navy: "#110D1E",
-  navySoft: "#1C1532",
-  ink: "#F3ECFF",
-  paper: "#090611",
-  card: "#171224",
-  line: "#352A4D",
-  amber: "#E2B95E",
-  amberSoft: "#3A2B15",
+  navy: "#160420",
+  navySoft: "#2B0840",
+  ink: "#FFFFFF",
+  paper: "#000000",
+  card: "#160420",
+  line: "#400C60",
+  amber: "#A91FFF",
+  amberSoft: "#2B0840",
   coral: "#E68F90",
   coralSoft: "#3A2126",
   sage: "#73C7A6",
   sageSoft: "#1C342A",
-  slate: "#B7ABCC",
-  blue: "#8AA8FF",
-  blueSoft: "#1C274A",
-  yellow: "#EBCB7B",
-  yellowSoft: "#362C1C",
+  slate: "#C5B8CE",
+  blue: "#7F18C0",
+  blueSoft: "#2B0840",
+  yellow: "#C05CFF",
+  yellowSoft: "#400C60",
 };
 const FONT = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
@@ -828,7 +828,7 @@ function TopNavItem({ icon: Icon, label, active, badge, onClick }) {
         flexShrink: 0,
         padding: "9px 16px 11px",
         position: "relative",
-        color: active ? C.amber : "#9CA3C4",
+        color: active ? C.amber : C.slate,
       }}
     >
       <span
@@ -904,8 +904,8 @@ function UserMenu({ viewerEmp, canEditOrg, onlineSelf }) {
           display: "flex",
           alignItems: "center",
           gap: 7,
-          background: "rgba(255,255,255,0.06)",
-          border: "1px solid rgba(255,255,255,0.12)",
+          background: C.card,
+          border: `1px solid ${C.line}`,
           borderRadius: 20,
           padding: "4px 10px 4px 4px",
           cursor: "pointer",
@@ -922,7 +922,7 @@ function UserMenu({ viewerEmp, canEditOrg, onlineSelf }) {
           style={{
             fontSize: 12.5,
             fontWeight: 600,
-            color: "#fff",
+            color: C.ink,
             maxWidth: 110,
             overflow: "hidden",
             textOverflow: "ellipsis",
@@ -933,7 +933,7 @@ function UserMenu({ viewerEmp, canEditOrg, onlineSelf }) {
         </span>
         <ChevronDown
           size={13}
-          color="#9CA3C4"
+          color={C.slate}
           style={{
             transform: open ? "rotate(180deg)" : "none",
             transition: "transform 0.15s",
@@ -1846,21 +1846,11 @@ export default function App() {
           "--mb-control-bg": C.card,
           "--mb-control-fg": C.ink,
           "--mb-control-border": C.line,
-          "--mb-glass-surface": dark
-            ? "rgba(27, 20, 39, 0.9)"
-            : "rgba(255, 255, 255, 0.82)",
-          "--mb-glass-border": dark
-            ? "rgba(181, 156, 255, 0.18)"
-            : "rgba(15, 23, 42, 0.08)",
-          "--mb-glass-header": dark
-            ? "rgba(22, 17, 34, 0.96)"
-            : "rgba(255, 255, 255, 0.8)",
-          "--mb-glass-node": dark
-            ? "rgba(24, 19, 35, 0.9)"
-            : "rgba(255, 255, 255, 0.8)",
-          "--mb-glass-chart": dark
-            ? "rgba(20, 15, 30, 0.72)"
-            : "rgba(255, 255, 255, 0.58)",
+          "--mb-glass-surface": C.card,
+          "--mb-glass-border": C.line,
+          "--mb-glass-header": C.paper,
+          "--mb-glass-node": C.card,
+          "--mb-glass-chart": C.card,
         }}
       >
         <style>
@@ -1873,9 +1863,8 @@ export default function App() {
             position: "sticky",
             top: 0,
             zIndex: 60,
-            background: "rgba(12, 12, 12, 0.88)",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-            backdropFilter: "blur(12px)",
+            background: dark ? "rgba(0, 0, 0, 0.96)" : "rgba(255, 255, 255, 0.96)",
+            borderBottom: `1px solid ${C.line}`,
           }}
         >
           <div
@@ -1916,13 +1905,13 @@ export default function App() {
                   style={{
                     fontSize: 15.5,
                     fontWeight: 600,
-                    color: "#fff",
+                    color: dark ? "#FFFFFF" : C.ink,
                     lineHeight: 1.1,
                   }}
                 >
                   The Motherbase
                 </div>
-                <div style={{ fontSize: 10, color: "#9FA6C4" }}>Ops System</div>
+                <div style={{ fontSize: 10, color: C.slate }}>Ops System</div>
               </div>
             </div>
 
@@ -1959,14 +1948,11 @@ export default function App() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background:
-                    page === "notifications"
-                      ? "rgba(255,255,255,0.1)"
-                      : "rgba(255,255,255,0.06)",
-                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: page === "notifications" ? C.amberSoft : C.card,
+                  border: `1px solid ${C.line}`,
                   borderRadius: 10,
                   cursor: "pointer",
-                  color: page === "notifications" ? C.amber : "#C9CEE0",
+                  color: page === "notifications" ? C.amber : C.slate,
                 }}
               >
                 <Bell size={16} />
@@ -2014,7 +2000,7 @@ export default function App() {
             justifyContent: "space-around",
             padding: "7px 6px calc(7px + env(safe-area-inset-bottom))",
             background: C.navy,
-            borderTop: "1px solid rgba(255,255,255,0.12)",
+            borderTop: `1px solid ${C.line}`,
           }}
         >
           {nav.map((n) => {
@@ -2035,7 +2021,7 @@ export default function App() {
                   justifyContent: "center",
                   gap: 3,
                   padding: "4px 2px",
-                  color: active ? C.amber : "#9CA3C4",
+                  color: active ? C.amber : C.slate,
                   background: "none",
                   border: "none",
                   fontFamily: "inherit",
@@ -2062,10 +2048,6 @@ export default function App() {
               padding: "26px 34px 60px",
               overflowY: "auto",
               backgroundColor: C.paper,
-              backgroundImage: `linear-gradient(${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}, ${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}), url("${motherbaseBackground}")`,
-              backgroundSize: "cover, min(1100px, 94vw) auto",
-              backgroundPosition: "center, center 42%",
-              backgroundRepeat: "no-repeat",
             }}
           >
             {page === "dashboard" && (
@@ -4437,12 +4419,8 @@ function TaskSelectButton({
         height: 20,
         flexShrink: 0,
         borderRadius: 6,
-        border: `1px solid ${active ? "rgba(166, 144, 255, 0.9)" : dark ? "rgba(255,255,255,0.12)" : C.line}`,
-        background: active
-          ? "linear-gradient(180deg, #8a7aff, #6552d6)"
-          : dark
-            ? "rgba(255,255,255,0.02)"
-            : C.paper,
+        border: `1px solid ${active ? C.amber : C.line}`,
+        background: active ? C.amber : dark ? C.card : C.paper,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -4536,19 +4514,12 @@ function GroupHolder({
           fontFamily: "inherit",
           color: C.ink,
           cursor: "pointer",
-          background: dark
-            ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))"
-            : "var(--mb-glass-surface)",
-          border: `1px solid ${checkedCount ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`,
-          borderRadius: 16,
+          background: "var(--mb-glass-surface)",
+          border: `1px solid ${checkedCount ? C.amber : "var(--mb-glass-border)"}`,
+          borderRadius: 10,
           padding: 12,
           paddingRight: canBulkEdit && checkedCount ? 170 : 42,
-          backdropFilter: "blur(14px) saturate(140%)",
-          boxShadow: checkedCount
-            ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)"
-            : dark
-              ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)"
-              : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)",
+          boxShadow: "none",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -5282,20 +5253,13 @@ function TaskCard({
       className={`mb-task-card${selected ? " is-checked" : ""}${selectionMode ? " is-selection-mode" : ""}`}
       onClick={onOpen}
       style={{
-        background: dark
-          ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))"
-          : "var(--mb-glass-surface)",
-        border: `1px solid ${selected ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`,
-        borderRadius: 16,
+        background: "var(--mb-glass-surface)",
+        border: `1px solid ${selected ? C.amber : "var(--mb-glass-border)"}`,
+        borderRadius: 10,
         padding: 12,
         cursor: "pointer",
         opacity: t.archived ? 0.8 : 1,
-        backdropFilter: "blur(14px) saturate(140%)",
-        boxShadow: selected
-          ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)"
-          : dark
-            ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)"
-            : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)",
+        boxShadow: "none",
       }}
     >
       <div
@@ -6185,7 +6149,6 @@ function TaskDetailModal({
                   style={{
                     flex: 1,
                     minWidth: 0,
-                    textDecoration: st.done ? "line-through" : "none",
                     color: st.done ? C.slate : C.ink,
                   }}
                 >
