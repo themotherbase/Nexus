@@ -1423,6 +1423,46 @@ export default function App() {
     await refetchTasks();
     return true;
   };
+  const deleteTask = async (task) => {
+    if (!["executive", "superadmin"].includes(viewerEmp.role)) return false;
+    if (
+      !window.confirm(
+        `Permanently delete "${task.title}"? This cannot be undone.`,
+      )
+    )
+      return false;
+
+    const { error } = await supabase
+      .from("tasks")
+      .delete()
+      .eq("id", task.id);
+    if (error) {
+      alert("Couldn't delete that task: " + error.message);
+      return false;
+    }
+
+    const filePaths = (task.attachments || []).map(
+      (attachment) => attachment.path,
+    );
+    if (filePaths.length) {
+      const { error: storageError } = await supabase.storage
+        .from("app-task-attachment")
+        .remove(filePaths);
+      if (storageError)
+        alert(
+          "The task was deleted, but some attached files remain: " +
+            storageError.message,
+        );
+    }
+    setCompletionTimes((previous) => {
+      const next = { ...previous };
+      delete next[task.id];
+      return next;
+    });
+    setTaskDetail(null);
+    await refetchTasks();
+    return true;
+  };
   // "Repeat" makes a fresh copy in To Do; optionally hides the finished card so the board stays tidy.
   const createRepeat = async (task, due, archiveOriginal) => {
     const { data, error } = await supabase
@@ -2121,6 +2161,7 @@ export default function App() {
             taskOps={taskOps}
             onRepeat={setRepeatTask}
             onArchive={archiveTask}
+            onDeleteTask={deleteTask}
           />
         )}
         {repeatTask && (
@@ -5732,6 +5773,7 @@ function TaskDetailModal({
   taskOps,
   onRepeat,
   onArchive,
+  onDeleteTask,
 }) {
   const { byId, employees } = useEmp();
   const [draft, setDraft] = useState("");
@@ -5905,6 +5947,14 @@ function TaskDetailModal({
           {canManageTask && task.archived && (
             <IconBtn onClick={restoreTask} title="Restore to board">
               <ArchiveRestore size={15} />
+            </IconBtn>
+          )}
+          {["executive", "superadmin"].includes(viewerEmp.role) && (
+            <IconBtn
+              onClick={() => onDeleteTask(task)}
+              title="Permanently delete task"
+            >
+              <Trash2 size={15} />
             </IconBtn>
           )}
         </div>
@@ -7049,7 +7099,7 @@ const inputStyle = {
   width: "100%",
   border: "1px solid var(--mb-control-border, #E4E2DC)",
   borderRadius: 8,
-  padding: "8px 0px 0px 10px",
+  padding: "4px 4px 0px 10px",
   fontSize: 13.5,
   fontFamily: "inherit",
   background: "var(--mb-control-bg, #FFFFFF)",
