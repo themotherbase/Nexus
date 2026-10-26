@@ -49,62 +49,51 @@ import motherbaseBackground from "../images/The Motherbase (Transparent).png";
    DESIGN TOKENS
 ----------------------------------------------------------------*/
 const C = {
-  navy: "#253044",
-  navySoft: "#6434df",
-  ink: "#253044",
-  paper: "#fffdf5",
+  navy: "#1B2340",
+  navySoft: "#2B3660",
+  ink: "#20263D",
+  paper: "#F1F0EC",
   card: "#FFFFFF",
-  line: "#b8b6c5",
-  amber: "#6434df",
-  amberSoft: "#f1ebff",
-  coral: "#d94f9e",
-  coralSoft: "#ffe6f4",
-  sage: "#348664",
-  sageSoft: "#e9fff5",
-  slate: "#596273",
-  blue: "#6434df",
-  blueSoft: "#f1ebff",
-  yellow: "#a76a00",
-  yellowSoft: "#fff5d8",
+  line: "#E4E2DC",
+  amber: "#DD9A34",
+  amberSoft: "#F6E6C7",
+  coral: "#D8574C",
+  coralSoft: "#F8E1DE",
+  sage: "#4C8F6B",
+  sageSoft: "#DEEBE3",
+  slate: "#6B7280",
+  blue: "#3B7DD8",
+  blueSoft: "#E1EBFA",
+  yellow: "#C99A11",
+  yellowSoft: "#FBF0CB",
 };
 const LIGHT_THEME = { ...C };
 const DARK_THEME = {
-  navy: "#000000",
-  navySoft: "#2b0840",
-  ink: "#ffffff",
-  paper: "#000000",
-  card: "#160420",
-  line: "#551080",
-  amber: "#a91fff",
-  amberSoft: "#2b0840",
-  coral: "#b133ff",
-  coralSoft: "#400c60",
-  sage: "#9bf1cd",
-  sageSoft: "#160420",
-  slate: "#c9b9d8",
-  blue: "#7f18c0",
-  blueSoft: "#2b0840",
-  yellow: "#ffd05b",
-  yellowSoft: "#400c60",
+  navy: "#110D1E",
+  navySoft: "#1C1532",
+  ink: "#F3ECFF",
+  paper: "#090611",
+  card: "#171224",
+  line: "#352A4D",
+  amber: "#E2B95E",
+  amberSoft: "#3A2B15",
+  coral: "#E68F90",
+  coralSoft: "#3A2126",
+  sage: "#73C7A6",
+  sageSoft: "#1C342A",
+  slate: "#B7ABCC",
+  blue: "#8AA8FF",
+  blueSoft: "#1C274A",
+  yellow: "#EBCB7B",
+  yellowSoft: "#362C1C",
 };
 const FONT = `
-  @import url('https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@400;500;600;700;800&family=Instrument+Sans:wght@400;500;600;700&display=swap');
-  @font-face { font-family: 'PlayfulGeometricDisplay'; src: local('Host Grotesk'); }
-  @font-face { font-family: 'PlayfulGeometricReading'; src: local('Instrument Sans'); }
-  body, .mb-body { font-family: 'PlayfulGeometricReading', 'Instrument Sans', sans-serif; }
-  .mb-display { font-family: 'PlayfulGeometricDisplay', 'Host Grotesk', sans-serif; }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+  body, .mb-body { font-family: 'Manrope', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .mb-display { font-family: 'Inter', 'Manrope', -apple-system, sans-serif; font-optical-sizing: auto; letter-spacing: -0.035em; }
   button, input, select, textarea { font-family: inherit; }
 `;
 const RESPONSIVE_CSS = `
-  .mb-body :focus-visible { outline: 3px solid var(--dp-color-accent) !important; outline-offset: 3px; }
-  .mb-body button { transition: transform var(--dp-motion-interaction) ease; }
-  .mb-body button:hover { transform: translateY(-2px); }
-  .mb-body button:active { transform: translateY(1px); }
-  .mb-body input, .mb-body select, .mb-body textarea { accent-color: var(--dp-color-accent); }
-  @media (max-width: 1100px) {
-    .mb-main { padding-left: 24px !important; padding-right: 24px !important; }
-    .mb-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-  }
   .mb-topnav::-webkit-scrollbar { display: none; }
   .mb-topnav { scrollbar-width: none; }
   .mb-kanban-mobile { display: none; }
@@ -140,10 +129,6 @@ const RESPONSIVE_CSS = `
     .mb-topnav { display: none !important; }
     .mb-mobile-nav { display: flex !important; }
     .mb-main { padding-bottom: calc(92px + env(safe-area-inset-bottom)) !important; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .mb-body *, .mb-body *::before, .mb-body *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
-    .mb-body button:hover, .mb-body button:active, .mb-group-task-grid .mb-task-card:hover { transform: none !important; }
   }
 `;
 
@@ -621,7 +606,7 @@ function Login() {
         )}
         <div
           style={{
-            fontSize: 14,
+            fontSize: 11.5,
             color: C.slate,
             marginTop: 14,
             lineHeight: 1.5,
@@ -843,7 +828,7 @@ function TopNavItem({ icon: Icon, label, active, badge, onClick }) {
         flexShrink: 0,
         padding: "9px 16px 11px",
         position: "relative",
-        color: active ? C.amber : C.slate,
+        color: active ? C.amber : "#9CA3C4",
       }}
     >
       <span
@@ -919,9 +904,9 @@ function UserMenu({ viewerEmp, canEditOrg, onlineSelf }) {
           display: "flex",
           alignItems: "center",
           gap: 7,
-          background: C.card,
-          border: `2px solid ${C.navy}`,
-          borderRadius: 17,
+          background: "rgba(255,255,255,0.06)",
+          border: "1px solid rgba(255,255,255,0.12)",
+          borderRadius: 20,
           padding: "4px 10px 4px 4px",
           cursor: "pointer",
         }}
@@ -937,7 +922,7 @@ function UserMenu({ viewerEmp, canEditOrg, onlineSelf }) {
           style={{
             fontSize: 12.5,
             fontWeight: 600,
-            color: C.ink,
+            color: "#fff",
             maxWidth: 110,
             overflow: "hidden",
             textOverflow: "ellipsis",
@@ -948,7 +933,7 @@ function UserMenu({ viewerEmp, canEditOrg, onlineSelf }) {
         </span>
         <ChevronDown
           size={13}
-          color={C.slate}
+          color="#9CA3C4"
           style={{
             transform: open ? "rotate(180deg)" : "none",
             transition: "transform 0.15s",
@@ -964,10 +949,10 @@ function UserMenu({ viewerEmp, canEditOrg, onlineSelf }) {
             width: "min(210px, calc(100vw - 16px))",
             boxSizing: "border-box",
             background: C.card,
-            border: `2px solid ${C.navy}`,
-            borderRadius: 17,
+            border: `1px solid ${C.line}`,
+            borderRadius: 12,
             padding: 10,
-            boxShadow: "4px 4px 0 var(--dp-color-accent)",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
             zIndex: 120,
             color: C.ink,
           }}
@@ -1861,33 +1846,21 @@ export default function App() {
           "--mb-control-bg": C.card,
           "--mb-control-fg": C.ink,
           "--mb-control-border": C.line,
-          "--mb-glass-surface": C.card,
-          "--mb-glass-border": C.line,
-          "--mb-glass-header": C.paper,
-          "--mb-glass-node": C.card,
-          "--mb-glass-chart": C.card,
-          "--dp-color-ground": C.paper,
-          "--dp-color-panel": C.card,
-          "--dp-color-ink": C.ink,
-          "--dp-color-outline": dark ? "#551080" : "#252b3a",
-          "--dp-color-accent": C.amber,
-          "--dp-color-accent-secondary": dark ? "#b133ff" : "#ff78c5",
-          "--dp-color-accent-warm": "#ffd05b",
-          "--dp-color-accent-fresh": "#9bf1cd",
-          "--dp-color-field-soft": dark ? "#160420" : "#e9fff5",
-          "--dp-color-selection": dark ? "#2b0840" : "#f1ebff",
-          "--dp-color-rule-muted": C.line,
-          "--dp-typography-display": "PlayfulGeometricDisplay, sans-serif",
-          "--dp-typography-reading": "PlayfulGeometricReading, sans-serif",
-          "--dp-typography-reading-compact": "16px",
-          "--dp-typography-label": "14px",
-          "--dp-typography-metadata": "13px",
-          "--dp-typography-reading-leading": 1.65,
-          "--dp-spacing-gap-compact": "12px",
-          "--dp-radius-corner": "17px",
-          "--dp-border-outline-width": "3px",
-          "--dp-border-detail-width": "2px",
-          "--dp-motion-interaction": "180ms",
+          "--mb-glass-surface": dark
+            ? "rgba(27, 20, 39, 0.9)"
+            : "rgba(255, 255, 255, 0.82)",
+          "--mb-glass-border": dark
+            ? "rgba(181, 156, 255, 0.18)"
+            : "rgba(15, 23, 42, 0.08)",
+          "--mb-glass-header": dark
+            ? "rgba(22, 17, 34, 0.96)"
+            : "rgba(255, 255, 255, 0.8)",
+          "--mb-glass-node": dark
+            ? "rgba(24, 19, 35, 0.9)"
+            : "rgba(255, 255, 255, 0.8)",
+          "--mb-glass-chart": dark
+            ? "rgba(20, 15, 30, 0.72)"
+            : "rgba(255, 255, 255, 0.58)",
         }}
       >
         <style>
@@ -1900,8 +1873,9 @@ export default function App() {
             position: "sticky",
             top: 0,
             zIndex: 60,
-            background: dark ? C.paper : C.card,
-            borderBottom: `2px solid ${dark ? C.line : "#252b3a"}`,
+            background: "rgba(12, 12, 12, 0.88)",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            backdropFilter: "blur(12px)",
           }}
         >
           <div
@@ -1942,13 +1916,13 @@ export default function App() {
                   style={{
                     fontSize: 15.5,
                     fontWeight: 600,
-                    color: C.ink,
+                    color: "#fff",
                     lineHeight: 1.1,
                   }}
                 >
                   The Motherbase
                 </div>
-                <div style={{ fontSize: 12, color: C.slate }}>Ops System</div>
+                <div style={{ fontSize: 10, color: "#9FA6C4" }}>Ops System</div>
               </div>
             </div>
 
@@ -1985,11 +1959,14 @@ export default function App() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: page === "notifications" ? C.amberSoft : C.card,
-                  border: `2px solid ${page === "notifications" ? C.amber : C.navy}`,
+                  background:
+                    page === "notifications"
+                      ? "rgba(255,255,255,0.1)"
+                      : "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.12)",
                   borderRadius: 10,
                   cursor: "pointer",
-                  color: page === "notifications" ? C.amber : C.ink,
+                  color: page === "notifications" ? C.amber : "#C9CEE0",
                 }}
               >
                 <Bell size={16} />
@@ -2036,8 +2013,8 @@ export default function App() {
             alignItems: "stretch",
             justifyContent: "space-around",
             padding: "7px 6px calc(7px + env(safe-area-inset-bottom))",
-            background: C.card,
-            borderTop: `2px solid ${dark ? C.line : "#252b3a"}`,
+            background: C.navy,
+            borderTop: "1px solid rgba(255,255,255,0.12)",
           }}
         >
           {nav.map((n) => {
@@ -2058,7 +2035,7 @@ export default function App() {
                   justifyContent: "center",
                   gap: 3,
                   padding: "4px 2px",
-                  color: active ? C.amber : C.slate,
+                  color: active ? C.amber : "#9CA3C4",
                   background: "none",
                   border: "none",
                   fontFamily: "inherit",
@@ -2085,6 +2062,10 @@ export default function App() {
               padding: "26px 34px 60px",
               overflowY: "auto",
               backgroundColor: C.paper,
+              backgroundImage: `linear-gradient(${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}, ${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}), url("${motherbaseBackground}")`,
+              backgroundSize: "cover, min(1100px, 94vw) auto",
+              backgroundPosition: "center, center 42%",
+              backgroundRepeat: "no-repeat",
             }}
           >
             {page === "dashboard" && (
@@ -2687,10 +2668,11 @@ function Organization({
         <div
           style={{
             background: "var(--mb-glass-surface)",
-            border: "2px solid var(--dp-color-outline)",
-            borderRadius: 17,
+            border: "1px solid var(--mb-glass-border)",
+            borderRadius: 14,
             overflow: "hidden",
-            boxShadow: "4px 4px 0 var(--dp-color-accent)",
+            backdropFilter: "blur(14px) saturate(140%)",
+            boxShadow: "0 10px 28px rgba(22,30,55,0.10)",
           }}
         >
           <div style={{ overflowX: "auto" }}>
@@ -2862,11 +2844,12 @@ function OrgChartPyramid({ onSelect, onEdit }) {
     <div
       style={{
         background: "var(--mb-glass-chart)",
-        border: "3px solid var(--dp-color-outline)",
-        borderRadius: 17,
+        border: "1px solid var(--mb-glass-border)",
+        borderRadius: 14,
         padding: "24px 16px 50px",
         overflowX: "auto",
-        boxShadow: "5px 5px 0 var(--dp-color-accent)",
+        backdropFilter: "blur(10px) saturate(135%)",
+        boxShadow: "0 12px 32px rgba(22,30,55,0.10)",
       }}
     >
       <div
@@ -2941,24 +2924,16 @@ function OrgChartPyramid({ onSelect, onEdit }) {
                 top: py(e.id),
                 width: NODE_W,
                 background: "var(--mb-glass-node)",
-                border: `2px ${e.secondary ? "dashed" : "solid"} ${dep.color}`,
+                border: `1.5px ${e.secondary ? "dashed" : "solid"} ${dep.color}`,
                 borderRadius: 10,
                 padding: "8px 10px",
                 cursor: "pointer",
-                boxShadow: "3px 3px 0 var(--dp-color-outline)",
+                backdropFilter: "blur(12px) saturate(145%)",
+                boxShadow:
+                  "0 4px 14px rgba(20,28,48,0.11), inset 0 1px 0 rgba(255,255,255,0.36)",
               }}
             >
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => onSelect(e.id)}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter" && event.key !== " ") return;
-                  event.preventDefault();
-                  onSelect(e.id);
-                }}
-                style={{ marginBottom: 2 }}
-              >
+              <div onClick={() => onSelect(e.id)} style={{ marginBottom: 2 }}>
                 <div
                   style={{ fontSize: 11.5, fontWeight: 700, lineHeight: 1.25 }}
                 >
@@ -3390,21 +3365,15 @@ function EmployeesList({ setSelectedEmp, search, setSearch, tasks, onAdd }) {
           return (
             <div
               key={e.id}
-              role="button"
-              tabIndex={0}
               onClick={() => setSelectedEmp(e.id)}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter" && event.key !== " ") return;
-                event.preventDefault();
-                setSelectedEmp(e.id);
-              }}
               style={{
                 background: "var(--mb-glass-surface)",
-                border: "2px solid var(--dp-color-outline)",
-                borderRadius: 17,
+                border: "1px solid var(--mb-glass-border)",
+                borderRadius: 12,
                 padding: 16,
                 cursor: "pointer",
-                boxShadow: "4px 4px 0 var(--dp-color-accent)",
+                backdropFilter: "blur(14px) saturate(140%)",
+                boxShadow: "0 8px 22px rgba(22,30,55,0.09)",
               }}
             >
               <div
@@ -4124,12 +4093,11 @@ function IconBtn({ children, onClick, title, disabled }) {
         alignItems: "center",
         justifyContent: "center",
         background: C.card,
-        border: "2px solid var(--dp-color-outline)",
-        borderRadius: 12,
+        border: `1px solid ${C.line}`,
+        borderRadius: 9,
         color: C.ink,
         cursor: disabled ? "default" : "pointer",
         opacity: disabled ? 0.4 : 1,
-        boxShadow: "3px 3px 0 var(--dp-color-outline)",
       }}
     >
       {children}
@@ -4469,8 +4437,12 @@ function TaskSelectButton({
         height: 20,
         flexShrink: 0,
         borderRadius: 6,
-        border: `2px solid ${active ? C.amber : C.navy}`,
-        background: active ? C.amber : C.card,
+        border: `1px solid ${active ? "rgba(166, 144, 255, 0.9)" : dark ? "rgba(255,255,255,0.12)" : C.line}`,
+        background: active
+          ? "linear-gradient(180deg, #8a7aff, #6552d6)"
+          : dark
+            ? "rgba(255,255,255,0.02)"
+            : C.paper,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -4564,14 +4536,19 @@ function GroupHolder({
           fontFamily: "inherit",
           color: C.ink,
           cursor: "pointer",
-          background: checkedCount ? "var(--dp-color-selection)" : "var(--mb-glass-surface)",
-          border: `2px solid ${checkedCount ? C.amber : "var(--dp-color-outline)"}`,
-          borderRadius: 17,
+          background: dark
+            ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))"
+            : "var(--mb-glass-surface)",
+          border: `1px solid ${checkedCount ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`,
+          borderRadius: 16,
           padding: 12,
           paddingRight: canBulkEdit && checkedCount ? 170 : 42,
+          backdropFilter: "blur(14px) saturate(140%)",
           boxShadow: checkedCount
-            ? "4px 4px 0 var(--dp-color-accent)"
-            : "4px 4px 0 var(--dp-color-outline)",
+            ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)"
+            : dark
+              ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)"
+              : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -5303,25 +5280,22 @@ function TaskCard({
   return (
     <div
       className={`mb-task-card${selected ? " is-checked" : ""}${selectionMode ? " is-selection-mode" : ""}`}
-      role="group"
-      tabIndex={0}
-      aria-label={`Task card: ${t.title}. Press Enter or Space to open.`}
       onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
-        e.preventDefault();
-        onOpen();
-      }}
       style={{
-        background: selected ? "var(--dp-color-selection)" : "var(--mb-glass-surface)",
-        border: `2px solid ${selected ? C.amber : "var(--dp-color-outline)"}`,
-        borderRadius: 17,
+        background: dark
+          ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))"
+          : "var(--mb-glass-surface)",
+        border: `1px solid ${selected ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`,
+        borderRadius: 16,
         padding: 12,
         cursor: "pointer",
         opacity: t.archived ? 0.8 : 1,
+        backdropFilter: "blur(14px) saturate(140%)",
         boxShadow: selected
-          ? "4px 4px 0 var(--dp-color-accent)"
-          : "4px 4px 0 var(--dp-color-outline)",
+          ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)"
+          : dark
+            ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)"
+            : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)",
       }}
     >
       <div
@@ -6211,6 +6185,7 @@ function TaskDetailModal({
                   style={{
                     flex: 1,
                     minWidth: 0,
+                    textDecoration: st.done ? "line-through" : "none",
                     color: st.done ? C.slate : C.ink,
                   }}
                 >
@@ -7150,7 +7125,7 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
 function FormRow({ label, children }) {
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 13, color: C.slate, marginBottom: 4 }}>
+      <div style={{ fontSize: 11.5, color: C.slate, marginBottom: 4 }}>
         {label}
       </div>
       {children}
@@ -7159,10 +7134,10 @@ function FormRow({ label, children }) {
 }
 const inputStyle = {
   width: "100%",
-  border: "2px solid var(--dp-color-outline)",
-  borderRadius: 10,
-  padding: "8px 10px",
-  fontSize: 14,
+  border: "1px solid var(--mb-control-border, #E4E2DC)",
+  borderRadius: 8,
+  padding: "8px 0px",
+  fontSize: 13.5,
   fontFamily: "inherit",
   background: "var(--mb-control-bg, #FFFFFF)",
   color: "var(--mb-control-fg, #20263D)",
@@ -7706,7 +7681,7 @@ function PageHeader({ eyebrow, title, actions }) {
       <div>
         <div
           style={{
-            fontSize: 14,
+            fontSize: 11.5,
             color: C.slate,
             fontWeight: 600,
             marginBottom: 3,
@@ -7734,13 +7709,13 @@ function StatCard({ label, value, sub, accent }) {
     <div
       style={{
         background: "var(--mb-glass-surface)",
-        border: "2px solid var(--dp-color-outline)",
-        borderRadius: 17,
+        border: "1px solid var(--mb-glass-border)",
+        borderRadius: 16,
         padding: "14px 16px",
-        boxShadow: "4px 4px 0 var(--dp-color-accent)",
+        boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
       }}
     >
-      <div style={{ fontSize: 13, color: C.slate, marginBottom: 4 }}>
+      <div style={{ fontSize: 11.5, color: C.slate, marginBottom: 4 }}>
         {label}
       </div>
       <div
@@ -7749,7 +7724,7 @@ function StatCard({ label, value, sub, accent }) {
       >
         {value}
       </div>
-      <div style={{ fontSize: 13, color: C.slate, marginTop: 2 }}>{sub}</div>
+      <div style={{ fontSize: 11, color: C.slate, marginTop: 2 }}>{sub}</div>
     </div>
   );
 }
@@ -7758,14 +7733,14 @@ function Panel({ title, children, style }) {
     <div
       style={{
         background: "var(--mb-glass-surface)",
-        border: "3px solid var(--dp-color-outline)",
-        borderRadius: "var(--dp-radius-corner)",
+        border: "1px solid var(--mb-glass-border)",
+        borderRadius: 16,
         padding: 18,
-        boxShadow: "5px 5px 0 var(--dp-color-accent)",
+        boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
         ...style,
       }}
     >
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>
         {title}
       </div>
       {children}
@@ -7776,7 +7751,7 @@ function SectionLabel({ children }) {
   return (
     <div
       style={{
-        fontSize: 13,
+        fontSize: 11,
         fontWeight: 700,
         color: C.slate,
         textTransform: "uppercase",
@@ -7798,13 +7773,13 @@ function ToggleBtn({ active, onClick, icon: Icon, label }) {
         gap: 6,
         padding: "7px 12px",
         borderRadius: 10,
-        border: `2px solid ${active ? C.amber : C.navy}`,
-        background: active ? C.amber : C.card,
+        border: `1px solid ${active ? C.navy : C.line}`,
+        background: active ? C.navy : C.card,
         color: active ? "#fff" : C.ink,
         fontSize: 12.5,
         fontWeight: 600,
         cursor: "pointer",
-        boxShadow: active ? "3px 3px 0 var(--dp-color-outline)" : "none",
+        boxShadow: active ? "0 8px 18px rgba(17,24,39,0.08)" : "none",
       }}
     >
       <Icon size={14} /> {label}
@@ -7819,12 +7794,12 @@ function SearchBar({ value, onChange, placeholder }) {
         alignItems: "center",
         gap: 8,
         background: "var(--mb-glass-surface)",
-        border: "2px solid var(--dp-color-outline)",
-        borderRadius: 17,
+        border: "1px solid var(--mb-glass-border)",
+        borderRadius: 12,
         padding: "8px 12px",
         marginBottom: 16,
         maxWidth: 420,
-        boxShadow: "3px 3px 0 var(--dp-color-outline)",
+        boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)",
       }}
     >
       <Search size={15} color={C.slate} />
@@ -7913,13 +7888,13 @@ function ModalShell({ children, onClose, width = 500 }) {
         className="mb-body mb-modal-card"
         style={{
           background: C.card,
-          border: "3px solid var(--dp-color-outline)",
-          borderRadius: "var(--dp-radius-corner)",
+          border: `1px solid ${C.line}`,
+          borderRadius: 18,
           padding: 26,
           width,
           maxWidth: "100%",
           position: "relative",
-          boxShadow: "6px 6px 0 var(--dp-color-accent)",
+          boxShadow: "0 20px 55px rgba(15, 23, 42, 0.14)",
         }}
       >
         <button
