@@ -240,6 +240,8 @@ const mapTask = (row) => ({
   backup: row.backup_id,
   priority: row.priority,
   status: row.status,
+  movePolicy: row.movement_mode || "everyone",
+  moveMemberIds: row.movement_member_ids || [],
   progress: row.progress,
   category: row.category,
   updatedAt: row.completed_at || row.updated_at || null,
@@ -293,6 +295,16 @@ const mapTask = (row) => ({
 // plus an optional wider team (task.assignees, lead included).
 const isOnTask = (t, empId) =>
   !!empId && (t.assignee === empId || (t.assignees || []).includes(empId));
+const canMoveTask = (task, employee) => {
+  if (!task || !employee) return false;
+  if (employee.role !== "employee") return true;
+  if (!isOnTask(task, employee.id)) return false;
+  if (task.assignee === employee.id) return true;
+  if (task.movePolicy === "lead") return false;
+  if (task.movePolicy === "selected")
+    return (task.moveMemberIds || []).includes(employee.id);
+  return true;
+};
 const taskTeam = (t) => [
   ...new Set([t.assignee, ...(t.assignees || [])].filter(Boolean)),
 ];
@@ -1471,6 +1483,8 @@ export default function App() {
         due_date: due,
         needs_signoff: task.needsSignoff,
         created_by: viewerEmp.id,
+        movement_mode: task.movePolicy || "everyone",
+        movement_member_ids: task.moveMemberIds || [],
       })
       .select("id")
       .single();
@@ -1581,6 +1595,8 @@ export default function App() {
         recurring_custom_days: t.recurringCustomDays ?? null,
         created_by: t.createdBy,
         needs_signoff: t.needsSignoff,
+        movement_mode: t.movePolicy || "everyone",
+        movement_member_ids: t.moveMemberIds || [],
       })
       .select()
       .single();
@@ -4373,7 +4389,7 @@ function TaskCardActions({ t, viewerEmp, setTaskStatus, onRepeat, onArchive }) {
       </div>
     );
   }
-  if (isEmployee && !isOnTask(t, viewerEmp.id)) return null;
+  if (!canMoveTask(t, viewerEmp)) return null;
   return (
     <div style={{ marginTop: 8 }}>
       <StageMenu
@@ -6043,10 +6059,7 @@ function TaskDetailModal({
   const isTaskLocked = task.status === "Completed" || task.archived;
   const canEditTask = canManageTask && !isTaskLocked;
   // Same rule as the board: managers/execs can move anything, an employee only their own open tasks.
-  const canMove =
-    !isTaskLocked &&
-    (canManageTask ||
-      (isOnTask(task, viewerEmp.id) && task.status !== "Completed"));
+  const canMove = !isTaskLocked && canMoveTask(task, viewerEmp);
   const canTickSub = (st) =>
     !isTaskLocked && (canManageTask || st.assignee === viewerEmp.id);
   const progressPercent = taskProgress(task);
@@ -7135,6 +7148,8 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
   const [title, setTitle] = useState("");
   const [assignee, setAssignee] = useState(employees[0]?.id || "");
   const [extra, setExtra] = useState([]); // additional people besides the lead
+  const [movePolicy, setMovePolicy] = useState("everyone");
+  const [moveMemberIds, setMoveMemberIds] = useState([]);
   const [subs, setSubs] = useState([]); // [{ title, assignee }]
   const [subDraft, setSubDraft] = useState("");
   const [subWho, setSubWho] = useState("");
@@ -7149,11 +7164,20 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
   const team = [assignee, ...extra].filter(Boolean);
   const subWhoValid = team.includes(subWho) ? subWho : "";
   const changeLead = (id) => {
+    const nextExtra = extra.filter((memberId) => memberId !== id);
     setAssignee(id);
-    setExtra((x) => x.filter((i) => i !== id));
+    setExtra(nextExtra);
+    setMoveMemberIds((ids) => ids.filter((memberId) => nextExtra.includes(memberId)));
+    if (!nextExtra.length) setMovePolicy("everyone");
   };
-  const toggleExtra = (id) =>
-    setExtra((x) => (x.includes(id) ? x.filter((i) => i !== id) : [...x, id]));
+  const toggleExtra = (id) => {
+    const nextExtra = extra.includes(id)
+      ? extra.filter((memberId) => memberId !== id)
+      : [...extra, id];
+    setExtra(nextExtra);
+    setMoveMemberIds((ids) => ids.filter((memberId) => nextExtra.includes(memberId)));
+    if (!nextExtra.length) setMovePolicy("everyone");
+  };
   const addSub = () => {
     if (!subDraft.trim()) return;
     setSubs((x) => [...x, { title: subDraft.trim(), assignee: subWhoValid }]);
@@ -7168,6 +7192,11 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
       title,
       assignee,
       extraAssignees: extra,
+      movePolicy: extra.length ? movePolicy : "everyone",
+      moveMemberIds:
+        movePolicy === "selected"
+          ? moveMemberIds.filter((id) => extra.includes(id))
+          : [],
       dept: assigneeEmp.dept,
       supervisor: assigneeEmp.sup || createdBy,
       priority,
@@ -7227,6 +7256,36 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
           onToggle={toggleExtra}
         />
       </FormRow>
+      {extra.length > 0 && (
+        <>
+          <FormRow label="Who can move this task?">
+            <select
+              value={movePolicy}
+              onChange={(e) => setMovePolicy(e.target.value)}
+              style={inputStyle}
+            >
+              <option value="lead">Lead only</option>
+              <option value="selected">Lead and selected members</option>
+              <option value="everyone">Everyone on the task</option>
+            </select>
+          </FormRow>
+          {movePolicy === "selected" && (
+            <FormRow label="Members allowed to move">
+              <PeoplePicker
+                options={employees.filter((employee) => extra.includes(employee.id))}
+                selected={moveMemberIds.filter((id) => extra.includes(id))}
+                onToggle={(id) =>
+                  setMoveMemberIds((members) =>
+                    members.includes(id)
+                      ? members.filter((memberId) => memberId !== id)
+                      : [...members, id],
+                  )
+                }
+              />
+            </FormRow>
+          )}
+        </>
+      )}
       <div
         className="mb-grid-2"
         style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
