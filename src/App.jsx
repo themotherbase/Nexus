@@ -52,49 +52,45 @@ const C = {
   navy: "#1B2340",
   navySoft: "#2B3660",
   ink: "#20263D",
-  paper: "#F7F8FA",
+  paper: "#F1F0EC",
   card: "#FFFFFF",
-  line: "#E8EAF0",
+  line: "#E4E2DC",
   amber: "#DD9A34",
   amberSoft: "#F6E6C7",
   coral: "#D8574C",
   coralSoft: "#F8E1DE",
   sage: "#4C8F6B",
   sageSoft: "#DEEBE3",
-  slate: "#8A90A0",
+  slate: "#6B7280",
   blue: "#3B7DD8",
   blueSoft: "#E1EBFA",
-  selection: "#54799F",
-  selectionSoft: "#EAF0F6",
   yellow: "#C99A11",
   yellowSoft: "#FBF0CB",
 };
 const LIGHT_THEME = { ...C };
 const DARK_THEME = {
-  navy: "#151D29",
-  navySoft: "#263447",
-  ink: "#E8ECF1",
-  paper: "#11161E",
-  card: "#1A222D",
-  line: "#2D3744",
-  amber: "#D7A14A",
-  amberSoft: "#382F20",
-  coral: "#D87972",
-  coralSoft: "#382526",
-  sage: "#78B28A",
-  sageSoft: "#203329",
-  slate: "#A1ABB8",
-  blue: "#7DA6CE",
-  blueSoft: "#202E3C",
-  selection: "#8EABC7",
-  selectionSoft: "#263441",
-  yellow: "#D8BA63",
-  yellowSoft: "#342F21",
+  navy: "#110D1E",
+  navySoft: "#1C1532",
+  ink: "#F3ECFF",
+  paper: "#090611",
+  card: "#171224",
+  line: "#352A4D",
+  amber: "#E2B95E",
+  amberSoft: "#3A2B15",
+  coral: "#E68F90",
+  coralSoft: "#3A2126",
+  sage: "#73C7A6",
+  sageSoft: "#1C342A",
+  slate: "#B7ABCC",
+  blue: "#8AA8FF",
+  blueSoft: "#1C274A",
+  yellow: "#EBCB7B",
+  yellowSoft: "#362C1C",
 };
 const FONT = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
-  body, .mb-body { font-family: 'Manrope', sans-serif; }
-  .mb-display { font-family: 'Manrope', sans-serif; font-optical-sizing: auto; letter-spacing: 0; }
+  body, .mb-body { font-family: 'Manrope', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .mb-display { font-family: 'Inter', 'Manrope', -apple-system, sans-serif; font-optical-sizing: auto; letter-spacing: -0.035em; }
   button, input, select, textarea { font-family: inherit; }
 `;
 const RESPONSIVE_CSS = `
@@ -103,6 +99,8 @@ const RESPONSIVE_CSS = `
   .mb-kanban-mobile { display: none; }
   .mb-mobile-nav { display: none; }
   .mb-task-select-control, .mb-group-select-control { opacity: 0; transform: scale(0.8); transition: opacity 0.14s ease, transform 0.14s ease; }
+  .mb-group-task-grid .mb-task-card { transition: transform 0.16s ease; }
+  .mb-group-task-grid .mb-task-card:hover { transform: translateY(-3px); }
   .mb-task-card:hover .mb-task-select-control, .mb-task-card:focus-within .mb-task-select-control,
   .mb-task-card.is-checked .mb-task-select-control, .mb-task-row:hover .mb-task-select-control,
   .mb-task-row:focus-within .mb-task-select-control, .mb-task-row.is-checked .mb-task-select-control,
@@ -364,7 +362,7 @@ function Login() {
         className="mb-body"
         style={{
           minHeight: "100vh",
-          background: C.paper,
+          background: C.navy,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -373,13 +371,14 @@ function Login() {
         }}
       >
         <style>{FONT}</style>
+        <AuthBackdrop />
         <form
           onSubmit={sendReset}
           style={{
             background: C.card,
             border: `1px solid ${C.line}`,
-            borderRadius: 8,
-            padding: 28,
+            borderRadius: 16,
+            padding: 32,
             width: 360,
             maxWidth: "calc(100% - 32px)",
             position: "relative",
@@ -460,7 +459,7 @@ function Login() {
       className="mb-body"
       style={{
         minHeight: "100vh",
-          background: C.paper,
+        background: C.navy,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -469,13 +468,14 @@ function Login() {
       }}
     >
       <style>{FONT}</style>
+      <AuthBackdrop />
       <form
         onSubmit={submit}
         style={{
           background: C.card,
           border: `1px solid ${C.line}`,
-          borderRadius: 8,
-          padding: 28,
+          borderRadius: 16,
+          padding: 32,
           width: 360,
           maxWidth: "calc(100% - 32px)",
           position: "relative",
@@ -484,7 +484,7 @@ function Login() {
       >
         <div
           className="mb-display"
-          style={{ fontSize: 22, color: C.ink, fontWeight: 600, marginBottom: 4 }}
+          style={{ fontSize: 22, color: C.dark, fontWeight: 600, marginBottom: 4 }}
         >
           The Motherbase
         </div>
@@ -565,7 +565,7 @@ function Login() {
           />
         </FormRow>
         {error && (
-          <div style={{ color: C.coral, fontSize: 12.5, marginBottom: 10 }}>
+          <div style={{ color: C.purple, fontSize: 12.5, marginBottom: 10 }}>
             {error}
           </div>
         )}
@@ -593,7 +593,7 @@ function Login() {
             style={{
               background: "none",
               border: "none",
-              color: C.ink,
+              color: C.dark,
               fontSize: 12,
               fontWeight: 600,
               cursor: "pointer",
@@ -699,10 +699,9 @@ function SetPassword({ onDone }) {
         style={{
           background: C.card,
           border: `1px solid ${C.line}`,
-          borderRadius: 8,
-          padding: 28,
+          borderRadius: 16,
+          padding: 32,
           width: 360,
-          maxWidth: "calc(100% - 32px)",
         }}
       >
         <div
@@ -836,7 +835,8 @@ function TopNavItem({ icon: Icon, label, active, badge, onClick }) {
         style={{
           position: "relative",
           display: "inline-flex",
-            transition: "color 0.15s",
+          filter: active ? `drop-shadow(0 0 7px ${C.amber}99)` : "none",
+          transition: "filter 0.15s, color 0.15s",
         }}
       >
         <Icon size={19} strokeWidth={2} />
@@ -877,7 +877,8 @@ function TopNavItem({ icon: Icon, label, active, badge, onClick }) {
           height: 3,
           borderRadius: 3,
           background: C.amber,
-          boxShadow: "none",
+          boxShadow: active ? `0 0 8px ${C.amber}` : "none",
+          transition: "width 0.15s",
         }}
       />
     </button>
@@ -1845,13 +1846,21 @@ export default function App() {
           "--mb-control-bg": C.card,
           "--mb-control-fg": C.ink,
           "--mb-control-border": C.line,
-          "--mb-glass-surface": C.card,
-          "--mb-glass-border": C.line,
-          "--mb-glass-header": C.card,
-          "--mb-glass-node": C.card,
-          "--mb-glass-chart": C.card,
-          "--mb-selection": C.selection,
-          "--mb-selection-soft": C.selectionSoft,
+          "--mb-glass-surface": dark
+            ? "rgba(27, 20, 39, 0.9)"
+            : "rgba(255, 255, 255, 0.82)",
+          "--mb-glass-border": dark
+            ? "rgba(181, 156, 255, 0.18)"
+            : "rgba(15, 23, 42, 0.08)",
+          "--mb-glass-header": dark
+            ? "rgba(22, 17, 34, 0.96)"
+            : "rgba(255, 255, 255, 0.8)",
+          "--mb-glass-node": dark
+            ? "rgba(24, 19, 35, 0.9)"
+            : "rgba(255, 255, 255, 0.8)",
+          "--mb-glass-chart": dark
+            ? "rgba(20, 15, 30, 0.72)"
+            : "rgba(255, 255, 255, 0.58)",
         }}
       >
         <style>
@@ -1864,8 +1873,9 @@ export default function App() {
             position: "sticky",
             top: 0,
             zIndex: 60,
-            background: C.navy,
-            borderBottom: `1px solid ${C.navySoft}`,
+            background: "rgba(12, 12, 12, 0.88)",
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
+            backdropFilter: "blur(12px)",
           }}
         >
           <div
@@ -2052,6 +2062,10 @@ export default function App() {
               padding: "26px 34px 60px",
               overflowY: "auto",
               backgroundColor: C.paper,
+              backgroundImage: `linear-gradient(${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}, ${dark ? "rgba(13,18,34,0.62)" : "rgba(239,242,246,0.42)"}), url("${motherbaseBackground}")`,
+              backgroundSize: "cover, min(1100px, 94vw) auto",
+              backgroundPosition: "center, center 42%",
+              backgroundRepeat: "no-repeat",
             }}
           >
             {page === "dashboard" && (
@@ -2655,9 +2669,10 @@ function Organization({
           style={{
             background: "var(--mb-glass-surface)",
             border: "1px solid var(--mb-glass-border)",
-            borderRadius: 8,
+            borderRadius: 14,
             overflow: "hidden",
-            boxShadow: "none",
+            backdropFilter: "blur(14px) saturate(140%)",
+            boxShadow: "0 10px 28px rgba(22,30,55,0.10)",
           }}
         >
           <div style={{ overflowX: "auto" }}>
@@ -2830,10 +2845,11 @@ function OrgChartPyramid({ onSelect, onEdit }) {
       style={{
         background: "var(--mb-glass-chart)",
         border: "1px solid var(--mb-glass-border)",
-        borderRadius: 8,
+        borderRadius: 14,
         padding: "24px 16px 50px",
         overflowX: "auto",
-        boxShadow: "none",
+        backdropFilter: "blur(10px) saturate(135%)",
+        boxShadow: "0 12px 32px rgba(22,30,55,0.10)",
       }}
     >
       <div
@@ -2909,9 +2925,12 @@ function OrgChartPyramid({ onSelect, onEdit }) {
                 width: NODE_W,
                 background: "var(--mb-glass-node)",
                 border: `1.5px ${e.secondary ? "dashed" : "solid"} ${dep.color}`,
-                borderRadius: 8,
+                borderRadius: 10,
                 padding: "8px 10px",
                 cursor: "pointer",
+                backdropFilter: "blur(12px) saturate(145%)",
+                boxShadow:
+                  "0 4px 14px rgba(20,28,48,0.11), inset 0 1px 0 rgba(255,255,255,0.36)",
               }}
             >
               <div onClick={() => onSelect(e.id)} style={{ marginBottom: 2 }}>
@@ -3350,10 +3369,11 @@ function EmployeesList({ setSelectedEmp, search, setSearch, tasks, onAdd }) {
               style={{
                 background: "var(--mb-glass-surface)",
                 border: "1px solid var(--mb-glass-border)",
-                borderRadius: 8,
+                borderRadius: 12,
                 padding: 16,
                 cursor: "pointer",
-                boxShadow: "none",
+                backdropFilter: "blur(14px) saturate(140%)",
+                boxShadow: "0 8px 22px rgba(22,30,55,0.09)",
               }}
             >
               <div
@@ -4032,7 +4052,7 @@ const stageColor = (s) =>
     Backlog: C.slate,
     "To Do": C.blue,
     "In Progress": C.amber,
-    "For Review": C.blue,
+    "For Review": "#7C6BD6",
     Completed: C.completed,
   })[s] || C.slate;
 
@@ -4417,9 +4437,9 @@ function TaskSelectButton({
         height: 20,
         flexShrink: 0,
         borderRadius: 6,
-        border: `1px solid ${active ? "var(--mb-selection)" : dark ? "rgba(255,255,255,0.12)" : C.line}`,
+        border: `1px solid ${active ? "rgba(166, 144, 255, 0.9)" : dark ? "rgba(255,255,255,0.12)" : C.line}`,
         background: active
-          ? "var(--mb-selection)"
+          ? "linear-gradient(180deg, #8a7aff, #6552d6)"
           : dark
             ? "rgba(255,255,255,0.02)"
             : C.paper,
@@ -4516,12 +4536,19 @@ function GroupHolder({
           fontFamily: "inherit",
           color: C.ink,
           cursor: "pointer",
-          background: "var(--mb-glass-surface)",
-          border: `1px solid ${checkedCount ? "var(--mb-selection)" : "var(--mb-glass-border)"}`,
-          borderRadius: 8,
+          background: dark
+            ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))"
+            : "var(--mb-glass-surface)",
+          border: `1px solid ${checkedCount ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`,
+          borderRadius: 16,
           padding: 12,
           paddingRight: canBulkEdit && checkedCount ? 170 : 42,
-          boxShadow: "none",
+          backdropFilter: "blur(14px) saturate(140%)",
+          boxShadow: checkedCount
+            ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)"
+            : dark
+              ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)"
+              : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -4887,7 +4914,9 @@ function KanbanView({
                   fontSize: 12.5,
                   fontWeight: 700,
                   cursor: "pointer",
-                  boxShadow: "none",
+                  boxShadow: selected
+                    ? `0 3px 10px ${stageColor(col)}40`
+                    : "none",
                 }}
               >
                 {col === "For Review" ? "Review" : col}
@@ -5019,7 +5048,7 @@ function KanbanView({
                     background: archivedView ? C.slate : stageColor(col),
                     borderRadius: 999,
                     padding: "6px 11px",
-                    boxShadow: "none",
+                    boxShadow: `0 8px 18px ${archivedView ? C.slate : stageColor(col)}55`,
                   }}
                 >
                   {archivedView ? "Removed" : col}
@@ -5035,7 +5064,7 @@ function KanbanView({
                     minWidth: 26,
                     textAlign: "center",
                     padding: "5px 8px",
-                    boxShadow: "none",
+                    boxShadow: "0 4px 10px rgba(15, 23, 42, 0.04)",
                   }}
                 >
                   {items.length}
@@ -5093,15 +5122,17 @@ function KanbanView({
                       }}
                     >
                       {laneGroups.length === 0 ? (
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: C.slate,
-                            padding: "10px 4px",
-                          }}
-                        >
-                          {archivedView ? "Nothing removed." : "No tasks."}
-                        </div>
+                        items.length === 0 && laneIndex === 0 ? (
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: C.slate,
+                              padding: "10px 4px",
+                            }}
+                          >
+                            {archivedView ? "Nothing removed." : "No tasks."}
+                          </div>
+                        ) : null
                       ) : (
                         laneGroups.map((g) =>
                           g.cards.length > 1 ? (
@@ -5175,9 +5206,7 @@ function TeamAvatars({ ids, size = 24, max = 3 }) {
   return (
     <div
       style={{ display: "flex", alignItems: "center" }}
-      title={ids
-        .map((id, index) => `${index === 0 ? "Lead: " : ""}${byId[id]?.name || id}`)
-        .join(", ")}
+      title={ids.map((id) => byId[id]?.name || id).join(", ")}
     >
       {shown.map((id, i) => (
         <div
@@ -5218,23 +5247,6 @@ function TeamAvatars({ ids, size = 24, max = 3 }) {
           +{extra}
         </div>
       )}
-      {ids.length > 1 && (
-        <span
-          role="img"
-          aria-label={`${ids.length} assigned employees`}
-          style={{
-            marginLeft: 5,
-            padding: "2px 5px",
-            borderRadius: 6,
-            background: C.paper,
-            color: C.slate,
-            fontSize: 10,
-            fontWeight: 700,
-          }}
-        >
-          {ids.length}
-        </span>
-      )}
     </div>
   );
 }
@@ -5272,13 +5284,20 @@ function TaskCard({
       className={`mb-task-card${selected ? " is-checked" : ""}${selectionMode ? " is-selection-mode" : ""}`}
       onClick={onOpen}
       style={{
-        background: "var(--mb-glass-surface)",
-        border: `1px solid ${selected ? "var(--mb-selection)" : "var(--mb-glass-border)"}`,
-        borderRadius: 8,
+        background: dark
+          ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))"
+          : "var(--mb-glass-surface)",
+        border: `1px solid ${selected ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`,
+        borderRadius: 16,
         padding: 12,
         cursor: "pointer",
         opacity: t.archived ? 0.8 : 1,
-        boxShadow: selected ? "0 0 0 1px var(--mb-selection-soft)" : "none",
+        backdropFilter: "blur(14px) saturate(140%)",
+        boxShadow: selected
+          ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)"
+          : dark
+            ? "0 16px 32px rgba(18,12,30,0.5), inset 0 1px 0 rgba(255,255,255,0.05)"
+            : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)",
       }}
     >
       <div
@@ -5344,7 +5363,6 @@ function TaskCard({
       </div>
       <div style={{ fontSize: 11, color: C.slate, marginBottom: 10 }}>
         {deptById[t.dept]?.name}
-        {t.category ? ` · ${t.category}` : ""}
       </div>
       <div
         style={{
@@ -5382,7 +5400,7 @@ function TaskCard({
             background: flagColor,
             borderRadius: 999,
             padding: "4px 9px 4px 7px",
-            boxShadow: "none",
+            boxShadow: "0 8px 16px rgba(15, 23, 42, 0.12)",
           }}
         >
           <Flag size={10} fill="#fff" strokeWidth={0} /> {flagLabel}
@@ -5412,9 +5430,9 @@ function ListView({
       style={{
         background: "var(--mb-glass-surface)",
         border: "1px solid var(--mb-glass-border)",
-        borderRadius: 8,
+        borderRadius: 16,
         overflow: "hidden",
-        boxShadow: "none",
+        boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)",
       }}
     >
       <div style={{ overflowX: "auto" }}>
@@ -5460,7 +5478,7 @@ function ListView({
                     borderTop: `1px solid ${C.line}`,
                     cursor: "pointer",
                     background: selected
-                      ? "var(--mb-selection-soft)"
+                      ? "rgba(132, 108, 220, 0.08)"
                       : "transparent",
                   }}
                 >
@@ -5538,9 +5556,9 @@ function CalendarView({
           style={{
             background: "var(--mb-glass-surface)",
             border: "1px solid var(--mb-glass-border)",
-            borderRadius: 8,
+            borderRadius: 14,
             padding: 14,
-            boxShadow: "none",
+            boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)",
           }}
         >
           <div
@@ -5569,7 +5587,7 @@ function CalendarView({
                   fontSize: 13,
                   cursor: "pointer",
                   background: selected
-                    ? "var(--mb-selection-soft)"
+                    ? "rgba(132, 108, 220, 0.08)"
                     : "transparent",
                   borderRadius: 6,
                   padding: "2px 4px",
@@ -5997,11 +6015,6 @@ function TaskDetailModal({
         <Field label="Due date" value={task.due} />
         <Field label="Status" value={task.status} />
         <Field label="Category" value={task.category} />
-        {task.description && (
-          <div style={{ gridColumn: "1 / -1" }}>
-            <Field label="Description" value={task.description} />
-          </div>
-        )}
         <Field label="Recurrence" value={recurrenceLabel} />
         {task.backup && (
           <Field
@@ -6154,9 +6167,9 @@ function TaskDetailModal({
                   marginBottom: 6,
                   background:
                     st.assignee === viewerEmp.id
-                      ? "var(--mb-selection-soft)"
+                      ? "rgba(130, 106, 214, 0.12)"
                       : "var(--mb-glass-surface)",
-                  border: "1px solid var(--mb-glass-border)",
+                  border: `1px solid ${st.assignee === viewerEmp.id ? "rgba(130, 106, 214, 0.28)" : "var(--mb-glass-border)"}`,
                   borderLeft: `3px solid ${st.assignee === viewerEmp.id ? C.amber : st.assignee ? C.line : C.slate}`,
                   borderRadius: 8,
                 }}
@@ -6803,9 +6816,7 @@ function Field({ label, value }) {
       <div style={{ fontSize: 10.5, color: C.slate, marginBottom: 2 }}>
         {label}
       </div>
-      <div style={{ fontSize: 13.5, fontWeight: 600, overflowWrap: "anywhere" }}>
-        {value}
-      </div>
+      <div style={{ fontSize: 13.5, fontWeight: 600 }}>{value}</div>
     </div>
   );
 }
@@ -7125,10 +7136,9 @@ function FormRow({ label, children }) {
 }
 const inputStyle = {
   width: "100%",
-  boxSizing: "border-box",
-  border: "1px solid var(--mb-control-border, #E8EAF0)",
-  borderRadius: 6,
-  padding: "8px 10px",
+  border: "1px solid var(--mb-control-border, #E4E2DC)",
+  borderRadius: 8,
+  padding: "8px 0px",
   fontSize: 13.5,
   fontFamily: "inherit",
   background: "var(--mb-control-bg, #FFFFFF)",
@@ -7681,7 +7691,7 @@ function PageHeader({ eyebrow, title, actions }) {
         >
           {eyebrow}
         </div>
-          <div className="mb-display" style={{ fontSize: 24, fontWeight: 600 }}>
+        <div className="mb-display" style={{ fontSize: 26, fontWeight: 600 }}>
           {title}
         </div>
       </div>
@@ -7702,9 +7712,9 @@ function StatCard({ label, value, sub, accent }) {
       style={{
         background: "var(--mb-glass-surface)",
         border: "1px solid var(--mb-glass-border)",
-        borderRadius: 8,
+        borderRadius: 16,
         padding: "14px 16px",
-        boxShadow: "none",
+        boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
       }}
     >
       <div style={{ fontSize: 11.5, color: C.slate, marginBottom: 4 }}>
@@ -7712,7 +7722,7 @@ function StatCard({ label, value, sub, accent }) {
       </div>
       <div
         className="mb-display"
-        style={{ fontSize: 24, fontWeight: 600, color: accent || C.ink }}
+        style={{ fontSize: 26, fontWeight: 600, color: accent || C.ink }}
       >
         {value}
       </div>
@@ -7726,9 +7736,9 @@ function Panel({ title, children, style }) {
       style={{
         background: "var(--mb-glass-surface)",
         border: "1px solid var(--mb-glass-border)",
-        borderRadius: 8,
-        padding: 16,
-        boxShadow: "none",
+        borderRadius: 16,
+        padding: 18,
+        boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
         ...style,
       }}
     >
@@ -7747,7 +7757,7 @@ function SectionLabel({ children }) {
         fontWeight: 700,
         color: C.slate,
         textTransform: "uppercase",
-        letterSpacing: 0,
+        letterSpacing: 0.4,
         marginTop: 14,
       }}
     >
@@ -7764,14 +7774,14 @@ function ToggleBtn({ active, onClick, icon: Icon, label }) {
         alignItems: "center",
         gap: 6,
         padding: "7px 12px",
-        borderRadius: 8,
+        borderRadius: 10,
         border: `1px solid ${active ? C.navy : C.line}`,
         background: active ? C.navy : C.card,
         color: active ? "#fff" : C.ink,
         fontSize: 12.5,
         fontWeight: 600,
         cursor: "pointer",
-        boxShadow: "none",
+        boxShadow: active ? "0 8px 18px rgba(17,24,39,0.08)" : "none",
       }}
     >
       <Icon size={14} /> {label}
@@ -7787,11 +7797,11 @@ function SearchBar({ value, onChange, placeholder }) {
         gap: 8,
         background: "var(--mb-glass-surface)",
         border: "1px solid var(--mb-glass-border)",
-        borderRadius: 8,
+        borderRadius: 12,
         padding: "8px 12px",
         marginBottom: 16,
         maxWidth: 420,
-        boxShadow: "none",
+        boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)",
       }}
     >
       <Search size={15} color={C.slate} />
@@ -7881,12 +7891,12 @@ function ModalShell({ children, onClose, width = 500 }) {
         style={{
           background: C.card,
           border: `1px solid ${C.line}`,
-          borderRadius: 8,
+          borderRadius: 18,
           padding: 26,
           width,
           maxWidth: "100%",
           position: "relative",
-          boxShadow: "0 12px 32px rgba(15, 23, 42, 0.16)",
+          boxShadow: "0 20px 55px rgba(15, 23, 42, 0.14)",
         }}
       >
         <button
