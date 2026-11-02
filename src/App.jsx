@@ -4472,6 +4472,17 @@ function GroupHolder({
   const high = group.cards.filter(
     (t) => t.priority === "High" && t.status !== "Completed",
   ).length;
+  const department = deptById[emp?.dept];
+  const groupStatus = group.cards[0]?.status || "Backlog";
+  const groupPriority = group.cards.some((task) => task.priority === "High")
+    ? "High"
+    : group.cards.some((task) => task.priority === "Medium")
+      ? "Medium"
+      : "Low";
+  const groupPriorityColor = priorityFlagColor({
+    status: groupStatus,
+    priority: groupPriority,
+  });
   const selectableCards = group.cards.filter(
     (task) => task.status !== "Completed" && !task.archived,
   );
@@ -4514,13 +4525,15 @@ function GroupHolder({
             ? `Deselect all tasks for ${group.name}`
             : `Select ${selectableCards.length} open tasks for ${group.name}`
         }
-        style={{ position: "absolute", zIndex: 3, top: 14, right: 14 }}
+        style={{ position: "absolute", zIndex: 3, top: 16, left: 16 }}
       />
       <button
         type="button"
         onClick={onOpen}
         aria-label={`Open ${group.cards.length} tasks for ${group.name}`}
         style={{
+          position: "relative",
+          overflow: "hidden",
           display: "block",
           width: "100%",
           textAlign: "left",
@@ -4531,9 +4544,8 @@ function GroupHolder({
             ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))"
             : "var(--mb-glass-surface)",
           border: `1px solid ${checkedCount ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`,
-          borderRadius: 16,
-          padding: 12,
-          paddingRight: canBulkEdit && checkedCount ? 170 : 42,
+          borderRadius: 18,
+          padding: 16,
           backdropFilter: "blur(14px) saturate(140%)",
           boxShadow: checkedCount
             ? "0 18px 32px rgba(96, 76, 176, 0.28), inset 0 1px 0 rgba(255,255,255,0.08)"
@@ -4542,18 +4554,73 @@ function GroupHolder({
               : "0 14px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.2)",
         }}
       >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            minHeight: 24,
+            paddingLeft: 30,
+            marginBottom: 12,
+          }}
+        >
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "5px 9px",
+              borderRadius: 999,
+              background: `${stageColor(groupStatus)}22`,
+              color: stageColor(groupStatus),
+              fontSize: 11,
+              fontWeight: 700,
+              whiteSpace: "nowrap",
+            }}
+          >
+            <span
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                background: stageColor(groupStatus),
+              }}
+            />
+            {groupStatus}
+          </span>
+        </div>
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            width: 0,
+            height: 0,
+            borderTop: `46px solid ${groupPriorityColor}`,
+            borderLeft: "46px solid transparent",
+            pointerEvents: "none",
+          }}
+        >
+          <Flag
+            size={14}
+            color="#fff"
+            fill="#fff"
+            style={{ position: "absolute", top: -40, right: 6 }}
+          />
+        </span>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Avatar
             name={group.name}
             size={34}
-            color={deptById[emp?.dept]?.color}
+            color={department?.color}
             online={onlineIds?.has(group.assignee)}
           />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700, ...ellipsis }}>
+            <div style={{ fontSize: 14.5, fontWeight: 700, ...ellipsis }}>
               {group.name}
             </div>
-            <div style={{ fontSize: 11, color: C.slate, ...ellipsis }}>
+            <div style={{ fontSize: 12, color: C.slate, ...ellipsis }}>
               {emp?.position || "No assignee"}
             </div>
           </div>
@@ -4572,18 +4639,58 @@ function GroupHolder({
               : group.cards.length}
           </span>
         </div>
+        {department && (
+          <div style={{ marginTop: 10 }}>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                padding: "5px 9px",
+                borderRadius: 999,
+                background: dark
+                  ? `${department.color}35`
+                  : `${department.color}1A`,
+                color: dark
+                  ? mixHex(department.color, "#FFFFFF", 0.18)
+                  : department.color,
+                fontSize: 10.5,
+                fontWeight: 600,
+              }}
+            >
+              {department.name}
+            </span>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                marginLeft: 7,
+                padding: "5px 9px",
+                borderRadius: 999,
+                background: dark
+                  ? `${groupPriorityColor}35`
+                  : `${groupPriorityColor}1A`,
+                color: groupPriorityColor,
+                fontSize: 10.5,
+                fontWeight: 700,
+              }}
+            >
+              <Flag size={11} /> {groupPriority} priority
+            </span>
+          </div>
+        )}
         <div
           style={{
-            marginTop: 10,
+            marginTop: 12,
             borderTop: `1px solid ${C.line}`,
-            paddingTop: 8,
+            paddingTop: 10,
           }}
         >
           {shownTasks.map((task) => (
             <div
               key={task.id}
               style={{
-                fontSize: 12,
+                fontSize: 11.5,
                 color: C.slate,
                 padding: "1px 0",
                 ...ellipsis,
@@ -4595,7 +4702,7 @@ function GroupHolder({
           {moreCount > 0 && (
             <div
               style={{
-                fontSize: 11.5,
+                fontSize: 11,
                 color: C.slate,
                 fontWeight: 600,
                 paddingTop: 2,
@@ -4610,7 +4717,7 @@ function GroupHolder({
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            marginTop: 8,
+            marginTop: 12,
             gap: 6,
           }}
         >
@@ -4648,16 +4755,12 @@ function GroupHolder({
           onClick={(e) => e.stopPropagation()}
           onChange={(e) => moveSelected(e.target.value)}
           style={{
-            position: "absolute",
-            zIndex: 3,
-            top: 9,
-            right: 42,
             ...inputStyle,
-            width: 116,
-            maxWidth: "calc(100% - 64px)",
+            width: "100%",
             boxSizing: "border-box",
-            fontSize: 10.5,
-            padding: "4px 5px",
+            fontSize: 12,
+            padding: "8px 10px",
+            marginTop: 8,
             background: C.card,
           }}
         >
@@ -5272,6 +5375,8 @@ function TaskCard({
   const progressPercent = taskProgress(t);
   const flagColor = priorityFlagColor(t);
   const flagLabel = t.status === "Completed" ? "Completed" : t.priority;
+  const department = deptById[t.dept];
+  const departmentColor = department?.color;
   return (
     <div
       className={`mb-task-card${selected ? " is-checked" : ""}${selectionMode ? " is-selection-mode" : ""}`}
@@ -5322,7 +5427,7 @@ function TaskCard({
             borderRadius: 999,
             background: `${stageColor(t.status)}22`,
             color: stageColor(t.status),
-            fontSize: 12,
+            fontSize: 11.5,
             fontWeight: 700,
           }}
         >
@@ -5370,7 +5475,7 @@ function TaskCard({
       </div>
       <div
         style={{
-          fontSize: 16,
+          fontSize: 14.5,
           fontWeight: 700,
           marginBottom: t.description ? 4 : 12,
           lineHeight: 1.25,
@@ -5382,7 +5487,7 @@ function TaskCard({
       {t.description && (
         <div
           style={{
-            fontSize: 13,
+            fontSize: 12,
             lineHeight: 1.4,
             color: C.slate,
             marginBottom: 12,
@@ -5400,20 +5505,24 @@ function TaskCard({
           marginBottom: 12,
         }}
       >
-        {deptById[t.dept]?.name && (
+        {department?.name && (
           <span
             style={{
               display: "inline-flex",
               alignItems: "center",
               padding: "5px 9px",
               borderRadius: 999,
-              background: dark ? "rgba(255,255,255,0.08)" : C.paper,
-              color: C.ink,
-              fontSize: 11,
+              background: dark
+                ? `${departmentColor}35`
+                : `${departmentColor}1A`,
+              color: dark
+                ? mixHex(departmentColor, "#FFFFFF", 0.18)
+                : departmentColor,
+              fontSize: 10.5,
               fontWeight: 600,
             }}
           >
-            {deptById[t.dept].name}
+            {department.name}
           </span>
         )}
         <span
@@ -5421,7 +5530,7 @@ function TaskCard({
             display: "inline-flex",
             alignItems: "center",
             gap: 5,
-            fontSize: 11,
+            fontSize: 10.5,
             fontWeight: 700,
             color: flagColor,
             background: dark ? `${flagColor}35` : `${flagColor}20`,
@@ -5440,7 +5549,6 @@ function TaskCard({
           alignItems: "center",
           justifyContent: "space-between",
           gap: 8,
-          flexWrap: "wrap",
         }}
       >
         <div
@@ -5448,7 +5556,7 @@ function TaskCard({
             display: "flex",
             alignItems: "center",
             gap: 5,
-            fontSize: 12,
+            fontSize: 11.5,
             color: meta.color,
             fontWeight: 600,
           }}
@@ -5465,33 +5573,36 @@ function TaskCard({
             <span>· {meta.label}</span>
           )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {(subtaskProgress || progressPercent > 0) && (
-            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <div
-                style={{
-                  width: 66,
-                  height: 7,
-                  borderRadius: 999,
-                  background: dark ? "rgba(255,255,255,0.14)" : C.line,
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    height: "100%",
-                    width: `${progressPercent}%`,
-                    borderRadius: 999,
-                    background: C.blue,
-                  }}
-                />
-              </div>
-              <span style={{ fontSize: 11, fontWeight: 700, color: C.ink }}>
-                {subtaskProgress || `${progressPercent}%`}
-              </span>
-            </div>
-          )}
-          <TeamAvatars ids={taskTeam(t)} size={27} />
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(48px, 1fr) auto auto",
+            alignItems: "center",
+            gap: 8,
+            marginTop: 9,
+          }}
+        >
+          <div
+            style={{
+              height: 7,
+              borderRadius: 999,
+              background: dark ? "rgba(255,255,255,0.14)" : C.line,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${progressPercent}%`,
+                borderRadius: 999,
+                background: C.blue,
+              }}
+            />
+          </div>
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: C.ink }}>
+            {subtaskProgress || `${progressPercent}%`}
+          </span>
+          <TeamAvatars ids={taskTeam(t)} size={24} />
         </div>
       </div>
       {children}
