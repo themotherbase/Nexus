@@ -305,6 +305,11 @@ const canMoveTask = (task, employee) => {
     return (task.moveMemberIds || []).includes(employee.id);
   return true;
 };
+const canReviewTask = (task, employee) =>
+  !!task &&
+  task.status === "For Review" &&
+  employee?.role !== "employee" &&
+  !isOnTask(task, employee.id);
 const taskTeam = (t) => [
   ...new Set([t.assignee, ...(t.assignees || [])].filter(Boolean)),
 ];
@@ -502,7 +507,7 @@ function Login() {
       >
         <div
           className="mb-display"
-          style={{ fontSize: 22, color: C.dark, fontWeight: 600, marginBottom: 4 }}
+          style={{ fontSize: 22, color: C.ink, fontWeight: 600, marginBottom: 4 }}
         >
           The Motherbase
         </div>
@@ -558,7 +563,7 @@ function Login() {
           style={{
             background: "none",
             border: "none",
-            color: C.dark,
+            color: C.ink,
             fontSize: 12,
             fontWeight: 600,
             cursor: "pointer",
@@ -1577,6 +1582,39 @@ export default function App() {
       }
     }
     await refetchTasks();
+    return true;
+  };
+  const bulkReviewTasks = async (ids, decision, note) => {
+    const selectedTasks = tasks.filter((task) => ids.includes(task.id));
+    if (
+      !ids.length ||
+      selectedTasks.length !== ids.length ||
+      selectedTasks.some((task) => !canReviewTask(task, viewerEmp))
+    ) {
+      alert("Some selected tasks are no longer available for review.");
+      await refetchTasks();
+      return false;
+    }
+    const trimmedNote = note.trim();
+    if (decision === "send-back" && !trimmedNote) {
+      alert("Add a short note before sending tasks back.");
+      return false;
+    }
+    for (const task of selectedTasks) {
+      const comment =
+        decision === "send-back"
+          ? `Sent back by ${viewerEmp.name}: ${trimmedNote}`
+          : trimmedNote
+            ? `Approved by ${viewerEmp.name}: ${trimmedNote}`
+            : null;
+      if (comment && !(await addComment(task.id, comment))) return false;
+    }
+    return bulkUpdateTasks(
+      ids,
+      decision === "approve"
+        ? { status: "Completed", progress: 100 }
+        : { status: "In Progress" },
+    );
   };
   const createTask = async (t) => {
     const { data, error } = await supabase
@@ -2100,6 +2138,7 @@ export default function App() {
                 setTaskView={setTaskView}
                 setTaskStatus={setTaskStatus}
                 bulkUpdateTasks={bulkUpdateTasks}
+                bulkReviewTasks={bulkReviewTasks}
                 viewerEmp={viewerEmp}
                 canCreate={isManager}
                 setShowAddTask={setShowAddTask}
@@ -3742,6 +3781,7 @@ function Tasks({
   setTaskView,
   setTaskStatus,
   bulkUpdateTasks,
+  bulkReviewTasks,
   viewerEmp,
   canCreate,
   setShowAddTask,
@@ -3753,6 +3793,7 @@ function Tasks({
   const { employees } = useEmp();
   const [deptFilter, setDeptFilter] = useState("all");
   const [showBulkEdit, setShowBulkEdit] = useState(false);
+  const [showBulkReview, setShowBulkReview] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [checkedTaskIds, setCheckedTaskIds] = useState(() => {
     try {
@@ -3783,6 +3824,9 @@ function Tasks({
       checkedTaskIds.has(task.id) &&
       task.status !== "Completed" &&
       !task.archived,
+  );
+  const reviewableTasks = checkedTasks.filter((task) =>
+    canReviewTask(task, viewerEmp),
   );
   const toggleCheckedTask = (taskId) => {
     setCheckedTaskIds((previous) => {
@@ -3876,10 +3920,9 @@ function Tasks({
                 <Check size={14} />{" "}
                 {selectionMode ? "Done selecting" : "Select tasks"}
               </button>
-              {canCreate && (
+              {canCreate && checkedTasks.length > 0 && (
                 <button
                   onClick={() => setShowBulkEdit(true)}
-                  disabled={!checkedTasks.length}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -3891,12 +3934,31 @@ function Tasks({
                     padding: "7px 12px",
                     fontSize: 12.5,
                     fontWeight: 600,
-                    cursor: checkedTasks.length ? "pointer" : "not-allowed",
-                    opacity: checkedTasks.length ? 1 : 0.55,
+                    cursor: "pointer",
                   }}
                 >
-                  <Pencil size={14} /> Bulk edit
-                  {checkedTasks.length ? ` (${checkedTasks.length})` : ""}
+                  <Pencil size={14} /> Bulk edit ({checkedTasks.length})
+                </button>
+              )}
+              {reviewableTasks.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowBulkReview(true)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    background: C.sage,
+                    border: "none",
+                    color: "#fff",
+                    borderRadius: 8,
+                    padding: "7px 12px",
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  <CheckCircle2 size={14} /> Review ({reviewableTasks.length})
                 </button>
               )}
               {canCreate && (
@@ -4044,6 +4106,17 @@ function Tasks({
             onToggleChecked={toggleCheckedTask}
             onClose={() => setShowBulkEdit(false)}
             onApply={bulkUpdateTasks}
+          />
+        )}
+        {showBulkReview && (
+          <BulkReviewModal
+            tasks={reviewableTasks}
+            onClose={() => setShowBulkReview(false)}
+            onApply={async (ids, decision, note) => {
+              const succeeded = await bulkReviewTasks(ids, decision, note);
+              if (succeeded) ids.forEach((id) => toggleCheckedTask(id));
+              return succeeded;
+            }}
           />
         )}
       </div>
@@ -5429,6 +5502,7 @@ function TaskCard({
       >
         {onToggleChecked && canSelect ? (
           <TaskSelectButton
+            className="mb-task-select-control"
             checked={selected}
             dark={dark}
             onClick={onToggleChecked}
@@ -5831,6 +5905,134 @@ function CalendarView({
   );
 }
 
+function BulkReviewModal({ tasks, onClose, onApply }) {
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const apply = async (decision) => {
+    if (!tasks.length || saving) return;
+    if (decision === "send-back" && !note.trim()) return;
+    setSaving(true);
+    const succeeded = await onApply(
+      tasks.map((task) => task.id),
+      decision,
+      note.trim(),
+    );
+    setSaving(false);
+    if (succeeded) onClose();
+  };
+
+  return (
+    <ModalShell onClose={onClose} width={560}>
+      <div
+        className="mb-display"
+        style={{ fontSize: 19, fontWeight: 600, marginBottom: 4 }}
+      >
+        Review {tasks.length} selected task{tasks.length === 1 ? "" : "s"}
+      </div>
+      <div style={{ fontSize: 12.5, color: C.slate, marginBottom: 12 }}>
+        Approve all selected tasks or send them back with a note.
+      </div>
+      <div
+        style={{
+          maxHeight: 180,
+          overflowY: "auto",
+          borderTop: `1px solid ${C.line}`,
+          borderBottom: `1px solid ${C.line}`,
+          marginBottom: 14,
+        }}
+      >
+        {tasks.map((task) => (
+          <div
+            key={task.id}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+              padding: "8px 2px",
+              borderBottom: `1px solid ${C.line}`,
+              fontSize: 12.5,
+            }}
+          >
+            <span style={{ minWidth: 0, ...ellipsis }}>{task.title}</span>
+            <span style={{ color: C.slate, whiteSpace: "nowrap" }}>
+              {task.status}
+            </span>
+          </div>
+        ))}
+        {tasks.length === 0 && <Empty text="No selected tasks are reviewable." />}
+      </div>
+      <FormRow label="Review note (required when sending back)">
+        <textarea
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          rows={3}
+          placeholder="Add context for the assignees…"
+          style={{ ...inputStyle, resize: "vertical" }}
+        />
+      </FormRow>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={saving}
+          style={{
+            background: "none",
+            border: `1px solid ${C.line}`,
+            borderRadius: 8,
+            padding: "8px 12px",
+            color: C.ink,
+            fontSize: 12.5,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={() => apply("send-back")}
+          disabled={saving || !tasks.length || !note.trim()}
+          style={{
+            background: C.coral,
+            border: "none",
+            borderRadius: 8,
+            padding: "8px 12px",
+            color: "#fff",
+            fontSize: 12.5,
+            fontWeight: 600,
+            cursor: saving || !tasks.length || !note.trim() ? "not-allowed" : "pointer",
+            opacity: saving || !tasks.length || !note.trim() ? 0.55 : 1,
+          }}
+        >
+          Send back all
+        </button>
+        <button
+          type="button"
+          onClick={() => apply("approve")}
+          disabled={saving || !tasks.length}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            background: C.sage,
+            border: "none",
+            borderRadius: 8,
+            padding: "8px 12px",
+            color: "#fff",
+            fontSize: 12.5,
+            fontWeight: 600,
+            cursor: saving || !tasks.length ? "not-allowed" : "pointer",
+            opacity: saving || !tasks.length ? 0.55 : 1,
+          }}
+        >
+          <CheckCircle2 size={14} /> Approve all
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
 function BulkEditModal({
   tasks,
   checkedTaskIds,
@@ -6078,10 +6280,7 @@ function TaskDetailModal({
 
   // The approver is whoever isn't the assignee and isn't a plain employee — i.e. the
   // supervisor, a manager up the chain, or an exec/admin reviewing someone else's work.
-  const isApprover =
-    task.status === "For Review" &&
-    !isOnTask(task, viewerEmp.id) &&
-    viewerEmp.role !== "employee";
+  const isApprover = canReviewTask(task, viewerEmp);
   const approve = () => {
     if (signoffNote.trim())
       addComment(
