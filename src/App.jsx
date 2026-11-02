@@ -4652,8 +4652,10 @@ function GroupHolder({
             zIndex: 3,
             top: 9,
             right: 42,
-            width: 116,
             ...inputStyle,
+            width: 116,
+            maxWidth: "calc(100% - 64px)",
+            boxSizing: "border-box",
             fontSize: 10.5,
             padding: "4px 5px",
             background: C.card,
@@ -5275,12 +5277,14 @@ function TaskCard({
       className={`mb-task-card${selected ? " is-checked" : ""}${selectionMode ? " is-selection-mode" : ""}`}
       onClick={onOpen}
       style={{
+        position: "relative",
+        overflow: "hidden",
         background: dark
           ? "linear-gradient(180deg, rgba(30,22,46,0.96), rgba(19,15,30,0.96))"
           : "var(--mb-glass-surface)",
         border: `1px solid ${selected ? "rgba(166, 144, 255, 0.75)" : dark ? "rgba(179, 154, 255, 0.22)" : "var(--mb-glass-border)"}`,
-        borderRadius: 16,
-        padding: 12,
+        borderRadius: 18,
+        padding: 16,
         cursor: "pointer",
         opacity: t.archived ? 0.8 : 1,
         backdropFilter: "blur(14px) saturate(140%)",
@@ -5295,13 +5299,12 @@ function TaskCard({
         style={{
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 6,
+          gap: 9,
+          marginBottom: 12,
         }}
       >
         {onToggleChecked && canSelect ? (
           <TaskSelectButton
-            className="mb-task-select-control"
             checked={selected}
             dark={dark}
             onClick={onToggleChecked}
@@ -5310,98 +5313,187 @@ function TaskCard({
         ) : (
           <span style={{ width: 20, height: 20 }} />
         )}
-        {t.recurring && (
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 7,
+            padding: "5px 10px",
+            borderRadius: 999,
+            background: `${stageColor(t.status)}22`,
+            color: stageColor(t.status),
+            fontSize: 12,
+            fontWeight: 700,
+          }}
+        >
           <span
-            title="Recurring"
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              marginLeft: "auto",
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: stageColor(t.status),
             }}
-          >
-            <Repeat size={12} color={C.slate} />
-          </span>
-        )}
+          />
+          {t.status}
+        </span>
+        <span
+          title={
+            t.recurring
+              ? `Recurring · ${t.priority} priority`
+              : `${t.priority} priority`
+          }
+          style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            width: 0,
+            height: 0,
+            borderTop: `58px solid ${flagColor}`,
+            borderLeft: "58px solid transparent",
+          }}
+        >
+          {t.recurring ? (
+            <Repeat
+              size={17}
+              color="#fff"
+              style={{ position: "absolute", top: -51, right: 6 }}
+            />
+          ) : (
+            <Flag
+              size={16}
+              color="#fff"
+              fill="#fff"
+              style={{ position: "absolute", top: -51, right: 7 }}
+            />
+          )}
+        </span>
       </div>
       <div
         style={{
-          fontSize: 13.5,
-          fontWeight: 600,
-          marginBottom: 6,
-          lineHeight: 1.3,
+          fontSize: 16,
+          fontWeight: 700,
+          marginBottom: t.description ? 4 : 12,
+          lineHeight: 1.25,
           opacity: selected ? 0.82 : 1,
         }}
       >
         {t.title}
       </div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 5,
-          fontSize: 11,
-          color: meta.color,
-          fontWeight: 600,
-          marginBottom: 3,
-        }}
-      >
-        <CalendarDays size={12} /> {t.due}
-        {meta.label !== "On track" && meta.label !== "Completed" && (
-          <span>· {meta.label}</span>
-        )}
-      </div>
-      <div style={{ fontSize: 11, color: C.slate, marginBottom: 10 }}>
-        {deptById[t.dept]?.name}
-      </div>
-      <div
-        style={{
-          height: 4,
-          background: "var(--mb-glass-border)",
-          borderRadius: 4,
-          overflow: "hidden",
-          marginBottom: 10,
-        }}
-      >
+      {t.description && (
         <div
           style={{
-            height: "100%",
-            width: `${progressPercent}%`,
-            background: C.amber,
-            transition: "width 0.22s ease",
+            fontSize: 13,
+            lineHeight: 1.4,
+            color: C.slate,
+            marginBottom: 12,
           }}
-        />
-      </div>
+        >
+          {t.description}
+        </div>
+      )}
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
+          gap: 7,
+          flexWrap: "wrap",
+          marginBottom: 12,
         }}
       >
+        {deptById[t.dept]?.name && (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              padding: "5px 9px",
+              borderRadius: 999,
+              background: dark ? "rgba(255,255,255,0.08)" : C.paper,
+              color: C.ink,
+              fontSize: 11,
+              fontWeight: 600,
+            }}
+          >
+            {deptById[t.dept].name}
+          </span>
+        )}
         <span
           style={{
             display: "inline-flex",
             alignItems: "center",
-            gap: 4,
-            fontSize: 10.5,
+            gap: 5,
+            fontSize: 11,
             fontWeight: 700,
-            color: "#fff",
-            background: flagColor,
+            color: flagColor,
+            background: dark ? `${flagColor}35` : `${flagColor}20`,
             borderRadius: 999,
-            padding: "4px 9px 4px 7px",
-            boxShadow: "0 8px 16px rgba(15, 23, 42, 0.12)",
+            padding: "5px 9px",
           }}
         >
-          <Flag size={10} fill="#fff" strokeWidth={0} /> {flagLabel}
+          <Flag size={11} /> {flagLabel} Priority
         </span>
-        <TeamAvatars ids={taskTeam(t)} />
       </div>
-      {subtaskProgress && (
-        <div style={{ fontSize: 10.5, color: C.slate, marginTop: 7 }}>
-          {subtaskProgress} subtasks · {progressPercent}%
+      <div
+        style={{
+          borderTop: `1px solid ${dark ? "rgba(255,255,255,0.12)" : C.line}`,
+          paddingTop: 10,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+            fontSize: 12,
+            color: meta.color,
+            fontWeight: 600,
+          }}
+        >
+          <CalendarDays size={14} />
+          {t.due
+            ? new Date(`${t.due}T00:00:00`).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })
+            : "No due date"}
+          {meta.label !== "On track" && meta.label !== "Completed" && (
+            <span>· {meta.label}</span>
+          )}
         </div>
-      )}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {(subtaskProgress || progressPercent > 0) && (
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <div
+                style={{
+                  width: 66,
+                  height: 7,
+                  borderRadius: 999,
+                  background: dark ? "rgba(255,255,255,0.14)" : C.line,
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    height: "100%",
+                    width: `${progressPercent}%`,
+                    borderRadius: 999,
+                    background: C.blue,
+                  }}
+                />
+              </div>
+              <span style={{ fontSize: 11, fontWeight: 700, color: C.ink }}>
+                {subtaskProgress || `${progressPercent}%`}
+              </span>
+            </div>
+          )}
+          <TeamAvatars ids={taskTeam(t)} size={27} />
+        </div>
+      </div>
       {children}
     </div>
   );
