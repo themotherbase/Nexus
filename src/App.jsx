@@ -118,6 +118,8 @@ const RESPONSIVE_CSS = `
     .mb-task-toolbar { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
     .mb-task-toolbar > button { justify-content: center; padding-left: 6px !important; padding-right: 6px !important; }
     .mb-employee-task-column { border-left: none !important; padding-left: 0 !important; border-top: 1px solid var(--mb-control-border) !important; padding-top: 12px !important; }
+    .mb-task-detail-columns { grid-template-columns: minmax(0, 1fr) !important; }
+    .mb-task-detail-secondary { border-left: none !important; padding-left: 0 !important; border-top: 1px solid var(--mb-control-border) !important; padding-top: 16px !important; }
     .mb-modal-overlay { padding: 16px 8px !important; }
     .mb-modal-card { padding: 18px !important; width: 100% !important; }
     .mb-hide-mobile { display: none !important; }
@@ -2162,6 +2164,7 @@ export default function App() {
         {taskDetail && (
           <TaskDetailModal
             task={tasks.find((t) => t.id === taskDetail)}
+            dark={dark}
             onClose={() => setTaskDetail(null)}
             addComment={addComment}
             viewerEmp={viewerEmp}
@@ -5996,6 +5999,7 @@ function CommentBubble({ c, byId, small }) {
 
 function TaskDetailModal({
   task,
+  dark,
   onClose,
   addComment,
   viewerEmp,
@@ -6120,22 +6124,40 @@ function TaskDetailModal({
     : task.recurring === "Custom"
       ? `Custom — every ${task.recurringCustomDays || "?"} day(s)`
       : task.recurring;
+  const taskMeta = statusMeta(task);
 
   return (
-    <ModalShell onClose={onClose} width={560}>
+    <ModalShell onClose={onClose} width={900}>
       {/* right padding keeps the title clear of the close (X) button */}
-      <div style={{ paddingRight: 40, marginBottom: 12 }}>
-        <div
+      <div
+        style={{
+          paddingRight: 40,
+          paddingBottom: 14,
+          marginBottom: 14,
+          borderBottom: `1px solid ${C.line}`,
+        }}
+      >
+        <span
           style={{
-            fontSize: 11,
-            fontWeight: 700,
+            display: "inline-flex",
+            alignItems: "center",
+            borderRadius: 999,
+            padding: "5px 9px",
+            background: mixHex(
+              priColor(task.priority),
+              dark ? DARK_THEME.card : LIGHT_THEME.card,
+              0.84,
+            ),
             color: priColor(task.priority),
-            marginBottom: 4,
+            fontSize: 10.5,
+            fontWeight: 700,
+            textTransform: "uppercase",
+            marginBottom: 8,
           }}
         >
-          {task.priority} PRIORITY
-        </div>
-        <div className="mb-display" style={{ fontSize: 19, fontWeight: 600 }}>
+          {task.priority} Priority
+        </span>
+        <div className="mb-display" style={{ fontSize: 20, fontWeight: 700 }}>
           {task.title}
         </div>
       </div>
@@ -6148,7 +6170,37 @@ function TaskDetailModal({
           flexWrap: "wrap",
         }}
       >
-        <DeptTag id={task.dept} />
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <DeptTag id={task.dept} />
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              borderRadius: 999,
+              padding: "4px 8px",
+              background: `${taskMeta.color}22`,
+              color: taskMeta.color,
+              fontSize: 10.5,
+              fontWeight: 700,
+            }}
+          >
+            {taskMeta.label}
+          </span>
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              borderRadius: 999,
+              padding: "4px 8px",
+              background: `${stageColor(task.status)}22`,
+              color: stageColor(task.status),
+              fontSize: 10.5,
+              fontWeight: 700,
+            }}
+          >
+            {task.status}
+          </span>
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {canMove && (
             <StageMenu
@@ -6192,6 +6244,17 @@ function TaskDetailModal({
         </div>
       </div>
       <div
+        className="mb-task-detail-columns"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+          alignItems: "start",
+          gap: 24,
+          marginTop: 16,
+        }}
+      >
+        <div>
+      <div
         className="mb-grid-2"
         style={{
           display: "grid",
@@ -6206,7 +6269,6 @@ function TaskDetailModal({
         />
         <Field label="Supervisor" value={sup.name} />
         <Field label="Due date" value={task.due} />
-        <Field label="Status" value={task.status} />
         <Field label="Category" value={task.category} />
         <Field label="Recurrence" value={recurrenceLabel} />
         {task.backup && (
@@ -6331,6 +6393,16 @@ function TaskDetailModal({
             ))}
         </select>
       )}
+
+        </div>
+        <div
+          className="mb-task-detail-secondary"
+          style={{
+            borderLeft: `1px solid ${C.line}`,
+            paddingLeft: 20,
+            minWidth: 0,
+          }}
+        >
 
       {(task.subtasks?.length > 0 || canEditTask) && (
         <>
@@ -6740,6 +6812,8 @@ function TaskDetailModal({
           >
             Add Comment
           </button>
+        </div>
+      </div>
         </div>
       </div>
       {showEdit && canEditTask && (
