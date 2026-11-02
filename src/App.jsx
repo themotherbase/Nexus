@@ -98,7 +98,7 @@ const RESPONSIVE_CSS = `
   .mb-topnav { scrollbar-width: none; }
   .mb-kanban-mobile { display: none; }
   .mb-mobile-nav { display: none; }
-  .mb-task-select-control, .mb-group-select-control { opacity: 0; transform: scale(0.8); transition: opacity 0.14s ease, transform 0.14s ease; }
+  .mb-task-select-control, .mb-group-select-control { opacity: 0; pointer-events: none; transform: scale(0.8); transition: opacity 0.14s ease, transform 0.14s ease; }
   .mb-group-task-grid .mb-task-card { transition: transform 0.16s ease; }
   .mb-group-task-grid .mb-task-card:hover { transform: translateY(-3px); }
   .mb-task-card:hover .mb-task-select-control, .mb-task-card:focus-within .mb-task-select-control,
@@ -107,7 +107,13 @@ const RESPONSIVE_CSS = `
   .mb-group-select-wrap:hover .mb-group-select-control,
   .mb-group-select-wrap:focus-within .mb-group-select-control, .mb-group-select-wrap.has-checked .mb-group-select-control,
   .mb-selection-mode .mb-task-select-control, .mb-selection-mode .mb-group-select-control,
-  .mb-task-card.is-selection-mode .mb-task-select-control, .mb-group-select-wrap.is-selection-mode .mb-group-select-control { opacity: 1; transform: scale(1); }
+  .mb-task-card.is-selection-mode .mb-task-select-control, .mb-group-select-wrap.is-selection-mode .mb-group-select-control { opacity: 1; pointer-events: auto; transform: scale(1); }
+  .mb-task-card:hover .mb-task-select-control, .mb-task-card:focus-within .mb-task-select-control,
+  .mb-task-card.is-checked .mb-task-select-control, .mb-task-row:hover .mb-task-select-control,
+  .mb-task-row:focus-within .mb-task-select-control, .mb-task-row.is-checked .mb-task-select-control,
+  .mb-group-select-wrap:hover .mb-group-select-control,
+  .mb-group-select-wrap:focus-within .mb-group-select-control, .mb-group-select-wrap.has-checked .mb-group-select-control,
+  .mb-selection-mode .mb-task-select-control, .mb-selection-mode .mb-group-select-control { pointer-events: auto; }
   @media (max-width: 860px) {
     .mb-main { padding: 16px 14px 60px !important; }
     .mb-grid-2, .mb-grid-3, .mb-grid-4 { grid-template-columns: 1fr !important; }
@@ -4531,7 +4537,6 @@ function TaskSelectButton({
         justifyContent: "center",
         color: "#fff",
         cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.45 : 1,
         padding: 0,
         ...style,
       }}
