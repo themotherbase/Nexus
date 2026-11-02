@@ -129,6 +129,9 @@ const RESPONSIVE_CSS = `
     .mb-topnav { display: none !important; }
     .mb-mobile-nav { display: flex !important; }
     .mb-main { padding-bottom: calc(92px + env(safe-area-inset-bottom)) !important; }
+    .mb-modal-overlay { padding-bottom: calc(88px + env(safe-area-inset-bottom)) !important; }
+    .mb-modal-card { max-height: calc(100dvh - 120px - env(safe-area-inset-bottom)); overflow-y: auto; }
+    .mb-group-task-grid { max-height: calc(100dvh - 240px - env(safe-area-inset-bottom)) !important; }
   }
 `;
 
@@ -832,7 +835,7 @@ function TopNavItem({ icon: Icon, label, active, badge, onClick }) {
   );
 }
 
-function UserMenu({ viewerEmp, canEditOrg, onlineSelf }) {
+function UserMenu({ viewerEmp, canEditOrg, onlineSelf, onSettings }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -931,6 +934,29 @@ function UserMenu({ viewerEmp, canEditOrg, onlineSelf }) {
               </div>
             )}
           </div>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onSettings();
+              }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+                width: "100%",
+                background: "none",
+                border: "none",
+                borderRadius: 8,
+                padding: "8px",
+                fontSize: 13,
+                color: C.ink,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              <Settings size={14} /> Settings
+            </button>
           <button
             onClick={() => supabase.auth.signOut()}
             style={{
@@ -1765,7 +1791,6 @@ export default function App() {
     { id: "organization", label: "Organization", icon: Network },
     { id: "employees", label: "Employees", icon: Users },
     { id: "tasks", label: "Tasks", icon: ClipboardList },
-    { id: "settings", label: "Settings", icon: Settings },
   ];
 
   return (
@@ -1944,6 +1969,7 @@ export default function App() {
                 viewerEmp={viewerEmp}
                 canEditOrg={canEditOrg}
                 onlineSelf
+                onSettings={() => setPage("settings")}
               />
             </div>
           </div>
@@ -5304,7 +5330,6 @@ function TaskCard({
           fontWeight: 600,
           marginBottom: 6,
           lineHeight: 1.3,
-          textDecoration: selected ? "line-through" : "none",
           opacity: selected ? 0.82 : 1,
         }}
       >
