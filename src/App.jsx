@@ -309,9 +309,8 @@ const useEmp = () => useContext(EmpContext);
 ----------------------------------------------------------------*/
 function Login() {
   const [mode, setMode] = useState("signin"); // "signin" | "forgot"
-  const [method, setMethod] = useState("email"); // "email" | "bundy"
+  const [identifier, setIdentifier] = useState("");
   const [email, setEmail] = useState("");
-  const [bundyId, setBundyId] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -323,11 +322,13 @@ function Login() {
     setLoading(true);
     const genericError =
       "We couldn't sign you in — check your Bundy number and password.";
-    let targetEmail = email;
-    if (method === "bundy") {
+    const loginIdentifier = identifier.trim();
+    const isEmail = loginIdentifier.includes("@");
+    let targetEmail = loginIdentifier;
+    if (!isEmail) {
       const { data: resolved, error: lookupErr } = await supabase.rpc(
         "email_for_bundy_id",
-        { p_bundy_id: bundyId.trim() },
+        { p_bundy_id: loginIdentifier },
       );
       if (lookupErr || !resolved) {
         setLoading(false);
@@ -341,7 +342,7 @@ function Login() {
       password,
     });
     setLoading(false);
-    if (error) setError(method === "bundy" ? genericError : error.message);
+    if (error) setError(isEmail ? error.message : genericError);
   };
 
   const sendReset = async (e) => {
@@ -492,69 +493,17 @@ function Login() {
           Sign in to the Ops System
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            background: C.paper,
-            borderRadius: 9,
-            padding: 3,
-            marginBottom: 16,
-          }}
-        >
-          {[
-            ["email", "Email"],
-            ["bundy", "Bundy ID"],
-          ].map(([val, label]) => (
-            <button
-              key={val}
-              type="button"
-              onClick={() => {
-                setMethod(val);
-                setError("");
-              }}
-              style={{
-                flex: 1,
-                padding: "7px 0",
-                borderRadius: 7,
-                border: "none",
-                cursor: "pointer",
-                fontSize: 12.5,
-                fontWeight: 600,
-                fontFamily: "inherit",
-                background: method === val ? C.card : "transparent",
-                color: method === val ? C.ink : C.slate,
-                boxShadow:
-                  method === val ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {method === "email" ? (
-          <FormRow label="Email">
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              style={inputStyle}
-            />
-          </FormRow>
-        ) : (
-          <FormRow label="Bundy account number">
-            <input
-              type="text"
-              inputMode="numeric"
-              required
-              value={bundyId}
-              onChange={(e) => setBundyId(e.target.value)}
-              placeholder="e.g. 20240029"
-              style={inputStyle}
-            />
-          </FormRow>
-        )}
+        <FormRow label="Email or Bundy ID">
+          <input
+            type="text"
+            autoComplete="username"
+            required
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
+            placeholder="Enter your email or Bundy ID"
+            style={inputStyle}
+          />
+        </FormRow>
         <FormRow label="Password">
           <input
             type="password"
@@ -586,24 +535,22 @@ function Login() {
         >
           {loading ? "Signing in…" : "Sign in"}
         </button>
-        {method === "email" && (
-          <button
-            type="button"
-            onClick={() => setMode("forgot")}
-            style={{
-              background: "none",
-              border: "none",
-              color: C.dark,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              padding: 0,
-              marginTop: 12,
-            }}
-          >
-            Forgot password?
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => setMode("forgot")}
+          style={{
+            background: "none",
+            border: "none",
+            color: C.dark,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+            padding: 0,
+            marginTop: 12,
+          }}
+        >
+          Forgot password?
+        </button>
         <div
           style={{
             fontSize: 11.5,
@@ -612,9 +559,9 @@ function Login() {
             lineHeight: 1.5,
           }}
         >
-          {method === "bundy"
-            ? "Forgot your password? Ask Jose Paulo, Andrea, Maria, or Julian to reset it for you."
-            : "First time? Check your email for the invite link to set your password. If you don't have an account yet, ask Jose Paulo, Andrea, Maria, or Julian to invite you."}
+          First time? Check your email for the invite link to set your password.
+          If you don't have an account yet, ask Jose Paulo, Andrea, Maria, or
+          Julian to invite you.
         </div>
       </form>
     </div>
@@ -3960,14 +3907,32 @@ function Tasks({
                 background: "transparent",
                 border: "none",
                 color: C.ink,
+                colorScheme: dark ? "dark" : "light",
                 fontSize: 12.5,
                 fontFamily: "inherit",
                 outline: "none",
               }}
             >
-              <option value="all">All departments</option>
+              <option
+                value="all"
+                style={{
+                  color: dark ? DARK_THEME.ink : LIGHT_THEME.ink,
+                  backgroundColor: dark ? DARK_THEME.card : LIGHT_THEME.card,
+                }}
+              >
+                All departments
+              </option>
               {DEPARTMENTS.map((dep) => (
-                <option key={dep.id} value={dep.id}>
+                <option
+                  key={dep.id}
+                  value={dep.id}
+                  style={{
+                    color: dark ? DARK_THEME.ink : LIGHT_THEME.ink,
+                    backgroundColor: dark
+                      ? DARK_THEME.card
+                      : LIGHT_THEME.card,
+                  }}
+                >
                   {dep.name}
                 </option>
               ))}
@@ -7136,9 +7101,10 @@ function FormRow({ label, children }) {
 }
 const inputStyle = {
   width: "100%",
+  boxSizing: "border-box",
   border: "1px solid var(--mb-control-border, #E4E2DC)",
   borderRadius: 8,
-  padding: "8px 0px",
+  padding: "8px 10px",
   fontSize: 13.5,
   fontFamily: "inherit",
   background: "var(--mb-control-bg, #FFFFFF)",
