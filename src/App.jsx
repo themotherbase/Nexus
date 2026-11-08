@@ -8410,9 +8410,7 @@ function Empty({ text }) {
   );
 }
 function ModalShell({ children, onClose, width = 500 }) {
-  const dark = C.card === DARK_THEME.card;
   return (
-    createPortal(
     <div
       onClick={onClose}
       className="mb-modal-overlay"
@@ -8424,27 +8422,8 @@ function ModalShell({ children, onClose, width = 500 }) {
         alignItems: "flex-start",
         justifyContent: "center",
         padding: "60px 20px",
-        zIndex: 2000,
+        zIndex: 200,
         overflowY: "auto",
-        colorScheme: dark ? "dark" : "light",
-        "--mb-control-bg": C.card,
-        "--mb-control-fg": C.ink,
-        "--mb-control-border": C.line,
-        "--mb-glass-surface": dark
-          ? "rgba(27, 20, 39, 0.9)"
-          : "rgba(255, 255, 255, 0.82)",
-        "--mb-glass-border": dark
-          ? "rgba(181, 156, 255, 0.18)"
-          : "rgba(15, 23, 42, 0.08)",
-        "--mb-glass-header": dark
-          ? "rgba(22, 17, 34, 0.96)"
-          : "rgba(255, 255, 255, 0.8)",
-        "--mb-glass-node": dark
-          ? "rgba(24, 19, 35, 0.9)"
-          : "rgba(255, 255, 255, 0.8)",
-        "--mb-glass-chart": dark
-          ? "rgba(20, 15, 30, 0.72)"
-          : "rgba(255, 255, 255, 0.58)",
       }}
     >
       <div
@@ -8484,8 +8463,6 @@ function ModalShell({ children, onClose, width = 500 }) {
         </button>
         {children}
       </div>
-    </div>,
-    document.body,
-    )
+    </div>
   );
 }
