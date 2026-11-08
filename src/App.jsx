@@ -174,40 +174,6 @@ const today = () => {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 };
-const shiftDate = (dateString, { days = 0, months = 0 }) => {
-  const [year, month, day] = dateString.split("-").map(Number);
-  const monthIndex = month - 1 + months;
-  const targetYear = year + Math.floor(monthIndex / 12);
-  const targetMonth = ((monthIndex % 12) + 12) % 12;
-  const targetDay = Math.min(
-    day,
-    new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate(),
-  );
-  const date = new Date(Date.UTC(targetYear, targetMonth, targetDay));
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-};
-const nextRecurringDate = (task, from = today()) => {
-  const intervalDays = Number(task.recurringCustomDays);
-  switch (task.recurring) {
-    case "Daily":
-      return shiftDate(from, { days: 1 });
-    case "Weekly":
-      return shiftDate(from, { days: 7 });
-    case "Biweekly":
-      return shiftDate(from, { days: 14 });
-    case "Monthly":
-      return shiftDate(from, { months: 1 });
-    case "Quarterly":
-      return shiftDate(from, { months: 3 });
-    case "Custom":
-      return shiftDate(from, {
-        days: Number.isInteger(intervalDays) && intervalDays > 0 ? intervalDays : 7,
-      });
-    default:
-      return null;
-  }
-};
 const mixHex = (color, base, baseWeight) =>
   `#${[1, 3, 5]
     .map((i) => {
@@ -1406,12 +1372,6 @@ export default function App() {
       return task && task.status !== "Completed" && !task.archived;
     });
     if (!editableIds.length) return false;
-    const recurringTasks =
-      patch.status === "Completed"
-        ? editableIds
-            .map((id) => tasks.find((task) => task.id === id))
-            .filter((task) => task?.recurring)
-        : [];
     const { error } = await supabase
       .from("tasks")
       .update(patch)
@@ -1433,16 +1393,11 @@ export default function App() {
       });
     }
     await refetchTasks();
-    for (const task of recurringTasks) {
-      await createRepeat(task, nextRecurringDate(task), false);
-    }
     return true;
   };
   const setTaskStatus = async (id, status) => {
     const patch = { status };
     if (status === "Completed") patch.progress = 100;
-    const task = tasks.find((item) => item.id === id);
-    const shouldRepeat = status === "Completed" && task?.recurring;
     const saved = await updateTask(id, patch);
     if (saved) {
       setCompletionTimes((previous) => {
@@ -1451,9 +1406,6 @@ export default function App() {
         else delete next[id];
         return next;
       });
-      if (shouldRepeat) {
-        await createRepeat(task, nextRecurringDate(task), false);
-      }
     }
     return saved;
   };
@@ -1543,8 +1495,6 @@ export default function App() {
         progress: 0,
         category: task.category,
         due_date: due,
-        recurring: task.recurring || null,
-        recurring_custom_days: task.recurringCustomDays ?? null,
         needs_signoff: task.needsSignoff,
         created_by: viewerEmp.id,
         movement_mode: task.movePolicy || "everyone",
