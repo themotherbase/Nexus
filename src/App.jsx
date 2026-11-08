@@ -8411,6 +8411,7 @@ function Empty({ text }) {
 }
 function ModalShell({ children, onClose, width = 500 }) {
   return (
+    createPortal(
     <div
       onClick={onClose}
       className="mb-modal-overlay"
@@ -8422,7 +8423,7 @@ function ModalShell({ children, onClose, width = 500 }) {
         alignItems: "flex-start",
         justifyContent: "center",
         padding: "60px 20px",
-        zIndex: 200,
+        zIndex: 2000,
         overflowY: "auto",
       }}
     >
@@ -8463,6 +8464,8 @@ function ModalShell({ children, onClose, width = 500 }) {
         </button>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
+    )
   );
 }
