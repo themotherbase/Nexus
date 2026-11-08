@@ -264,6 +264,7 @@ const mapTask = (row) => ({
   recurring: row.recurring,
   recurringCustomDays: row.recurring_custom_days,
   due: row.due_date,
+  completedAt: row.completed_at || null,
   needsSignoff: row.needs_signoff,
   createdBy: row.created_by,
   archived: !!row.archived,
@@ -2213,6 +2214,7 @@ export default function App() {
           <EmployeeModal
             empId={selectedEmp}
             tasks={tasks}
+            completionTimes={completionTimes}
             onClose={() => setSelectedEmp(null)}
             setSelectedEmp={setSelectedEmp}
             onEdit={() => setEditingEmp(byId[selectedEmp])}
@@ -3464,14 +3466,45 @@ function EmployeesList({ setSelectedEmp, search, setSearch, tasks, onAdd }) {
   );
 }
 
-function EmployeeModal({ empId, tasks, onClose, setSelectedEmp, onEdit }) {
+function EmployeeModal({
+  empId,
+  tasks,
+  completionTimes = {},
+  onClose,
+  setSelectedEmp,
+  onEdit,
+}) {
   const { byId, directReports, canEditOrg } = useEmp();
+  const [taskPane, setTaskPane] = useState("active");
+  const [historyFilter, setHistoryFilter] = useState("all");
+  const [historyDay, setHistoryDay] = useState(today());
+  const [historyStart, setHistoryStart] = useState("");
+  const [historyEnd, setHistoryEnd] = useState("");
   const emp = byId[empId];
   if (!emp) return null;
   const myTasks = tasks.filter((t) => isOnTask(t, emp.id));
+  const completionDateFor = (task) => {
+    const raw = completionTimes[task.id] || task.completedAt || task.updatedAt;
+    if (!raw) return null;
+    const date = new Date(raw);
+    return Number.isNaN(date.getTime()) ? null : localDateString(date);
+  };
   const activeTasks = myTasks
     .filter((t) => t.status !== "Completed" && !t.archived)
     .sort((a, b) => (a.due || "").localeCompare(b.due || ""));
+  const completedTasks = myTasks
+    .filter((task) => task.status === "Completed")
+    .sort((a, b) =>
+      (completionDateFor(b) || "").localeCompare(completionDateFor(a) || ""),
+    );
+  const historyTasks = completedTasks.filter((task) => {
+    if (historyFilter === "all") return true;
+    const date = completionDateFor(task);
+    if (!date) return false;
+    if (historyFilter === "day") return date === historyDay;
+    return (!historyStart || date >= historyStart) &&
+      (!historyEnd || date <= historyEnd);
+  });
   const stats = {
     total: myTasks.length,
     completed: myTasks.filter((t) => t.status === "Completed").length,
@@ -3642,77 +3675,212 @@ function EmployeeModal({ empId, tasks, onClose, setSelectedEmp, onEdit }) {
           }}
         >
           <div
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              justifyContent: "space-between",
-              gap: 8,
-            }}
+            role="tablist"
+            aria-label="Employee task views"
+            style={{ display: "flex", gap: 4, borderBottom: `1px solid ${C.line}` }}
           >
-            <SectionLabel>Active tasks</SectionLabel>
-            <span style={{ fontSize: 11.5, color: C.slate }}>
-              {activeTasks.length}
-            </span>
+            {[
+              ["active", `Active (${activeTasks.length})`],
+              ["history", `History (${completedTasks.length})`],
+            ].map(([pane, label]) => (
+              <button
+                key={pane}
+                type="button"
+                role="tab"
+                aria-selected={taskPane === pane}
+                onClick={() => setTaskPane(pane)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  borderBottom: `2px solid ${taskPane === pane ? C.amber : "transparent"}`,
+                  color: taskPane === pane ? C.ink : C.slate,
+                  padding: "8px 10px",
+                  marginBottom: -1,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-              marginTop: 8,
-              maxHeight: "62vh",
-              overflowY: "auto",
-              paddingRight: 4,
-            }}
-          >
-            {activeTasks.length === 0 && (
-              <Empty text="No active tasks assigned." />
-            )}
-            {activeTasks.map((t) => {
-              const meta = statusMeta(t);
-              return (
+          {taskPane === "active" ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                marginTop: 10,
+                maxHeight: "62vh",
+                overflowY: "auto",
+                paddingRight: 4,
+              }}
+            >
+              {activeTasks.length === 0 && (
+                <Empty text="No active tasks assigned." />
+              )}
+              {activeTasks.map((t) => {
+                const meta = statusMeta(t);
+                return (
+                  <div
+                    key={t.id}
+                    style={{
+                      background: C.paper,
+                      border: `1px solid ${C.line}`,
+                      borderLeft: `3px solid ${stageColor(t.status)}`,
+                      borderRadius: 8,
+                      padding: "10px 12px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        lineHeight: 1.4,
+                        overflowWrap: "anywhere",
+                      }}
+                    >
+                      {t.title}
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 8,
+                        marginTop: 6,
+                        fontSize: 11.5,
+                      }}
+                    >
+                      <span
+                        style={{ color: stageColor(t.status), fontWeight: 600 }}
+                      >
+                        {t.status}
+                      </span>
+                      <span style={{ color: meta.color, whiteSpace: "nowrap" }}>
+                        Due {t.due || "—"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ marginTop: 10 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  flexWrap: "wrap",
+                  marginBottom: 8,
+                }}
+              >
+                <span style={{ fontSize: 11.5, color: C.slate }}>
+                  Filter completed tasks
+                </span>
+                <select
+                  value={historyFilter}
+                  onChange={(event) => setHistoryFilter(event.target.value)}
+                  aria-label="Filter completed tasks by date"
+                  style={{ ...inputStyle, width: "auto", fontSize: 11.5, padding: "6px 8px" }}
+                >
+                  <option value="all">All time</option>
+                  <option value="day">Specific day</option>
+                  <option value="range">Date range</option>
+                </select>
+              </div>
+              {historyFilter === "day" && (
+                <input
+                  type="date"
+                  value={historyDay}
+                  onChange={(event) => setHistoryDay(event.target.value)}
+                  aria-label="History day"
+                  style={{ ...inputStyle, marginBottom: 8 }}
+                />
+              )}
+              {historyFilter === "range" && (
                 <div
-                  key={t.id}
                   style={{
-                    background: C.paper,
-                    border: `1px solid ${C.line}`,
-                    borderLeft: `3px solid ${stageColor(t.status)}`,
-                    borderRadius: 8,
-                    padding: "10px 12px",
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 8,
+                    marginBottom: 8,
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      lineHeight: 1.4,
-                      overflowWrap: "anywhere",
-                    }}
-                  >
-                    {t.title}
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 8,
-                      marginTop: 6,
-                      fontSize: 11.5,
-                    }}
-                  >
-                    <span
-                      style={{ color: stageColor(t.status), fontWeight: 600 }}
-                    >
-                      {t.status}
-                    </span>
-                    <span style={{ color: meta.color, whiteSpace: "nowrap" }}>
-                      Due {t.due || "—"}
-                    </span>
-                  </div>
+                  <input
+                    type="date"
+                    value={historyStart}
+                    onChange={(event) => setHistoryStart(event.target.value)}
+                    aria-label="History start date"
+                    style={inputStyle}
+                  />
+                  <input
+                    type="date"
+                    value={historyEnd}
+                    onChange={(event) => setHistoryEnd(event.target.value)}
+                    aria-label="History end date"
+                    style={inputStyle}
+                  />
                 </div>
-              );
-            })}
-          </div>
+              )}
+              {completedTasks.some((task) => !completionDateFor(task)) && (
+                <div style={{ fontSize: 11, color: C.slate, marginBottom: 8 }}>
+                  Some older tasks have no recorded completion date and only appear in All time.
+                </div>
+              )}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                  maxHeight: "54vh",
+                  overflowY: "auto",
+                  paddingRight: 4,
+                }}
+              >
+                {historyTasks.length === 0 && (
+                  <Empty text="No completed tasks match this date filter." />
+                )}
+                {historyTasks.map((task) => {
+                  const completedDate = completionDateFor(task);
+                  const dateLabel = completedDate
+                    ? new Date(`${completedDate}T00:00:00`).toLocaleDateString(
+                        undefined,
+                        { month: "short", day: "numeric", year: "numeric" },
+                      )
+                    : "Completion date not recorded";
+                  return (
+                    <div
+                      key={task.id}
+                      style={{
+                        background: C.paper,
+                        border: `1px solid ${C.line}`,
+                        borderLeft: `3px solid ${C.completed}`,
+                        borderRadius: 8,
+                        padding: "10px 12px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 12.5,
+                          fontWeight: 600,
+                          lineHeight: 1.4,
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {task.title}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: C.slate, marginTop: 5 }}>
+                        Completed {dateLabel}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </section>
       </div>
     </ModalShell>
