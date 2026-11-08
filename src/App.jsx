@@ -174,6 +174,13 @@ const today = () => {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 };
+const nextRepeatDueDate = (previousDue) => {
+  const systemDate = today();
+  const baseDate = previousDue && previousDue > systemDate ? previousDue : systemDate;
+  const nextDate = new Date(`${baseDate}T00:00:00`);
+  nextDate.setDate(nextDate.getDate() + 1);
+  return `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, "0")}-${String(nextDate.getDate()).padStart(2, "0")}`;
+};
 const mixHex = (color, base, baseWeight) =>
   `#${[1, 3, 5]
     .map((i) => {
@@ -7053,7 +7060,7 @@ function TaskDetailModal({
 
 function RepeatTaskModal({ task, onClose, onConfirm }) {
   const { byId } = useEmp();
-  const [due, setDue] = useState(today());
+  const [due, setDue] = useState(() => nextRepeatDueDate(task.due));
   const [archiveOriginal, setArchiveOriginal] = useState(true);
   const [busy, setBusy] = useState(false);
   return (
