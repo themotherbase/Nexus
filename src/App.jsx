@@ -172,14 +172,16 @@ const COLUMNS = ["Backlog", "To Do", "In Progress", "For Review", "Completed"];
 ----------------------------------------------------------------*/
 const today = () => {
   const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  return localDateString(date);
 };
+const localDateString = (date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 const nextRepeatDueDate = (previousDue) => {
   const systemDate = today();
   const baseDate = previousDue && previousDue > systemDate ? previousDue : systemDate;
   const nextDate = new Date(`${baseDate}T00:00:00`);
   nextDate.setDate(nextDate.getDate() + 1);
-  return `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, "0")}-${String(nextDate.getDate()).padStart(2, "0")}`;
+  return localDateString(nextDate);
 };
 const mixHex = (color, base, baseWeight) =>
   `#${[1, 3, 5]
