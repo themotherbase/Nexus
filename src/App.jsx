@@ -2170,7 +2170,6 @@ export default function App() {
                 taskView={taskView}
                 setTaskView={setTaskView}
                 setTaskStatus={setTaskStatus}
-                updateTask={updateTask}
                 bulkUpdateTasks={bulkUpdateTasks}
                 bulkReviewTasks={bulkReviewTasks}
                 viewerEmp={viewerEmp}
@@ -3981,7 +3980,6 @@ function Tasks({
   taskView,
   setTaskView,
   setTaskStatus,
-  updateTask,
   bulkUpdateTasks,
   bulkReviewTasks,
   viewerEmp,
@@ -4272,7 +4270,6 @@ function Tasks({
             tasks={boardTasks}
             archivedTasks={archivedTasks}
             setTaskStatus={setTaskStatus}
-            updateTask={updateTask}
             bulkUpdateTasks={bulkUpdateTasks}
             viewerEmp={viewerEmp}
             setTaskDetail={setTaskDetail}
@@ -4631,7 +4628,6 @@ function TaskCardActions({
   t,
   viewerEmp,
   setTaskStatus,
-  updateTask,
   onRepeat,
   onArchive,
 }) {
@@ -4674,41 +4670,7 @@ function TaskCardActions({
   }
   if (!canMoveTask(t, viewerEmp)) return null;
   return (
-    <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
-      {!isEmployee && (
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 8,
-            fontSize: 11.5,
-            color: C.slate,
-          }}
-        >
-          Who can move this task?
-          <select
-            aria-label={`Who can move ${t.title}`}
-            value={t.movePolicy || "team"}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) =>
-              updateTask(t.id, {
-                movement_mode: e.target.value,
-                movement_member_ids:
-                  e.target.value === "selected" ? t.moveMemberIds || [] : [],
-              })
-            }
-            style={{ ...inputStyle, width: "auto", maxWidth: 180, fontSize: 11.5 }}
-          >
-            {t.movePolicy === "selected" && (
-              <option value="selected">Lead and selected members</option>
-            )}
-            <option value="lead">Lead only</option>
-            <option value="team">Lead and Members</option>
-            <option value="all">Everyone</option>
-          </select>
-        </label>
-      )}
+    <div style={{ marginTop: 8 }}>
       <StageMenu
         current={t.status}
         canComplete={!isEmployee}
@@ -5260,7 +5222,6 @@ function KanbanView({
   tasks,
   archivedTasks = [],
   setTaskStatus,
-  updateTask,
   bulkUpdateTasks,
   viewerEmp,
   setTaskDetail,
@@ -5283,7 +5244,6 @@ function KanbanView({
       t={t}
       viewerEmp={viewerEmp}
       setTaskStatus={setTaskStatus}
-      updateTask={updateTask}
       onRepeat={onRepeat}
       onArchive={onArchive}
     />
@@ -7415,6 +7375,7 @@ function EditTaskModal({ task, onClose, onSave }) {
   const { employees, byId } = useEmp();
   const [title, setTitle] = useState(task.title);
   const [assignee, setAssignee] = useState(task.assignee);
+  const [movePolicy, setMovePolicy] = useState(task.movePolicy || "team");
   const [priority, setPriority] = useState(task.priority);
   const [due, setDue] = useState(task.due || today());
   const [category, setCategory] = useState(task.category || "");
@@ -7435,6 +7396,9 @@ function EditTaskModal({ task, onClose, onSave }) {
       recurring: recurring || null,
       recurring_custom_days:
         recurring === "Custom" ? Number(customDays) || 7 : null,
+      movement_mode: movePolicy,
+      movement_member_ids:
+        movePolicy === "selected" ? task.moveMemberIds || [] : [],
     });
   };
 
@@ -7464,6 +7428,20 @@ function EditTaskModal({ task, onClose, onSave }) {
               {e.name} — {e.position}
             </option>
           ))}
+        </select>
+      </FormRow>
+      <FormRow label="Who can move this task?">
+        <select
+          value={movePolicy}
+          onChange={(e) => setMovePolicy(e.target.value)}
+          style={inputStyle}
+        >
+          {movePolicy === "selected" && (
+            <option value="selected">Lead and selected members</option>
+          )}
+          <option value="lead">Lead only</option>
+          <option value="team">Lead and Members</option>
+          <option value="all">Everyone</option>
         </select>
       </FormRow>
       <div
