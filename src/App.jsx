@@ -41,6 +41,8 @@ import {
   ArchiveRestore,
   MessageSquare,
   Flag,
+  Smile,
+  Paperclip,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import motherbaseBackground from "../images/The Motherbase (Transparent).png";
@@ -313,8 +315,16 @@ const mapTask = (row) => ({
       author: c.author_id,
       text: c.body,
       time: new Date(c.created_at).toLocaleString(),
+      attachments: (row.task_attachments || [])
+        .filter((attachment) => attachment.comment_id === c.id)
+        .map((attachment) => ({
+          id: attachment.id,
+          name: attachment.file_name,
+          path: attachment.file_path,
+        })),
     })),
   attachments: (row.task_attachments || [])
+    .filter((attachment) => !attachment.comment_id)
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
     .map((a) => ({
       id: a.id,
@@ -1589,19 +1599,68 @@ export default function App() {
     if (archiveOriginal) await archiveTask(task, true);
     else await refetchTasks();
   };
-  const addComment = async (id, text, parentId = null) => {
+  const addComment = async (
+    id,
+    text,
+    parentId = null,
+    files = [],
+    mentionIds = [],
+  ) => {
     const payload = { task_id: id, author_id: viewerEmp.id, body: text };
     if (parentId) payload.parent_comment_id = parentId;
-    let { error } = await supabase.from("task_comments").insert(payload);
+    let { data: insertedComment, error } = await supabase
+      .from("task_comments")
+      .insert(payload)
+      .select("id")
+      .single();
     if (error && payload.parent_comment_id) {
       // parent_comment_id column may not exist yet (reply migration not run) — retry as a plain comment
       delete payload.parent_comment_id;
-      ({ error } = await supabase.from("task_comments").insert(payload));
+      ({ data: insertedComment, error } = await supabase
+        .from("task_comments")
+        .insert(payload)
+        .select("id")
+        .single());
     }
     if (error) {
       alert("Comment didn't save: " + error.message);
       await refetchTasks();
       return;
+    }
+
+    if (files.length && insertedComment?.id) {
+      const attachmentRows = [];
+      for (const [index, file] of files.entries()) {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `${id}/comments/${insertedComment.id}-${Date.now()}-${index}-${safeName}`;
+        const { error: uploadError } = await supabase.storage
+          .from("app-task-attachment")
+          .upload(path, file);
+        if (uploadError) {
+          alert(`Couldn't upload ${file.name}: ${uploadError.message}`);
+          continue;
+        }
+        attachmentRows.push({
+          task_id: id,
+          comment_id: insertedComment.id,
+          file_name: file.name,
+          file_path: path,
+          uploaded_by: viewerEmp.id,
+        });
+      }
+      if (attachmentRows.length) {
+        const { error: attachmentError } = await supabase
+          .from("task_attachments")
+          .insert(attachmentRows);
+        if (attachmentError) {
+          await supabase.storage
+            .from("app-task-attachment")
+            .remove(attachmentRows.map((attachment) => attachment.file_path));
+          alert(
+            `Comment saved, but its files couldn't be linked. Apply the comment features migration first.\n\n${attachmentError.message}`,
+          );
+        }
+      }
     }
 
     // Notify whoever else is "on" this task — the assignee, the supervisor, and (for a
@@ -1615,7 +1674,12 @@ export default function App() {
         : null;
       const recipients = [
         ...new Set(
-          [...taskTeam(task), task.supervisor, repliedToAuthor].filter(Boolean),
+          [
+            ...taskTeam(task),
+            task.supervisor,
+            repliedToAuthor,
+            ...mentionIds,
+          ].filter(Boolean),
         ),
       ].filter((empId) => empId !== viewerEmp.id);
       if (recipients.length) {
@@ -1635,6 +1699,28 @@ export default function App() {
     }
     await refetchTasks();
     return true;
+  };
+  const deleteComment = async (comment) => {
+    if (!comment?.id || comment.author !== viewerEmp.id) return;
+    if (!window.confirm("Delete your comment? Replies will remain in the thread.")) return;
+    const { error } = await supabase
+      .from("task_comments")
+      .delete()
+      .eq("id", comment.id)
+      .eq("author_id", viewerEmp.id);
+    if (error) {
+      alert("Comment couldn't be deleted: " + error.message);
+      return;
+    }
+    const paths = (comment.attachments || []).map((attachment) => attachment.path);
+    if (paths.length) {
+      const { error: storageError } = await supabase.storage
+        .from("app-task-attachment")
+        .remove(paths);
+      if (storageError)
+        alert("Comment deleted, but some attachments couldn't be removed.");
+    }
+    await refetchTasks();
   };
   const bulkReviewTasks = async (ids, decision, note) => {
     const selectedTasks = tasks.filter((task) => ids.includes(task.id));
@@ -2275,6 +2361,7 @@ export default function App() {
             dark={dark}
             onClose={() => setTaskDetail(null)}
             addComment={addComment}
+            deleteComment={deleteComment}
             viewerEmp={viewerEmp}
             setTaskStatus={setTaskStatus}
             updateTask={updateTask}
@@ -6410,7 +6497,7 @@ function BulkEditModal({
   );
 }
 
-function CommentBubble({ c, byId, small }) {
+function CommentBubble({ c, byId, small, onDelete }) {
   return (
     <div style={{ display: "flex", gap: 9 }}>
       <Avatar name={byId[c.author]?.name || c.author} size={small ? 22 : 26} />
@@ -6434,8 +6521,65 @@ function CommentBubble({ c, byId, small }) {
             {byId[c.author]?.name || c.author}
           </span>
           <span style={{ fontSize: 10.5, color: C.slate }}>{c.time}</span>
+          {onDelete && (
+            <button
+              type="button"
+              title="Delete your comment"
+              aria-label="Delete your comment"
+              onClick={onDelete}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                padding: 2,
+                color: C.slate,
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              <Trash2 size={12} />
+            </button>
+          )}
         </div>
         <div style={{ fontSize: small ? 12 : 13 }}>{c.text}</div>
+        {c.attachments?.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 8 }}>
+            {c.attachments.map((attachment) => {
+              const { data } = supabase.storage
+                .from("app-task-attachment")
+                .getPublicUrl(attachment.path);
+              const isImage = /\.(jpe?g|png|webp|gif)$/i.test(attachment.name);
+              return (
+                <a
+                  key={attachment.id}
+                  href={data.publicUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={attachment.name}
+                  style={{ color: C.blue, fontSize: 12 }}
+                >
+                  {isImage ? (
+                    <img
+                      src={data.publicUrl}
+                      alt={attachment.name}
+                      style={{
+                        display: "block",
+                        maxWidth: 220,
+                        maxHeight: 150,
+                        objectFit: "contain",
+                        borderRadius: 6,
+                      }}
+                    />
+                  ) : (
+                    <span style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>
+                      <Paperclip size={12} /> {attachment.name}
+                    </span>
+                  )}
+                </a>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -6446,6 +6590,7 @@ function TaskDetailModal({
   dark,
   onClose,
   addComment,
+  deleteComment,
   viewerEmp,
   setTaskStatus,
   updateTask,
@@ -6457,6 +6602,9 @@ function TaskDetailModal({
 }) {
   const { byId, employees } = useEmp();
   const [draft, setDraft] = useState("");
+  const [commentFiles, setCommentFiles] = useState([]);
+  const [mentionQuery, setMentionQuery] = useState(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [signoffNote, setSignoffNote] = useState("");
   const [showEdit, setShowEdit] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
@@ -6467,6 +6615,9 @@ function TaskDetailModal({
   if (!task) return null;
   const emp = byId[task.assignee] || { name: "Unassigned" };
   const team = taskTeam(task);
+  const mentionCandidates = team
+    .map((employeeId) => byId[employeeId])
+    .filter(Boolean);
   const teamDepartmentIds = new Set(
     team.map((employeeId) => byId[employeeId]?.dept).filter(Boolean),
   );
@@ -6489,10 +6640,24 @@ function TaskDetailModal({
   const comments = task.comments || [];
   const topLevel = comments.filter((c) => !c.parent);
   const repliesOf = (id) => comments.filter((c) => c.parent === id);
-  const submitComment = () => {
-    if (!draft.trim()) return;
-    addComment(task.id, draft.trim());
-    setDraft("");
+  const submitComment = async () => {
+    if (!draft.trim() && !commentFiles.length) return;
+    const mentionIds = mentionCandidates
+      .filter((employee) => draft.includes(`@${employee.name}`))
+      .map((employee) => employee.id);
+    const saved = await addComment(
+      task.id,
+      draft.trim(),
+      null,
+      commentFiles,
+      mentionIds,
+    );
+    if (saved) {
+      setDraft("");
+      setCommentFiles([]);
+      setMentionQuery(null);
+      setShowEmojiPicker(false);
+    }
   };
   const submitReply = (parentId) => {
     if (!replyDraft.trim()) return;
@@ -7210,7 +7375,11 @@ function TaskDetailModal({
         )}
         {topLevel.map((c) => (
           <div key={c.id ?? c.time}>
-            <CommentBubble c={c} byId={byId} />
+            <CommentBubble
+              c={c}
+              byId={byId}
+              onDelete={c.author === viewerEmp.id ? () => deleteComment(c) : null}
+            />
             {c.id && (
               <button
                 onClick={() => setReplyingTo(replyingTo === c.id ? null : c.id)}
@@ -7230,7 +7399,12 @@ function TaskDetailModal({
             )}
             {repliesOf(c.id).map((r) => (
               <div key={r.id} style={{ marginLeft: 35, marginTop: 6 }}>
-                <CommentBubble c={r} byId={byId} small />
+                <CommentBubble
+                  c={r}
+                  byId={byId}
+                  small
+                  onDelete={r.author === viewerEmp.id ? () => deleteComment(r) : null}
+                />
               </div>
             ))}
             {replyingTo === c.id && (
@@ -7272,27 +7446,152 @@ function TaskDetailModal({
         <div style={{ flex: 1 }}>
           <textarea
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              setDraft(value);
+              const match = value.match(/(?:^|\s)@([^\s@]*)$/);
+              setMentionQuery(match ? match[1] : null);
+            }}
             placeholder={`Leave a note or ask a question as ${viewerEmp.name}…`}
             rows={2}
             style={{ ...inputStyle, resize: "vertical" }}
           />
-          <button
-            onClick={submitComment}
-            style={{
-              marginTop: 6,
-              background: C.amber,
-              color: "#fff",
-              border: "none",
-              borderRadius: 8,
-              padding: "6px 14px",
-              fontSize: 12.5,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            Add Comment
-          </button>
+          {mentionQuery !== null && (
+            <div
+              role="listbox"
+              aria-label="Assigned employee mentions"
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                marginTop: 4,
+                border: `1px solid ${C.line}`,
+                borderRadius: 8,
+                overflow: "hidden",
+              }}
+            >
+              {mentionCandidates
+                .filter((employee) =>
+                  employee.name.toLowerCase().startsWith(mentionQuery.toLowerCase()),
+                )
+                .slice(0, 5)
+                .map((employee) => (
+                  <button
+                    key={employee.id}
+                    type="button"
+                    role="option"
+                    onClick={() => {
+                      const at = draft.lastIndexOf("@");
+                      setDraft(`${draft.slice(0, at)}@${employee.name} `);
+                      setMentionQuery(null);
+                    }}
+                    style={{
+                      padding: "7px 10px",
+                      textAlign: "left",
+                      color: C.ink,
+                      background: C.card,
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {employee.name}
+                  </button>
+                ))}
+            </div>
+          )}
+          {commentFiles.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+              {commentFiles.map((file, index) => (
+                <span
+                  key={`${file.name}-${index}`}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    padding: "4px 7px",
+                    borderRadius: 6,
+                    background: C.paper,
+                    color: C.ink,
+                    fontSize: 11,
+                  }}
+                >
+                  <Paperclip size={11} /> {file.name}
+                  <button
+                    type="button"
+                    aria-label={`Remove ${file.name}`}
+                    onClick={() =>
+                      setCommentFiles((files) => files.filter((_, i) => i !== index))
+                    }
+                    style={{ border: "none", background: "none", color: C.slate, cursor: "pointer", padding: 0 }}
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          {showEmojiPicker && (
+            <div
+              aria-label="Emoji picker"
+              style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 6 }}
+            >
+              {["😀", "🙂", "😂", "😍", "👍", "👏", "🎉", "✅", "👀", "❤️", "🙏", "🔥"].map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  aria-label={`Insert ${emoji}`}
+                  onClick={() => setDraft((value) => `${value}${emoji}`)}
+                  style={{ padding: 5, fontSize: 18, background: C.card, border: `1px solid ${C.line}`, borderRadius: 6, cursor: "pointer" }}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+            <label
+              title="Attach images, GIFs, or documents"
+              style={{ display: "inline-flex", alignItems: "center", cursor: "pointer", color: C.slate, padding: 5 }}
+            >
+              <Paperclip size={16} />
+              <input
+                type="file"
+                multiple
+                accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv"
+                onChange={(e) => {
+                  setCommentFiles((files) => [...files, ...Array.from(e.target.files || [])]);
+                  e.target.value = "";
+                }}
+                style={{ display: "none" }}
+              />
+            </label>
+            <button
+              type="button"
+              title="Insert emoji"
+              aria-label="Insert emoji"
+              onClick={() => setShowEmojiPicker((value) => !value)}
+              style={{ display: "inline-flex", alignItems: "center", padding: 5, color: C.slate, background: "none", border: "none", cursor: "pointer" }}
+            >
+              <Smile size={16} />
+            </button>
+            <button
+              onClick={submitComment}
+              disabled={!draft.trim() && !commentFiles.length}
+              style={{
+                marginLeft: "auto",
+                background: C.amber,
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                padding: "6px 14px",
+                fontSize: 12.5,
+                fontWeight: 600,
+                cursor: "pointer",
+                opacity: !draft.trim() && !commentFiles.length ? 0.55 : 1,
+              }}
+            >
+              Add Comment
+            </button>
+          </div>
         </div>
       </div>
         </div>
