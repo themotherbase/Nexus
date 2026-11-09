@@ -6583,7 +6583,7 @@ function TaskDetailModal({
   const taskMeta = statusMeta(task);
 
   return (
-    <ModalShell onClose={onClose} width={900}>
+    <ModalShell onClose={onClose} width={900} centered portal layer={1}>
       {/* right padding keeps the title clear of the close (X) button */}
       <div
         style={{
@@ -8710,7 +8710,14 @@ function Empty({ text }) {
     </div>
   );
 }
-function ModalShell({ children, onClose, width = 500, centered = false, portal = false }) {
+function ModalShell({
+  children,
+  onClose,
+  width = 500,
+  centered = false,
+  portal = false,
+  layer = 0,
+}) {
   const dark = C.paper === DARK_THEME.paper;
   const overlay = (
     <div
@@ -8724,7 +8731,7 @@ function ModalShell({ children, onClose, width = 500, centered = false, portal =
         alignItems: centered ? "center" : "flex-start",
         justifyContent: "center",
         padding: centered ? "20px" : "60px 20px",
-        zIndex: portal ? 1000 : 200,
+        zIndex: portal ? 1000 + layer : 200,
         overflowY: "auto",
         ...(portal && {
           colorScheme: dark ? "dark" : "light",
