@@ -99,6 +99,12 @@ const RESPONSIVE_CSS = `
   .mb-kanban-mobile { display: none; }
   .mb-mobile-nav { display: none; }
   .mb-task-select-control, .mb-group-select-control { opacity: 0; pointer-events: none; transform: scale(0.8); transition: opacity 0.14s ease, transform 0.14s ease; }
+  .mb-task-status-pill.has-select-control { transform: translateX(-29px); transition: transform 0.16s ease; }
+  .mb-task-card:hover .mb-task-status-pill.has-select-control,
+  .mb-task-card:focus-within .mb-task-status-pill.has-select-control,
+  .mb-task-card.is-checked .mb-task-status-pill.has-select-control,
+  .mb-task-card.is-selection-mode .mb-task-status-pill.has-select-control,
+  .mb-selection-mode .mb-task-card .mb-task-status-pill.has-select-control { transform: translateX(0); }
   .mb-group-task-grid .mb-task-card { transition: transform 0.16s ease; }
   .mb-group-task-grid .mb-task-card:hover { transform: translateY(-3px); }
   .mb-task-card:hover .mb-task-select-control, .mb-task-card:focus-within .mb-task-select-control,
@@ -5724,6 +5730,7 @@ function TaskCard({
           <span style={{ width: 20, height: 20 }} />
         )}
         <span
+          className={`mb-task-status-pill${onToggleChecked && canSelect ? " has-select-control" : ""}`}
           style={{
             display: "inline-flex",
             alignItems: "center",
