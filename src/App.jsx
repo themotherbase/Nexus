@@ -8762,6 +8762,7 @@ function ModalShell({
         className="mb-body mb-modal-card"
         style={{
           background: C.card,
+          color: C.ink,
           border: `1px solid ${C.line}`,
           borderRadius: 18,
           padding: 26,
