@@ -6473,10 +6473,18 @@ function TaskDetailModal({
   const teamDepartments = DEPARTMENTS.filter((department) =>
     teamDepartmentIds.has(department.id),
   );
+  const motherbaseDepartments = DEPARTMENTS.filter(
+    (department) => department.id !== "admin",
+  );
+  const motherbaseEmployeeIds = employees
+    .filter((employee) => byId[employee.id]?.dept !== "admin")
+    .map((employee) => employee.id);
   const isMotherbaseTask =
-    employees.length > 0 &&
-    employees.every((employee) => team.includes(employee.id)) &&
-    teamDepartments.length === DEPARTMENTS.length;
+    motherbaseEmployeeIds.length > 0 &&
+    motherbaseEmployeeIds.every((employeeId) => team.includes(employeeId)) &&
+    motherbaseDepartments.every((department) =>
+      teamDepartmentIds.has(department.id),
+    );
   const sup = byId[task.supervisor] || { name: "—" };
   const comments = task.comments || [];
   const topLevel = comments.filter((c) => !c.parent);
