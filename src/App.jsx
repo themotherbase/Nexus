@@ -331,7 +331,14 @@ const canMoveTask = (task, employee) => {
 const taskMovePolicyLabel = (task) => {
   if (task.movePolicy === "lead") return "Lead only";
   if (task.movePolicy === "team") return "Lead and Members";
-  if (task.movePolicy === "selected") return "Lead and selected members";
+  if (task.movePolicy === "selected") {
+    const memberCount = (task.moveMemberIds || []).filter(
+      (id) => id !== task.assignee,
+    ).length;
+    return memberCount
+      ? `Lead + ${memberCount} member${memberCount === 1 ? "" : "s"}`
+      : "Lead only";
+  }
   if (task.movePolicy === "all") return "Everyone";
   return "Lead and Members";
 };
@@ -5824,21 +5831,6 @@ function TaskCard({
           </span>
         )}
         <span
-          title="Who is allowed to move this task between stages"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            borderRadius: 999,
-            padding: "5px 9px",
-            color: dark ? "#D6DCE5" : C.slate,
-            background: dark ? "rgba(255,255,255,0.1)" : "rgba(100,116,139,0.12)",
-            fontSize: 10.5,
-            fontWeight: 600,
-          }}
-        >
-          Move rights: {taskMovePolicyLabel(t)}
-        </span>
-        <span
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -6591,6 +6583,10 @@ function TaskDetailModal({
         </span>
         <div className="mb-display" style={{ fontSize: 20, fontWeight: 700 }}>
           {task.title}
+        </div>
+        <div style={{ marginTop: 6, fontSize: 12, color: C.slate }}>
+          <span style={{ fontWeight: 700, color: C.ink }}>Move rights:</span>{" "}
+          {taskMovePolicyLabel(task)}
         </div>
       </div>
       <div
@@ -7375,12 +7371,23 @@ function EditTaskModal({ task, onClose, onSave }) {
   const { employees, byId } = useEmp();
   const [title, setTitle] = useState(task.title);
   const [assignee, setAssignee] = useState(task.assignee);
-  const [movePolicy, setMovePolicy] = useState(task.movePolicy || "team");
+  const [movePolicy, setMovePolicy] = useState(
+    task.movePolicy === "team" ? "selected" : task.movePolicy || "selected",
+  );
+  const [moveMemberIds, setMoveMemberIds] = useState(() =>
+    task.movePolicy === "team"
+      ? taskTeam(task).filter((id) => id !== task.assignee)
+      : task.moveMemberIds || [],
+  );
   const [priority, setPriority] = useState(task.priority);
   const [due, setDue] = useState(task.due || today());
   const [category, setCategory] = useState(task.category || "");
   const [recurring, setRecurring] = useState(task.recurring || "");
   const [customDays, setCustomDays] = useState(task.recurringCustomDays || 7);
+  const moveMemberOptions = employees.filter(
+    (employee) =>
+      employee.id !== assignee && (task.assignees || []).includes(employee.id),
+  );
 
   const submit = () => {
     if (!title.trim() || !assignee) return;
@@ -7398,7 +7405,11 @@ function EditTaskModal({ task, onClose, onSave }) {
         recurring === "Custom" ? Number(customDays) || 7 : null,
       movement_mode: movePolicy,
       movement_member_ids:
-        movePolicy === "selected" ? task.moveMemberIds || [] : [],
+        movePolicy === "selected"
+          ? moveMemberIds.filter((id) =>
+              moveMemberOptions.some((employee) => employee.id === id),
+            )
+          : [],
     });
   };
 
@@ -7436,14 +7447,28 @@ function EditTaskModal({ task, onClose, onSave }) {
           onChange={(e) => setMovePolicy(e.target.value)}
           style={inputStyle}
         >
-          {movePolicy === "selected" && (
-            <option value="selected">Lead and selected members</option>
-          )}
           <option value="lead">Lead only</option>
-          <option value="team">Lead and Members</option>
+          <option value="selected">Lead and Members</option>
           <option value="all">Everyone</option>
         </select>
       </FormRow>
+      {movePolicy === "selected" && (
+        <FormRow label="Members who can move">
+          <PeoplePicker
+            options={moveMemberOptions}
+            selected={moveMemberIds.filter((id) =>
+              moveMemberOptions.some((employee) => employee.id === id),
+            )}
+            onToggle={(id) =>
+              setMoveMemberIds((members) =>
+                members.includes(id)
+                  ? members.filter((memberId) => memberId !== id)
+                  : [...members, id],
+              )
+            }
+          />
+        </FormRow>
+      )}
       <div
         className="mb-grid-2"
         style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
@@ -7585,7 +7610,8 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
   const [title, setTitle] = useState("");
   const [assignee, setAssignee] = useState(employees[0]?.id || "");
   const [extra, setExtra] = useState([]); // additional people besides the lead
-  const [movePolicy, setMovePolicy] = useState("team");
+  const [movePolicy, setMovePolicy] = useState("selected");
+  const [moveMemberIds, setMoveMemberIds] = useState([]);
   const [subs, setSubs] = useState([]); // [{ title, assignee }]
   const [subDraft, setSubDraft] = useState("");
   const [subWho, setSubWho] = useState("");
@@ -7603,12 +7629,20 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
     const nextExtra = extra.filter((memberId) => memberId !== id);
     setAssignee(id);
     setExtra(nextExtra);
+    setMoveMemberIds((members) =>
+      members.filter((memberId) => nextExtra.includes(memberId)),
+    );
   };
   const toggleExtra = (id) => {
     const nextExtra = extra.includes(id)
       ? extra.filter((memberId) => memberId !== id)
       : [...extra, id];
     setExtra(nextExtra);
+    setMoveMemberIds((members) =>
+      nextExtra.includes(id)
+        ? [...new Set([...members, id])]
+        : members.filter((memberId) => memberId !== id),
+    );
   };
   const addSub = () => {
     if (!subDraft.trim()) return;
@@ -7625,7 +7659,10 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
       assignee,
       extraAssignees: extra,
       movePolicy,
-      moveMemberIds: [],
+      moveMemberIds:
+        movePolicy === "selected"
+          ? moveMemberIds.filter((id) => extra.includes(id))
+          : [],
       dept: assigneeEmp.dept,
       supervisor: assigneeEmp.sup || createdBy,
       priority,
@@ -7692,10 +7729,25 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
           style={inputStyle}
         >
           <option value="lead">Lead only</option>
-          <option value="team">Lead and Members</option>
+          <option value="selected">Lead and Members</option>
           <option value="all">Everyone</option>
         </select>
       </FormRow>
+      {movePolicy === "selected" && (
+        <FormRow label="Members who can move">
+          <PeoplePicker
+            options={employees.filter((employee) => extra.includes(employee.id))}
+            selected={moveMemberIds.filter((id) => extra.includes(id))}
+            onToggle={(id) =>
+              setMoveMemberIds((members) =>
+                members.includes(id)
+                  ? members.filter((memberId) => memberId !== id)
+                  : [...members, id],
+              )
+            }
+          />
+        </FormRow>
+      )}
       <div
         className="mb-grid-2"
         style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
