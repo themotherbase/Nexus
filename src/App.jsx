@@ -258,7 +258,10 @@ const mapTask = (row) => ({
   backup: row.backup_id,
   priority: row.priority,
   status: row.status,
-  movePolicy: row.movement_mode || "everyone",
+  movePolicy:
+    row.movement_mode === "everyone"
+      ? "team"
+      : row.movement_mode || "team",
   moveMemberIds: row.movement_member_ids || [],
   progress: row.progress,
   category: row.category,
@@ -317,12 +320,20 @@ const isOnTask = (t, empId) =>
 const canMoveTask = (task, employee) => {
   if (!task || !employee) return false;
   if (employee.role !== "employee") return true;
+  if (task.movePolicy === "all") return true;
   if (!isOnTask(task, employee.id)) return false;
   if (task.assignee === employee.id) return true;
   if (task.movePolicy === "lead") return false;
   if (task.movePolicy === "selected")
     return (task.moveMemberIds || []).includes(employee.id);
   return true;
+};
+const taskMovePolicyLabel = (task) => {
+  if (task.movePolicy === "lead") return "Lead only";
+  if (task.movePolicy === "team") return "Lead and Members";
+  if (task.movePolicy === "selected") return "Lead and selected members";
+  if (task.movePolicy === "all") return "Everyone";
+  return "Lead and Members";
 };
 const canReviewTask = (task, employee) =>
   !!task &&
@@ -1343,6 +1354,7 @@ export default function App() {
     : viewerEmp.role === "manager"
       ? tasks.filter(
           (t) =>
+            t.movePolicy === "all" ||
             taskTeam(t).some((id) =>
               new Set([
                 viewerEmp.id,
@@ -1350,7 +1362,9 @@ export default function App() {
               ]).has(id),
             ) || t.supervisor === viewerEmp.id,
         )
-      : tasks.filter((t) => isOnTask(t, viewerEmp.id));
+      : tasks.filter(
+          (t) => t.movePolicy === "all" || isOnTask(t, viewerEmp.id),
+        );
 
   const boardTasks = visibleTasks.filter((t) => !t.archived);
   const archivedTasks = visibleTasks.filter((t) => t.archived);
@@ -1507,7 +1521,7 @@ export default function App() {
         due_date: due,
         needs_signoff: task.needsSignoff,
         created_by: viewerEmp.id,
-        movement_mode: task.movePolicy || "everyone",
+        movement_mode: task.movePolicy || "team",
         movement_member_ids: task.moveMemberIds || [],
       })
       .select("id")
@@ -1652,7 +1666,7 @@ export default function App() {
         recurring_custom_days: t.recurringCustomDays ?? null,
         created_by: t.createdBy,
         needs_signoff: t.needsSignoff,
-        movement_mode: t.movePolicy || "everyone",
+        movement_mode: t.movePolicy || "team",
         movement_member_ids: t.moveMemberIds || [],
       })
       .select()
@@ -2156,6 +2170,7 @@ export default function App() {
                 taskView={taskView}
                 setTaskView={setTaskView}
                 setTaskStatus={setTaskStatus}
+                updateTask={updateTask}
                 bulkUpdateTasks={bulkUpdateTasks}
                 bulkReviewTasks={bulkReviewTasks}
                 viewerEmp={viewerEmp}
@@ -3966,6 +3981,7 @@ function Tasks({
   taskView,
   setTaskView,
   setTaskStatus,
+  updateTask,
   bulkUpdateTasks,
   bulkReviewTasks,
   viewerEmp,
@@ -4256,6 +4272,7 @@ function Tasks({
             tasks={boardTasks}
             archivedTasks={archivedTasks}
             setTaskStatus={setTaskStatus}
+            updateTask={updateTask}
             bulkUpdateTasks={bulkUpdateTasks}
             viewerEmp={viewerEmp}
             setTaskDetail={setTaskDetail}
@@ -4610,7 +4627,14 @@ function StageMenu({ current, onSelect, canComplete, variant = "card" }) {
 }
 
 // What sits at the bottom of a card: the move menu, or Repeat/Remove once it's completed.
-function TaskCardActions({ t, viewerEmp, setTaskStatus, onRepeat, onArchive }) {
+function TaskCardActions({
+  t,
+  viewerEmp,
+  setTaskStatus,
+  updateTask,
+  onRepeat,
+  onArchive,
+}) {
   const isEmployee = viewerEmp.role === "employee";
   const stop = (fn) => (e) => {
     e.stopPropagation();
@@ -4650,7 +4674,41 @@ function TaskCardActions({ t, viewerEmp, setTaskStatus, onRepeat, onArchive }) {
   }
   if (!canMoveTask(t, viewerEmp)) return null;
   return (
-    <div style={{ marginTop: 8 }}>
+    <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+      {!isEmployee && (
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+            fontSize: 11.5,
+            color: C.slate,
+          }}
+        >
+          Who can move this task?
+          <select
+            aria-label={`Who can move ${t.title}`}
+            value={t.movePolicy || "team"}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) =>
+              updateTask(t.id, {
+                movement_mode: e.target.value,
+                movement_member_ids:
+                  e.target.value === "selected" ? t.moveMemberIds || [] : [],
+              })
+            }
+            style={{ ...inputStyle, width: "auto", maxWidth: 180, fontSize: 11.5 }}
+          >
+            {t.movePolicy === "selected" && (
+              <option value="selected">Lead and selected members</option>
+            )}
+            <option value="lead">Lead only</option>
+            <option value="team">Lead and Members</option>
+            <option value="all">Everyone</option>
+          </select>
+        </label>
+      )}
       <StageMenu
         current={t.status}
         canComplete={!isEmployee}
@@ -5202,6 +5260,7 @@ function KanbanView({
   tasks,
   archivedTasks = [],
   setTaskStatus,
+  updateTask,
   bulkUpdateTasks,
   viewerEmp,
   setTaskDetail,
@@ -5224,6 +5283,7 @@ function KanbanView({
       t={t}
       viewerEmp={viewerEmp}
       setTaskStatus={setTaskStatus}
+      updateTask={updateTask}
       onRepeat={onRepeat}
       onArchive={onArchive}
     />
@@ -5803,6 +5863,21 @@ function TaskCard({
             {department.name}
           </span>
         )}
+        <span
+          title="Who is allowed to move this task between stages"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            borderRadius: 999,
+            padding: "5px 9px",
+            color: dark ? "#D6DCE5" : C.slate,
+            background: dark ? "rgba(255,255,255,0.1)" : "rgba(100,116,139,0.12)",
+            fontSize: 10.5,
+            fontWeight: 600,
+          }}
+        >
+          Move rights: {taskMovePolicyLabel(t)}
+        </span>
         <span
           style={{
             display: "inline-flex",
@@ -7532,8 +7607,7 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
   const [title, setTitle] = useState("");
   const [assignee, setAssignee] = useState(employees[0]?.id || "");
   const [extra, setExtra] = useState([]); // additional people besides the lead
-  const [movePolicy, setMovePolicy] = useState("everyone");
-  const [moveMemberIds, setMoveMemberIds] = useState([]);
+  const [movePolicy, setMovePolicy] = useState("team");
   const [subs, setSubs] = useState([]); // [{ title, assignee }]
   const [subDraft, setSubDraft] = useState("");
   const [subWho, setSubWho] = useState("");
@@ -7551,16 +7625,12 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
     const nextExtra = extra.filter((memberId) => memberId !== id);
     setAssignee(id);
     setExtra(nextExtra);
-    setMoveMemberIds((ids) => ids.filter((memberId) => nextExtra.includes(memberId)));
-    if (!nextExtra.length) setMovePolicy("everyone");
   };
   const toggleExtra = (id) => {
     const nextExtra = extra.includes(id)
       ? extra.filter((memberId) => memberId !== id)
       : [...extra, id];
     setExtra(nextExtra);
-    setMoveMemberIds((ids) => ids.filter((memberId) => nextExtra.includes(memberId)));
-    if (!nextExtra.length) setMovePolicy("everyone");
   };
   const addSub = () => {
     if (!subDraft.trim()) return;
@@ -7576,11 +7646,8 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
       title,
       assignee,
       extraAssignees: extra,
-      movePolicy: extra.length ? movePolicy : "everyone",
-      moveMemberIds:
-        movePolicy === "selected"
-          ? moveMemberIds.filter((id) => extra.includes(id))
-          : [],
+      movePolicy,
+      moveMemberIds: [],
       dept: assigneeEmp.dept,
       supervisor: assigneeEmp.sup || createdBy,
       priority,
@@ -7640,36 +7707,17 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
           onToggle={toggleExtra}
         />
       </FormRow>
-      {extra.length > 0 && (
-        <>
-          <FormRow label="Who can move this task?">
-            <select
-              value={movePolicy}
-              onChange={(e) => setMovePolicy(e.target.value)}
-              style={inputStyle}
-            >
-              <option value="lead">Lead only</option>
-              <option value="selected">Lead and selected members</option>
-              <option value="everyone">Everyone on the task</option>
-            </select>
-          </FormRow>
-          {movePolicy === "selected" && (
-            <FormRow label="Members allowed to move">
-              <PeoplePicker
-                options={employees.filter((employee) => extra.includes(employee.id))}
-                selected={moveMemberIds.filter((id) => extra.includes(id))}
-                onToggle={(id) =>
-                  setMoveMemberIds((members) =>
-                    members.includes(id)
-                      ? members.filter((memberId) => memberId !== id)
-                      : [...members, id],
-                  )
-                }
-              />
-            </FormRow>
-          )}
-        </>
-      )}
+      <FormRow label="Who can move this task?">
+        <select
+          value={movePolicy}
+          onChange={(e) => setMovePolicy(e.target.value)}
+          style={inputStyle}
+        >
+          <option value="lead">Lead only</option>
+          <option value="team">Lead and Members</option>
+          <option value="all">Everyone</option>
+        </select>
+      </FormRow>
       <div
         className="mb-grid-2"
         style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
@@ -8636,3 +8684,7 @@ function ModalShell({ children, onClose, width = 500 }) {
     </div>
   );
 }
+
+/*
+chatgpt tulungan moko mag code 
+*/
