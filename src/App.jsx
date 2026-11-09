@@ -105,6 +105,12 @@ const RESPONSIVE_CSS = `
   .mb-task-card.is-checked .mb-task-status-pill.has-select-control,
   .mb-task-card.is-selection-mode .mb-task-status-pill.has-select-control,
   .mb-selection-mode .mb-task-card .mb-task-status-pill.has-select-control { transform: translateX(0); }
+  .mb-group-status-pill.has-select-control { transform: translateX(-30px); transition: transform 0.16s ease; }
+  .mb-group-select-wrap:hover .mb-group-status-pill.has-select-control,
+  .mb-group-select-wrap:focus-within .mb-group-status-pill.has-select-control,
+  .mb-group-select-wrap.has-checked .mb-group-status-pill.has-select-control,
+  .mb-group-select-wrap.is-selection-mode .mb-group-status-pill.has-select-control,
+  .mb-selection-mode .mb-group-select-wrap .mb-group-status-pill.has-select-control { transform: translateX(0); }
   .mb-group-task-grid .mb-task-card { transition: transform 0.16s ease; }
   .mb-group-task-grid .mb-task-card:hover { transform: translateY(-3px); }
   .mb-task-card:hover .mb-task-select-control, .mb-task-card:focus-within .mb-task-select-control,
@@ -4875,6 +4881,7 @@ function GroupHolder({
           }}
         >
           <span
+            className={`mb-group-status-pill${selectableCards.length ? " has-select-control" : ""}`}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -6460,6 +6467,16 @@ function TaskDetailModal({
   if (!task) return null;
   const emp = byId[task.assignee] || { name: "Unassigned" };
   const team = taskTeam(task);
+  const teamDepartmentIds = new Set(
+    team.map((employeeId) => byId[employeeId]?.dept).filter(Boolean),
+  );
+  const teamDepartments = DEPARTMENTS.filter((department) =>
+    teamDepartmentIds.has(department.id),
+  );
+  const isMotherbaseTask =
+    employees.length > 0 &&
+    employees.every((employee) => team.includes(employee.id)) &&
+    teamDepartments.length === DEPARTMENTS.length;
   const sup = byId[task.supervisor] || { name: "—" };
   const comments = task.comments || [];
   const topLevel = comments.filter((c) => !c.parent);
@@ -6606,7 +6623,6 @@ function TaskDetailModal({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          <DeptTag id={task.dept} />
           <span
             style={{
               display: "inline-flex",
@@ -6635,6 +6651,28 @@ function TaskDetailModal({
           >
             {task.status}
           </span>
+          {isMotherbaseTask ? (
+            <span
+              title="Task team includes everyone across every department"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                borderRadius: 999,
+                padding: "4px 9px",
+                background:
+                  "linear-gradient(105deg, #3478E5 0%, #2868C8 48%, #D44A55 52%, #B93648 100%)",
+                color: "#fff",
+                fontSize: 10.5,
+                fontWeight: 700,
+              }}
+            >
+              Motherbase
+            </span>
+          ) : (
+            teamDepartments.map((department) => (
+              <DeptTag key={department.id} id={department.id} />
+            ))
+          )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {canMove && (
