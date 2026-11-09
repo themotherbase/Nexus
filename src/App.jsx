@@ -99,12 +99,12 @@ const RESPONSIVE_CSS = `
   .mb-kanban-mobile { display: none; }
   .mb-mobile-nav { display: none; }
   .mb-task-select-control, .mb-group-select-control { opacity: 0; pointer-events: none; transform: scale(0.8); transition: opacity 0.14s ease, transform 0.14s ease; }
-  .mb-task-meta-pills.has-select-control { transform: translateX(-29px); transition: transform 0.16s ease; }
-  .mb-task-card:hover .mb-task-meta-pills.has-select-control,
-  .mb-task-card:focus-within .mb-task-meta-pills.has-select-control,
-  .mb-task-card.is-checked .mb-task-meta-pills.has-select-control,
-  .mb-task-card.is-selection-mode .mb-task-meta-pills.has-select-control,
-  .mb-selection-mode .mb-task-card .mb-task-meta-pills.has-select-control { transform: translateX(0); }
+  .mb-task-status-pill.has-select-control { transform: translateX(-29px); transition: transform 0.16s ease; }
+  .mb-task-card:hover .mb-task-status-pill.has-select-control,
+  .mb-task-card:focus-within .mb-task-status-pill.has-select-control,
+  .mb-task-card.is-checked .mb-task-status-pill.has-select-control,
+  .mb-task-card.is-selection-mode .mb-task-status-pill.has-select-control,
+  .mb-selection-mode .mb-task-card .mb-task-status-pill.has-select-control { transform: translateX(0); }
   .mb-group-status-pill.has-select-control { transform: translateX(-30px); transition: transform 0.16s ease; }
   .mb-group-select-wrap:hover .mb-group-status-pill.has-select-control,
   .mb-group-select-wrap:focus-within .mb-group-status-pill.has-select-control,
@@ -362,30 +362,6 @@ const canReviewTask = (task, employee) =>
 const taskTeam = (t) => [
   ...new Set([t.assignee, ...(t.assignees || [])].filter(Boolean)),
 ];
-const taskDepartmentCoverage = (task, employees, byId) => {
-  const team = taskTeam(task);
-  const teamDepartmentIds = new Set(
-    team.map((employeeId) => byId[employeeId]?.dept).filter(Boolean),
-  );
-  const departments = DEPARTMENTS.filter((department) =>
-    teamDepartmentIds.has(department.id),
-  );
-  const motherbaseDepartments = DEPARTMENTS.filter(
-    (department) => department.id !== "admin",
-  );
-  const motherbaseEmployeeIds = employees
-    .filter((employee) => byId[employee.id]?.dept !== "admin")
-    .map((employee) => employee.id);
-  return {
-    departments,
-    isMotherbase:
-      motherbaseEmployeeIds.length > 0 &&
-      motherbaseEmployeeIds.every((employeeId) => team.includes(employeeId)) &&
-      motherbaseDepartments.every((department) =>
-        teamDepartmentIds.has(department.id),
-      ),
-  };
-};
 const taskProgress = (task) => {
   const subtasks = task.subtasks || [];
   if (subtasks.length)
@@ -5156,7 +5132,7 @@ function GroupModal({
     setMoving(false);
   };
   return (
-    <ModalShell onClose={onClose} width={900}>
+    <ModalShell onClose={onClose} width={900} centered portal>
       <div
         style={{
           display: "flex",
@@ -5705,15 +5681,10 @@ function TaskCard({
   onToggleChecked,
   selectionMode = false,
 }) {
-  const { byId, onlineIds, employees } = useEmp();
+  const { byId, onlineIds } = useEmp();
   const canSelect = t.status !== "Completed" && !t.archived;
   const selected = canSelect && isChecked;
   const meta = statusMeta(t);
-  const { departments, isMotherbase } = taskDepartmentCoverage(
-    t,
-    employees,
-    byId,
-  );
   const emp = byId[t.assignee] || { name: "Unassigned" };
   const subtaskProgress = t.subtasks?.length
     ? `${t.subtasks.filter((s) => s.done).length}/${t.subtasks.length}`
@@ -5721,6 +5692,8 @@ function TaskCard({
   const progressPercent = taskProgress(t);
   const flagColor = priorityFlagColor(t);
   const flagLabel = t.status === "Completed" ? "Completed" : t.priority;
+  const department = deptById[t.dept];
+  const departmentColor = department?.color;
   return (
     <div
       className={`mb-task-card${selected ? " is-checked" : ""}${selectionMode ? " is-selection-mode" : ""}`}
@@ -5748,7 +5721,6 @@ function TaskCard({
         style={{
           display: "flex",
           alignItems: "center",
-          flexWrap: "wrap",
           gap: 9,
           marginBottom: 12,
         }}
@@ -5764,75 +5736,30 @@ function TaskCard({
         ) : (
           <span style={{ width: 20, height: 20 }} />
         )}
-        <div
-          className={`mb-task-meta-pills${onToggleChecked && canSelect ? " has-select-control" : ""}`}
+        <span
+          className={`mb-task-status-pill${onToggleChecked && canSelect ? " has-select-control" : ""}`}
           style={{
-            display: "flex",
+            display: "inline-flex",
             alignItems: "center",
-            flexWrap: "wrap",
             gap: 7,
+            padding: "5px 10px",
+            borderRadius: 999,
+            background: `${stageColor(t.status)}22`,
+            color: stageColor(t.status),
+            fontSize: 11.5,
+            fontWeight: 700,
           }}
         >
           <span
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              borderRadius: 999,
-              padding: "5px 9px",
-              background: `${meta.color}22`,
-              color: meta.color,
-              fontSize: 10.5,
-              fontWeight: 700,
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: stageColor(t.status),
             }}
-          >
-            {meta.label}
-          </span>
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 7,
-              padding: "5px 10px",
-              borderRadius: 999,
-              background: `${stageColor(t.status)}22`,
-              color: stageColor(t.status),
-              fontSize: 11.5,
-              fontWeight: 700,
-            }}
-          >
-            <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: stageColor(t.status),
-              }}
-            />
-            {t.status}
-          </span>
-          {isMotherbase ? (
-            <span
-              title="Task team includes everyone across every non-Admin department"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                borderRadius: 999,
-                padding: "5px 9px",
-                background:
-                  "linear-gradient(105deg, #3478E5 0%, #2868C8 48%, #D44A55 52%, #B93648 100%)",
-                color: "#fff",
-                fontSize: 10.5,
-                fontWeight: 700,
-              }}
-            >
-              Motherbase
-            </span>
-          ) : (
-            departments.map((department) => (
-              <DeptTag key={department.id} id={department.id} />
-            ))
-          )}
-        </div>
+          />
+          {t.status}
+        </span>
         <span
           title={
             t.recurring
@@ -5897,6 +5824,26 @@ function TaskCard({
           marginBottom: 12,
         }}
       >
+        {department?.name && (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              padding: "5px 9px",
+              borderRadius: 999,
+              background: dark
+                ? `${departmentColor}35`
+                : `${departmentColor}1A`,
+              color: dark
+                ? mixHex(departmentColor, "#FFFFFF", 0.18)
+                : departmentColor,
+              fontSize: 10.5,
+              fontWeight: 600,
+            }}
+          >
+            {department.name}
+          </span>
+        )}
         <span
           style={{
             display: "inline-flex",
@@ -6520,8 +6467,24 @@ function TaskDetailModal({
   if (!task) return null;
   const emp = byId[task.assignee] || { name: "Unassigned" };
   const team = taskTeam(task);
-  const { departments: teamDepartments, isMotherbase: isMotherbaseTask } =
-    taskDepartmentCoverage(task, employees, byId);
+  const teamDepartmentIds = new Set(
+    team.map((employeeId) => byId[employeeId]?.dept).filter(Boolean),
+  );
+  const teamDepartments = DEPARTMENTS.filter((department) =>
+    teamDepartmentIds.has(department.id),
+  );
+  const motherbaseDepartments = DEPARTMENTS.filter(
+    (department) => department.id !== "admin",
+  );
+  const motherbaseEmployeeIds = employees
+    .filter((employee) => byId[employee.id]?.dept !== "admin")
+    .map((employee) => employee.id);
+  const isMotherbaseTask =
+    motherbaseEmployeeIds.length > 0 &&
+    motherbaseEmployeeIds.every((employeeId) => team.includes(employeeId)) &&
+    motherbaseDepartments.every((department) =>
+      teamDepartmentIds.has(department.id),
+    );
   const sup = byId[task.supervisor] || { name: "—" };
   const comments = task.comments || [];
   const topLevel = comments.filter((c) => !c.parent);
@@ -8747,21 +8710,43 @@ function Empty({ text }) {
     </div>
   );
 }
-function ModalShell({ children, onClose, width = 500 }) {
-  return (
+function ModalShell({ children, onClose, width = 500, centered = false, portal = false }) {
+  const dark = C.paper === DARK_THEME.paper;
+  const overlay = (
     <div
       onClick={onClose}
-      className="mb-modal-overlay"
+      className={`${portal ? "mb-body " : ""}mb-modal-overlay`}
       style={{
         position: "fixed",
         inset: 0,
         background: "rgba(9, 12, 18, 0.52)",
         display: "flex",
-        alignItems: "flex-start",
+        alignItems: centered ? "center" : "flex-start",
         justifyContent: "center",
-        padding: "60px 20px",
-        zIndex: 200,
+        padding: centered ? "20px" : "60px 20px",
+        zIndex: portal ? 1000 : 200,
         overflowY: "auto",
+        ...(portal && {
+          colorScheme: dark ? "dark" : "light",
+          "--mb-control-bg": C.card,
+          "--mb-control-fg": C.ink,
+          "--mb-control-border": C.line,
+          "--mb-glass-surface": dark
+            ? "rgba(27, 20, 39, 0.9)"
+            : "rgba(255, 255, 255, 0.82)",
+          "--mb-glass-border": dark
+            ? "rgba(181, 156, 255, 0.18)"
+            : "rgba(15, 23, 42, 0.08)",
+          "--mb-glass-header": dark
+            ? "rgba(22, 17, 34, 0.96)"
+            : "rgba(255, 255, 255, 0.8)",
+          "--mb-glass-node": dark
+            ? "rgba(24, 19, 35, 0.9)"
+            : "rgba(255, 255, 255, 0.8)",
+          "--mb-glass-chart": dark
+            ? "rgba(20, 15, 30, 0.72)"
+            : "rgba(255, 255, 255, 0.58)",
+        }),
       }}
     >
       <div
@@ -8803,6 +8788,7 @@ function ModalShell({ children, onClose, width = 500 }) {
       </div>
     </div>
   );
+  return portal ? createPortal(overlay, document.body) : overlay;
 }
 
 /*
