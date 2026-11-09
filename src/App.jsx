@@ -43,6 +43,7 @@ import {
   Flag,
   Smile,
   Paperclip,
+  Film,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import motherbaseBackground from "../images/The Motherbase (Transparent).png";
@@ -6500,7 +6501,11 @@ function BulkEditModal({
 function CommentBubble({ c, byId, small, onDelete }) {
   return (
     <div style={{ display: "flex", gap: 9 }}>
-      <Avatar name={byId[c.author]?.name || c.author} size={small ? 22 : 26} />
+      <Avatar
+        name={byId[c.author]?.name || c.author}
+        size={small ? 22 : 26}
+        color={deptById[byId[c.author]?.dept]?.color || C.navySoft}
+      />
       <div
         style={{
           flex: 1,
@@ -6541,7 +6546,7 @@ function CommentBubble({ c, byId, small, onDelete }) {
             </button>
           )}
         </div>
-        <div style={{ fontSize: small ? 12 : 13 }}>{c.text}</div>
+        <CommentText text={c.text} small={small} />
         {c.attachments?.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 8 }}>
             {c.attachments.map((attachment) => {
@@ -6585,6 +6590,151 @@ function CommentBubble({ c, byId, small, onDelete }) {
   );
 }
 
+function CommentText({ text, small }) {
+  const parts = (text || "").split(/(\[\[giphy:[^\]]+\]\])/gi);
+  return (
+    <div style={{ fontSize: small ? 12 : 13, whiteSpace: "pre-wrap" }}>
+      {parts.map((part, index) => {
+        const match = part.match(/^\[\[giphy:([^\]]+)\]\]$/i);
+        if (!match) return <React.Fragment key={index}>{part}</React.Fragment>;
+        let url;
+        try {
+          url = new URL(decodeURIComponent(match[1]));
+        } catch {
+          return null;
+        }
+        if (
+          url.protocol !== "https:" ||
+          !(url.hostname === "giphy.com" || url.hostname.endsWith(".giphy.com"))
+        )
+          return null;
+        return (
+          <a key={index} href={url.href} target="_blank" rel="noreferrer">
+            <img
+              src={url.href}
+              alt="GIF"
+              loading="lazy"
+              style={{ display: "block", maxWidth: "min(280px, 100%)", maxHeight: 180, borderRadius: 8 }}
+            />
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
+function GiphyPicker({ onSelect }) {
+  const [query, setQuery] = useState("");
+  const [gifs, setGifs] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const apiKey = import.meta.env.VITE_GIPHY_API_KEY;
+
+  const searchGifs = async (term = query) => {
+    if (!apiKey) {
+      setError("Add VITE_GIPHY_API_KEY to your environment to enable GIF search.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const endpoint = term.trim() ? "search" : "trending";
+      const params = new URLSearchParams({ api_key: apiKey, limit: "12", rating: "g" });
+      if (term.trim()) params.set("q", term.trim());
+      const response = await fetch(`https://api.giphy.com/v1/gifs/${endpoint}?${params}`);
+      if (!response.ok) throw new Error("GIPHY search is unavailable right now.");
+      const result = await response.json();
+      setGifs(
+        (result.data || [])
+          .map((gif) => ({
+            id: gif.id,
+            title: gif.title || "GIF",
+            preview: gif.images?.fixed_width_small?.url,
+            url: gif.images?.original?.url,
+          }))
+          .filter((gif) => gif.preview && gif.url),
+      );
+    } catch (requestError) {
+      setError(requestError.message || "GIPHY search failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    searchGifs("");
+  }, []);
+
+  return (
+    <div
+      style={{
+        marginTop: 8,
+        padding: 10,
+        border: `1px solid ${C.line}`,
+        borderRadius: 8,
+        background: C.card,
+      }}
+    >
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          searchGifs();
+        }}
+        style={{ display: "flex", gap: 6 }}
+      >
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          aria-label="Search GIPHY"
+          placeholder="Search GIFs"
+          style={{ ...inputStyle, flex: 1 }}
+        />
+        <button
+          type="submit"
+          disabled={loading}
+          style={{
+            background: C.amber,
+            color: "#fff",
+            border: "none",
+            borderRadius: 8,
+            padding: "6px 10px",
+            cursor: loading ? "wait" : "pointer",
+          }}
+        >
+          Search
+        </button>
+      </form>
+      {error && <div style={{ marginTop: 8, fontSize: 11.5, color: C.slate }}>{error}</div>}
+      {loading && <div style={{ marginTop: 8, fontSize: 11.5, color: C.slate }}>Searching…</div>}
+      {!loading && gifs.length > 0 && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+            gap: 6,
+            maxHeight: 220,
+            overflowY: "auto",
+            marginTop: 8,
+          }}
+        >
+          {gifs.map((gif) => (
+            <button
+              key={gif.id}
+              type="button"
+              title={gif.title}
+              onClick={() => onSelect(gif.url)}
+              style={{ padding: 0, border: `1px solid ${C.line}`, borderRadius: 6, overflow: "hidden", background: C.paper, cursor: "pointer" }}
+            >
+              <img src={gif.preview} alt={gif.title} loading="lazy" style={{ display: "block", width: "100%", height: 66, objectFit: "cover" }} />
+            </button>
+          ))}
+        </div>
+      )}
+      <div style={{ marginTop: 7, textAlign: "right", color: C.slate, fontSize: 10 }}>Powered by GIPHY</div>
+    </div>
+  );
+}
+
 function TaskDetailModal({
   task,
   dark,
@@ -6605,6 +6755,7 @@ function TaskDetailModal({
   const [commentFiles, setCommentFiles] = useState([]);
   const [mentionQuery, setMentionQuery] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showGiphyPicker, setShowGiphyPicker] = useState(false);
   const [signoffNote, setSignoffNote] = useState("");
   const [showEdit, setShowEdit] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
@@ -7442,7 +7593,11 @@ function TaskDetailModal({
         ))}
       </div>
       <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-        <Avatar name={viewerEmp.name} size={26} />
+        <Avatar
+          name={viewerEmp.name}
+          size={26}
+          color={deptById[viewerEmp.dept]?.color || C.navySoft}
+        />
         <div style={{ flex: 1 }}>
           <textarea
             value={draft}
@@ -7547,6 +7702,16 @@ function TaskDetailModal({
               ))}
             </div>
           )}
+          {showGiphyPicker && (
+            <GiphyPicker
+              onSelect={(url) => {
+                setDraft((value) =>
+                  `${value}${value.trim() ? "\n" : ""}[[giphy:${encodeURIComponent(url)}]]`,
+                );
+                setShowGiphyPicker(false);
+              }}
+            />
+          )}
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
             <label
               title="Attach images, GIFs, or documents"
@@ -7572,6 +7737,15 @@ function TaskDetailModal({
               style={{ display: "inline-flex", alignItems: "center", padding: 5, color: C.slate, background: "none", border: "none", cursor: "pointer" }}
             >
               <Smile size={16} />
+            </button>
+            <button
+              type="button"
+              title="Search GIPHY"
+              aria-label="Search GIPHY"
+              onClick={() => setShowGiphyPicker((value) => !value)}
+              style={{ display: "inline-flex", alignItems: "center", padding: 5, color: C.slate, background: "none", border: "none", cursor: "pointer" }}
+            >
+              <Film size={16} />
             </button>
             <button
               onClick={submitComment}
