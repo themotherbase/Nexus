@@ -4534,7 +4534,7 @@ function StageMenu({ current, onSelect, canComplete, variant = "card" }) {
                 e.stopPropagation();
                 close();
               }}
-              style={{ position: "fixed", inset: 0, zIndex: 300 }}
+              style={{ position: "fixed", inset: 0, zIndex: 1099 }}
             />
             <div
               role="menu"
@@ -4544,7 +4544,7 @@ function StageMenu({ current, onSelect, canComplete, variant = "card" }) {
                 top: pos.top,
                 left: pos.left,
                 width: pos.width,
-                zIndex: 301,
+                zIndex: 1100,
                 background: C.card,
                 border: `1px solid ${C.line}`,
                 borderRadius: 12,
@@ -8734,6 +8734,7 @@ function ModalShell({
         zIndex: portal ? 1000 + layer : 200,
         overflowY: "auto",
         ...(portal && {
+          color: C.ink,
           colorScheme: dark ? "dark" : "light",
           "--mb-control-bg": C.card,
           "--mb-control-fg": C.ink,
