@@ -6826,11 +6826,11 @@ function GiphyPicker({ onSelect }) {
   const [gifs, setGifs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const apiKey = import.meta.env.GIPHY_API_KEY;
+  const apiKey = import.meta.env.GIPHY_KEY;
 
   const searchGifs = async (term = query) => {
     if (!apiKey) {
-      setError("Add GIPHY_API_KEY to your environment to enable GIF search.");
+      setError("Add GIPHY_KEY to your environment to enable GIF search.");
       return;
     }
     setLoading(true);
