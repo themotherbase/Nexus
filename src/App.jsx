@@ -102,6 +102,10 @@ const RESPONSIVE_CSS = `
   .mb-topnav { scrollbar-width: none; }
   .mb-kanban-mobile { display: none; }
   .mb-mobile-nav { display: none; }
+  .mb-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .mb-calendar-cell { min-height: 108px; }
+  .mb-calendar-task { min-width: 0; }
+  .mb-calendar-task-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mb-task-select-control, .mb-group-select-control { opacity: 0; pointer-events: none; transform: scale(0.8); transition: opacity 0.14s ease, transform 0.14s ease; }
   .mb-task-status-pill.has-select-control { transform: translateX(-29px); transition: transform 0.16s ease; }
   .mb-task-card:hover .mb-task-status-pill.has-select-control,
@@ -180,6 +184,10 @@ const RESPONSIVE_CSS = `
     .mb-modal-overlay { padding-bottom: calc(88px + env(safe-area-inset-bottom)) !important; }
     .mb-modal-centered-card, .mb-modal-top-card { max-height: calc(100dvh - 120px - env(safe-area-inset-bottom)); }
     .mb-group-task-grid { max-height: calc(100dvh - 240px - env(safe-area-inset-bottom)) !important; }
+    .mb-calendar-cell { min-height: 72px; padding: 5px 3px !important; }
+    .mb-calendar-cell .mb-calendar-task { min-height: 6px; height: 6px; padding: 0 !important; border-radius: 4px !important; }
+    .mb-calendar-cell .mb-calendar-task-title, .mb-calendar-cell .mb-calendar-task-meta { display: none !important; }
+    .mb-calendar-cell .mb-calendar-task input { display: none; }
   }
 `;
 
@@ -6452,80 +6460,339 @@ function CalendarView({
   onToggleChecked,
 }) {
   const { byId } = useEmp();
-  const grouped = {};
-  tasks.forEach((t) => {
-    grouped[t.due] = grouped[t.due] || [];
-    grouped[t.due].push(t);
+  const [visibleMonth, setVisibleMonth] = useState(() => {
+    const date = new Date();
+    return new Date(date.getFullYear(), date.getMonth(), 1);
   });
-  const dates = Object.keys(grouped).sort();
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {dates.length === 0 && <Empty text="No tasks scheduled." />}
-      {dates.map((dt) => (
-        <div
-          key={dt}
+  const [selectedDate, setSelectedDate] = useState(today());
+  const year = visibleMonth.getFullYear();
+  const month = visibleMonth.getMonth();
+  const monthStart = new Date(year, month, 1);
+  const gridStart = new Date(year, month, 1 - monthStart.getDay());
+  const dayCount = new Date(year, month + 1, 0).getDate();
+  const weekCount = Math.ceil((monthStart.getDay() + dayCount) / 7);
+  const calendarDays = Array.from({ length: weekCount * 7 }, (_, index) => {
+    const date = new Date(gridStart);
+    date.setDate(gridStart.getDate() + index);
+    return date;
+  });
+  const tasksByDate = {};
+  tasks.forEach((task) => {
+    if (!task.due) return;
+    tasksByDate[task.due] = tasksByDate[task.due] || [];
+    tasksByDate[task.due].push(task);
+  });
+  const selectedTasks = tasksByDate[selectedDate] || [];
+  const calendarBackground = dark ? DARK_THEME.card : LIGHT_THEME.card;
+  const moveMonth = (amount) => {
+    const nextMonth = new Date(year, month + amount, 1);
+    setVisibleMonth(nextMonth);
+    setSelectedDate(localDateString(nextMonth));
+  };
+  const calendarNavButtonStyle = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 32,
+    gap: 4,
+    padding: "6px 10px",
+    border: "1px solid var(--mb-glass-border)",
+    borderRadius: 8,
+    background: "var(--mb-glass-surface)",
+    color: C.ink,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
+  };
+  const taskStatusColor = (task) => {
+    if (task.status === "Completed") return C.sage;
+    if (task.status === "For Review") return C.amber;
+    if (task.status === "In Progress") return C.blue;
+    if (task.status === "To Do") return C.coral;
+    return C.slate;
+  };
+  const statusLegend = [
+    { label: "Backlog", color: C.slate },
+    { label: "To Do", color: C.coral },
+    { label: "In Progress", color: C.blue },
+    { label: "For Review", color: C.amber },
+    { label: "Completed", color: C.sage },
+  ];
+  const taskRow = (task, showMeta = false) => {
+    const canSelect = task.status !== "Completed" && !task.archived;
+    const selected = canSelect && checkedTaskIds.has(task.id);
+    const color = taskStatusColor(task);
+    return (
+      <div
+        key={task.id}
+        className={`mb-task-row mb-calendar-task${selected ? " is-checked" : ""}`}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          borderLeft: `3px solid ${color}`,
+          borderRadius: 4,
+          padding: "2px 4px",
+          background: mixHex(color, calendarBackground, dark ? 0.78 : 0.88),
+        }}
+      >
+        <input
+          className="mb-task-select-control"
+          type="checkbox"
+          checked={selected}
+          disabled={!canSelect}
+          onClick={(event) => event.stopPropagation()}
+          onChange={() => onToggleChecked(task.id)}
+          aria-label={`Select ${task.title} for bulk edit`}
+        />
+        <button
+          type="button"
+          className="mb-calendar-task-title"
+          onClick={() => setTaskDetail(task.id)}
           style={{
-            background: "var(--mb-glass-surface)",
-            border: "1px solid var(--mb-glass-border)",
-            borderRadius: 14,
-            padding: 14,
-            boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)",
+            minWidth: 0,
+            flex: 1,
+            border: 0,
+            padding: 0,
+            background: "transparent",
+            color: C.ink,
+            textAlign: "left",
+            fontSize: 10.5,
+            fontWeight: 600,
+            cursor: "pointer",
           }}
+          title={task.title}
         >
-          <div
+          {task.title}
+        </button>
+        {showMeta && (
+          <span
+            className="mb-calendar-task-meta"
+            style={{ color: C.slate, fontSize: 10, whiteSpace: "nowrap" }}
+          >
+            {task.priority} · {byId[task.assignee]?.name || "Unassigned"} · {task.status}
+          </span>
+        )}
+      </div>
+    );
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => {
+              const date = new Date();
+              const currentMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+              setVisibleMonth(currentMonth);
+              setSelectedDate(today());
+            }}
+            style={calendarNavButtonStyle}
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            onClick={() => moveMonth(-1)}
+            aria-label="Previous month"
+            style={calendarNavButtonStyle}
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={() => moveMonth(1)}
+            aria-label="Next month"
+            style={calendarNavButtonStyle}
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+        <div
+          className="mb-display"
+          aria-live="polite"
+          style={{ fontSize: 18, fontWeight: 700, color: C.ink }}
+        >
+          {visibleMonth.toLocaleDateString(undefined, {
+            month: "long",
+            year: "numeric",
+          })}
+        </div>
+      </div>
+
+      <div
+        aria-label="Task status colors"
+        style={{ display: "flex", flexWrap: "wrap", gap: "6px 12px" }}
+      >
+        {statusLegend.map((status) => (
+          <span
+            key={status.label}
             style={{
-              fontSize: 12.5,
-              fontWeight: 700,
-              marginBottom: 8,
-              color: dt < today() ? C.coral : dt === today() ? C.amber : C.ink,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              color: C.slate,
+              fontSize: 10.5,
             }}
           >
-            {dt} {dt === today() && "· Today"}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {grouped[dt].map((t) => {
-              const canSelect = t.status !== "Completed" && !t.archived;
-              const selected = canSelect && checkedTaskIds.has(t.id);
-              return (
-                <div
-                key={t.id}
-                className={`mb-task-row${selected ? " is-checked" : ""}`}
-                onClick={() => setTaskDetail(t.id)}
+            <span
+              aria-hidden="true"
+              style={{ width: 7, height: 7, borderRadius: "50%", background: status.color }}
+            />
+            {status.label}
+          </span>
+        ))}
+      </div>
+
+      <div
+        style={{
+          overflow: "hidden",
+          border: "1px solid var(--mb-glass-border)",
+          borderRadius: 10,
+          background: "var(--mb-glass-surface)",
+        }}
+      >
+        <div className="mb-calendar-grid">
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(
+            (day) => (
+              <div
+                key={day}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  fontSize: 13,
-                  cursor: "pointer",
-                  background: selected
-                    ? "rgba(132, 108, 220, 0.08)"
-                    : "transparent",
-                  borderRadius: 6,
-                  padding: "2px 4px",
+                  padding: "8px 4px",
+                  borderRight: `1px solid ${C.line}`,
+                  borderBottom: `1px solid ${C.line}`,
+                  color: C.slate,
+                  textAlign: "center",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
                 }}
               >
-                <input
-                  className="mb-task-select-control"
-                  type="checkbox"
-                  checked={selected}
-                  disabled={!canSelect}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={() => onToggleChecked(t.id)}
-                  aria-label={`Select ${t.title} for bulk edit`}
-                />
-                <span style={{ fontWeight: 600, color: priColor(t.priority) }}>
-                  {t.priority}
-                </span>
-                <span>{t.title}</span>
-                <span style={{ color: C.slate }}>
-                  — {byId[t.assignee]?.name || "Unassigned"}
-                </span>
+                {day}
+              </div>
+            ),
+          )}
+          {calendarDays.map((date, index) => {
+            const dateKey = localDateString(date);
+            const dateTasks = tasksByDate[dateKey] || [];
+            const isCurrentMonth = date.getMonth() === month;
+            const isToday = dateKey === today();
+            const isSelected = dateKey === selectedDate;
+            return (
+              <div
+                key={dateKey}
+                className="mb-calendar-cell"
+                style={{
+                  minWidth: 0,
+                  padding: 7,
+                  borderRight: index % 7 === 6 ? "none" : `1px solid ${C.line}`,
+                  borderBottom:
+                    index < calendarDays.length - 7
+                      ? `1px solid ${C.line}`
+                      : "none",
+                  background: isSelected
+                    ? mixHex(C.blue, calendarBackground, dark ? 0.88 : 0.94)
+                    : isCurrentMonth
+                      ? "transparent"
+                      : dark
+                        ? "rgba(255,255,255,0.02)"
+                        : "rgba(32,38,61,0.025)",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(dateKey)}
+                  aria-label={`${date.toLocaleDateString(undefined, {
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  })}${dateTasks.length ? `, ${dateTasks.length} tasks` : ""}`}
+                  style={{
+                    display: "grid",
+                    placeItems: "center",
+                    width: 25,
+                    height: 25,
+                    marginBottom: 3,
+                    border: 0,
+                    borderRadius: "50%",
+                    background: isToday ? C.blue : "transparent",
+                    color: isToday ? "#fff" : isCurrentMonth ? C.ink : C.slate,
+                    fontSize: 11,
+                    fontWeight: isToday || date.getDate() === 1 ? 700 : 500,
+                    cursor: "pointer",
+                  }}
+                >
+                  {date.getDate()}
+                </button>
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  {dateTasks.slice(0, 3).map((task) => taskRow(task))}
+                  {dateTasks.length > 3 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDate(dateKey)}
+                      style={{
+                        padding: "1px 3px",
+                        border: 0,
+                        background: "transparent",
+                        color: C.slate,
+                        textAlign: "left",
+                        fontSize: 10,
+                        cursor: "pointer",
+                      }}
+                    >
+                      +{dateTasks.length - 3} more
+                    </button>
+                  )}
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
         </div>
-      ))}
+      </div>
+
+      <section
+        aria-label="Tasks for selected date"
+        style={{
+          borderTop: `1px solid var(--mb-glass-border)`,
+          paddingTop: 10,
+        }}
+      >
+        <div
+          style={{
+            marginBottom: 7,
+            color: C.ink,
+            fontSize: 13,
+            fontWeight: 700,
+          }}
+        >
+          {new Date(`${selectedDate}T00:00:00`).toLocaleDateString(undefined, {
+            weekday: "long",
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+          })}
+          {selectedTasks.length > 0 && (
+            <span style={{ color: C.slate, fontWeight: 500 }}>
+              {` · ${selectedTasks.length} task${selectedTasks.length === 1 ? "" : "s"}`}
+            </span>
+          )}
+        </div>
+        {selectedTasks.length ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            {selectedTasks.map((task) => taskRow(task, true))}
+          </div>
+        ) : (
+          <div style={{ color: C.slate, fontSize: 12 }}>No tasks due this day.</div>
+        )}
+      </section>
     </div>
   );
 }
