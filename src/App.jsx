@@ -7273,6 +7273,20 @@ function TaskDetailModal({
         <div className="mb-display" style={{ fontSize: 20, fontWeight: 700 }}>
           {task.title}
         </div>
+        {task.description && (
+          <div
+            style={{
+              marginTop: 8,
+              fontSize: 12.5,
+              lineHeight: 1.5,
+              color: C.slate,
+              whiteSpace: "pre-wrap",
+              overflowWrap: "anywhere",
+            }}
+          >
+            {task.description}
+          </div>
+        )}
         <div style={{ marginTop: 6, fontSize: 12, color: C.slate }}>
           <span style={{ fontWeight: 700, color: C.ink }}>Move rights:</span>{" "}
           {taskMovePolicyLabel(task)}
@@ -8240,6 +8254,7 @@ function EditTaskModal({ task, onClose, onSave }) {
     (employee) => !employee.isDeveloper,
   );
   const [title, setTitle] = useState(task.title);
+  const [description, setDescription] = useState(task.description || "");
   const [assignee, setAssignee] = useState(
     assignableEmployees.some((employee) => employee.id === task.assignee)
       ? task.assignee
@@ -8270,6 +8285,7 @@ function EditTaskModal({ task, onClose, onSave }) {
     const assigneeEmp = byId[assignee];
     onSave({
       title: title.trim(),
+      description: description.trim() || null,
       assignee_id: assignee,
       dept_id: assigneeEmp.dept,
       supervisor_id: assigneeEmp.sup || task.supervisor,
@@ -8290,7 +8306,7 @@ function EditTaskModal({ task, onClose, onSave }) {
   };
 
   return (
-    <ModalShell onClose={onClose} width={460}>
+    <ModalShell onClose={onClose} width={520}>
       <div
         className="mb-display"
         style={{ fontSize: 19, fontWeight: 600, marginBottom: 16 }}
@@ -8302,6 +8318,14 @@ function EditTaskModal({ task, onClose, onSave }) {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           style={inputStyle}
+        />
+      </FormRow>
+      <FormRow label="Description">
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          style={{ ...inputStyle, resize: "vertical" }}
         />
       </FormRow>
       <FormRow label="Assign to">
@@ -8583,30 +8607,32 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
   };
 
   return (
-    <ModalShell onClose={onClose} width={920}>
+    <ModalShell onClose={onClose} width={820}>
       <div
         className="mb-display"
         style={{ fontSize: 19, fontWeight: 600, marginBottom: 16 }}
       >
         Create Task
       </div>
-      <FormRow label="Task title">
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Give this task a clear title"
-          style={inputStyle}
-        />
-      </FormRow>
-      <FormRow label="Description">
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Add task details, expectations, or context"
-          rows={3}
-          style={{ ...inputStyle, resize: "vertical" }}
-        />
-      </FormRow>
+      <div className="mb-task-create-pair">
+        <FormRow label="Task title">
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Give this task a clear title"
+            style={inputStyle}
+          />
+        </FormRow>
+        <FormRow label="Description">
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Add task details or context"
+            rows={2}
+            style={{ ...inputStyle, resize: "vertical" }}
+          />
+        </FormRow>
+      </div>
 
       <div className="mb-task-create-grid">
         <div>
