@@ -6731,6 +6731,92 @@ function BulkEditModal({
   );
 }
 
+function CommentAttachments({ attachments }) {
+  const [resolvedUrls, setResolvedUrls] = useState({});
+
+  useEffect(() => {
+    let active = true;
+    setResolvedUrls({});
+
+    Promise.all(
+      attachments.map(async (attachment) => {
+        try {
+          const { data, error } = await supabase.storage
+            .from("app-task-attachment")
+            .createSignedUrl(attachment.path, 60 * 60);
+          return [attachment.id, { url: data?.signedUrl, error: error?.message }];
+        } catch (error) {
+          return [attachment.id, { error: error.message }];
+        }
+      }),
+    ).then((results) => {
+      if (active) setResolvedUrls(Object.fromEntries(results));
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [attachments]);
+
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 8 }}>
+      {attachments.map((attachment) => {
+        const resolved = resolvedUrls[attachment.id];
+        const isImage = /\.(avif|bmp|jpe?g|png|svg|webp|gif)$/i.test(
+          attachment.name,
+        );
+        if (!resolved?.url) {
+          return (
+            <span
+              key={attachment.id}
+              title={resolved?.error || "Loading attachment"}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                color: C.slate,
+                fontSize: 12,
+              }}
+            >
+              <Paperclip size={12} /> {attachment.name}
+              {resolved?.error ? " (unavailable)" : " (loading...)"}
+            </span>
+          );
+        }
+
+        return (
+          <a
+            key={attachment.id}
+            href={resolved.url}
+            target="_blank"
+            rel="noreferrer"
+            title={attachment.name}
+            style={{ color: C.blue, fontSize: 12 }}
+          >
+            {isImage ? (
+              <img
+                src={resolved.url}
+                alt={attachment.name}
+                style={{
+                  display: "block",
+                  maxWidth: 220,
+                  maxHeight: 150,
+                  objectFit: "contain",
+                  borderRadius: 6,
+                }}
+              />
+            ) : (
+              <span style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>
+                <Paperclip size={12} /> {attachment.name}
+              </span>
+            )}
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
 function CommentBubble({ c, byId, small, onDelete }) {
   return (
     <div style={{ display: "flex", gap: 9 }}>
@@ -6781,42 +6867,7 @@ function CommentBubble({ c, byId, small, onDelete }) {
         </div>
         <CommentText text={c.text} small={small} />
         {c.attachments?.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 8 }}>
-            {c.attachments.map((attachment) => {
-              const { data } = supabase.storage
-                .from("app-task-attachment")
-                .getPublicUrl(attachment.path);
-              const isImage = /\.(jpe?g|png|webp|gif)$/i.test(attachment.name);
-              return (
-                <a
-                  key={attachment.id}
-                  href={data.publicUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  title={attachment.name}
-                  style={{ color: C.blue, fontSize: 12 }}
-                >
-                  {isImage ? (
-                    <img
-                      src={data.publicUrl}
-                      alt={attachment.name}
-                      style={{
-                        display: "block",
-                        maxWidth: 220,
-                        maxHeight: 150,
-                        objectFit: "contain",
-                        borderRadius: 6,
-                      }}
-                    />
-                  ) : (
-                    <span style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>
-                      <Paperclip size={12} /> {attachment.name}
-                    </span>
-                  )}
-                </a>
-              );
-            })}
-          </div>
+          <CommentAttachments attachments={c.attachments} />
         )}
       </div>
     </div>
