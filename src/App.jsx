@@ -130,6 +130,27 @@ const RESPONSIVE_CSS = `
   .mb-group-select-wrap:hover .mb-group-select-control,
   .mb-group-select-wrap:focus-within .mb-group-select-control, .mb-group-select-wrap.has-checked .mb-group-select-control,
   .mb-selection-mode .mb-task-select-control, .mb-selection-mode .mb-group-select-control { pointer-events: auto; }
+  .mb-modal-card {
+    box-sizing: border-box;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  .mb-modal-centered-card { max-height: calc(100dvh - 40px); }
+  .mb-modal-top-card { max-height: calc(100dvh - 120px); }
+  .mb-modal-card::-webkit-scrollbar { width: 8px; }
+  .mb-modal-card::-webkit-scrollbar-track,
+  .mb-modal-card::-webkit-scrollbar-thumb { background: transparent; }
+  .mb-modal-card::-webkit-scrollbar-thumb { border-radius: 8px; }
+  .mb-modal-card:hover,
+  .mb-modal-card:focus-within { scrollbar-color: rgba(160, 150, 178, 0.55) transparent; }
+  .mb-modal-card:hover::-webkit-scrollbar-thumb,
+  .mb-modal-card:focus-within::-webkit-scrollbar-thumb { background: rgba(160, 150, 178, 0.55); }
+  @media (hover: none) {
+    .mb-modal-card { scrollbar-width: none; }
+    .mb-modal-card::-webkit-scrollbar { display: none; }
+  }
   @media (max-width: 860px) {
     .mb-main { padding: 16px 14px 60px !important; }
     .mb-grid-2, .mb-grid-3, .mb-grid-4 { grid-template-columns: 1fr !important; }
@@ -144,9 +165,6 @@ const RESPONSIVE_CSS = `
     .mb-task-detail-secondary { border-left: none !important; padding-left: 0 !important; border-top: 1px solid var(--mb-control-border) !important; padding-top: 16px !important; }
     .mb-task-create-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px; align-items: start; }
     .mb-task-create-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-    .mb-modal-card { box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain; }
-    .mb-modal-centered-card { max-height: calc(100dvh - 40px); }
-    .mb-modal-top-card { max-height: calc(100dvh - 120px); }
     .mb-modal-overlay { padding: 16px 8px !important; }
     .mb-modal-card { padding: 18px !important; width: 100% !important; }
     .mb-hide-mobile { display: none !important; }
