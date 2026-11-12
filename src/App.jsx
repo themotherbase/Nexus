@@ -6151,45 +6151,71 @@ function TaskCard({
           borderTop: `1px solid ${dark ? "rgba(255,255,255,0.12)" : C.line}`,
           paddingTop: 10,
           display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 8,
+          flexDirection: "column",
+          gap: 10,
         }}
       >
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 5,
-            fontSize: 11.5,
-            color: meta.color,
-            fontWeight: 600,
+            justifyContent: "space-between",
+            gap: 8,
+            minWidth: 0,
+            width: "100%",
           }}
         >
-          <CalendarDays size={14} />
-          {t.due
-            ? new Date(`${t.due}T00:00:00`).toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              })
-            : "No due date"}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              minWidth: 0,
+              whiteSpace: "nowrap",
+              fontSize: 11.5,
+              color: meta.color,
+              fontWeight: 600,
+            }}
+          >
+            <CalendarDays size={14} style={{ flexShrink: 0 }} />
+            <span>
+              {t.due
+                ? new Date(`${t.due}T00:00:00`).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                : "No due date"}
+            </span>
+          </div>
           {meta.label !== "On track" && meta.label !== "Completed" && (
-            <span>· {meta.label}</span>
+            <span
+              style={{
+                flexShrink: 0,
+                whiteSpace: "nowrap",
+                fontSize: 11,
+                fontWeight: 600,
+                color: meta.color,
+              }}
+            >
+              {meta.label}
+            </span>
           )}
         </div>
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "minmax(48px, 1fr) auto auto",
+            gridTemplateColumns: "minmax(24px, 1fr) auto auto",
             alignItems: "center",
             gap: 8,
-            marginTop: 9,
+            minWidth: 0,
+            width: "100%",
           }}
         >
           <div
             style={{
-              height: 7,
+              height: 8,
+              minWidth: 0,
               borderRadius: 999,
               background: dark ? "rgba(255,255,255,0.14)" : C.line,
               overflow: "hidden",
@@ -6204,10 +6230,19 @@ function TaskCard({
               }}
             />
           </div>
-          <span style={{ fontSize: 10.5, fontWeight: 700, color: C.ink }}>
+          <span
+            style={{
+              fontSize: 10.5,
+              fontWeight: 700,
+              color: C.ink,
+              whiteSpace: "nowrap",
+            }}
+          >
             {subtaskProgress || `${progressPercent}%`}
           </span>
-          <TeamAvatars ids={taskTeam(t)} size={24} />
+          <div style={{ minWidth: 0, flexShrink: 0 }}>
+            <TeamAvatars ids={taskTeam(t)} size={22} />
+          </div>
         </div>
       </div>
       {children}
