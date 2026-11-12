@@ -1232,6 +1232,16 @@ export default function App() {
     [employees],
   );
   const directReports = (id) => employees.filter((e) => e.sup === id);
+  const visibleEmployees = useMemo(
+    () => employees.filter((employee) => !employee.isDeveloper),
+    [employees],
+  );
+  const visibleById = useMemo(
+    () => Object.fromEntries(visibleEmployees.map((employee) => [employee.id, employee])),
+    [visibleEmployees],
+  );
+  const visibleDirectReports = (id) =>
+    visibleEmployees.filter((employee) => employee.sup === id);
   const me = useMemo(
     () => employees.find((e) => e.email === session?.user?.email),
     [employees, session],
@@ -2017,9 +2027,9 @@ export default function App() {
   return (
     <EmpContext.Provider
       value={{
-        employees,
-        byId,
-        directReports,
+        employees: visibleEmployees,
+        byId: visibleById,
+        directReports: visibleDirectReports,
         addEmployee,
         updateEmployee,
         deleteEmployee,
