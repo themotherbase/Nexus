@@ -214,6 +214,7 @@ const ROLE_LABEL = {
   employee: "Employee",
 };
 const COLUMNS = ["Backlog", "To Do", "In Progress", "For Review", "Completed"];
+const TASK_ACKNOWLEDGEMENT = "Acknowledged this task.";
 
 /* ---------------------------------------------------------------
    HELPERS
@@ -1672,6 +1673,7 @@ export default function App() {
     parentId = null,
     files = [],
     mentionIds = [],
+    notificationMessage = null,
   ) => {
     const payload = { task_id: id, author_id: viewerEmp.id, body: text };
     if (parentId) payload.parent_comment_id = parentId;
@@ -1750,7 +1752,8 @@ export default function App() {
         ),
       ].filter((empId) => empId !== viewerEmp.id);
       if (recipients.length) {
-        const message = `${viewerEmp.name} commented on "${task.title}"`;
+        const message =
+          notificationMessage || `${viewerEmp.name} commented on "${task.title}"`;
         await supabase
           .from("notifications")
           .insert(
@@ -1767,9 +1770,13 @@ export default function App() {
     await refetchTasks();
     return true;
   };
-  const deleteComment = async (comment) => {
-    if (!comment?.id || comment.author !== viewerEmp.id) return;
-    if (!window.confirm("Delete your comment? Replies will remain in the thread.")) return;
+  const deleteComment = async (comment, confirmDelete = true) => {
+    if (!comment?.id || comment.author !== viewerEmp.id) return false;
+    if (
+      confirmDelete &&
+      !window.confirm("Delete your comment? Replies will remain in the thread.")
+    )
+      return false;
     const { error } = await supabase
       .from("task_comments")
       .delete()
@@ -1777,7 +1784,7 @@ export default function App() {
       .eq("author_id", viewerEmp.id);
     if (error) {
       alert("Comment couldn't be deleted: " + error.message);
-      return;
+      return false;
     }
     const paths = (comment.attachments || []).map((attachment) => attachment.path);
     if (paths.length) {
@@ -1788,6 +1795,7 @@ export default function App() {
         alert("Comment deleted, but some attachments couldn't be removed.");
     }
     await refetchTasks();
+    return true;
   };
   const bulkReviewTasks = async (ids, decision, note) => {
     const selectedTasks = tasks.filter((task) => ids.includes(task.id));
@@ -2316,6 +2324,8 @@ export default function App() {
                 isExec={isExec}
                 setPage={setPage}
                 setTaskDetail={setTaskDetail}
+                addComment={addComment}
+                deleteComment={deleteComment}
               />
             )}
             {page === "organization" && (
@@ -2491,6 +2501,8 @@ function Dashboard({
   isExec,
   setPage,
   setTaskDetail,
+  addComment,
+  deleteComment,
 }) {
   const { employees, directReports, onlineIds } = useEmp();
   const [dailyTaskIndex, setDailyTaskIndex] = useState(0);
@@ -2676,7 +2688,19 @@ function Dashboard({
           taskCount={dailyTasks.length}
           taskIndex={dailyTaskIndex}
           employees={employees}
+          viewerEmp={viewerEmp}
           onOpen={goToTask}
+          onAcknowledge={(task) =>
+            addComment(
+              task.id,
+              TASK_ACKNOWLEDGEMENT,
+              null,
+              [],
+              [],
+              `${viewerEmp.name} marked their part done for "${task.title}"`,
+            )
+          }
+          onUndoAcknowledgement={(comment) => deleteComment(comment, false)}
           onPrevious={() =>
             setDailyTaskIndex((index) =>
               dailyTasks.length ? (index - 1 + dailyTasks.length) % dailyTasks.length : 0,
@@ -2832,178 +2856,80 @@ function DailyTaskFeature({
   taskCount,
   taskIndex,
   employees,
+  viewerEmp,
   onOpen,
+  onAcknowledge,
+  onUndoAcknowledgement,
   onPrevious,
   onNext,
 }) {
+  const [teamExpanded, setTeamExpanded] = useState(false);
+  const [savingAcknowledgement, setSavingAcknowledgement] = useState(false);
   const status = task ? statusMeta(task) : null;
-  const progress = task ? taskProgress(task) : 0;
   const team = task
     ? taskTeam(task)
         .map((id) => employees.find((employee) => employee.id === id))
         .filter(Boolean)
     : [];
+  const acknowledgementComments = (task?.comments || []).filter(
+    (comment) => comment.text === TASK_ACKNOWLEDGEMENT,
+  );
+  const acknowledgedIds = new Set(
+    acknowledgementComments.map((comment) => comment.author),
+  );
+  const supportsAcknowledgement =
+    !!task && team.length > 1 && !(task.subtasks || []).length;
+  const acknowledgedCount = team.filter((employee) =>
+    acknowledgedIds.has(employee.id),
+  ).length;
+  const progress = task
+    ? supportsAcknowledgement
+      ? Math.round((acknowledgedCount / team.length) * 100)
+      : taskProgress(task)
+    : 0;
+  const myAcknowledgement = acknowledgementComments.find(
+    (comment) => comment.author === viewerEmp.id,
+  );
+  const canMarkMyPart =
+    supportsAcknowledgement && team.some((employee) => employee.id === viewerEmp.id);
+  const dueDate = task?.due
+    ? new Date(`${task.due}T00:00:00`).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "No due date";
+  const daysOverdue = task?.due && task.due < today()
+    ? Math.round(
+        (new Date(`${today()}T00:00:00`).getTime() -
+          new Date(`${task.due}T00:00:00`).getTime()) /
+          86400000,
+      )
+    : 0;
+  const acknowledge = async () => {
+    if (!canMarkMyPart || savingAcknowledgement) return;
+    setSavingAcknowledgement(true);
+    const saved = myAcknowledgement
+      ? await onUndoAcknowledgement(myAcknowledgement)
+      : await onAcknowledge(task);
+    if (!saved) setSavingAcknowledgement(false);
+  };
 
   return (
     <Panel
-      title="Featured daily task"
-      style={{
-        minHeight: 250,
-        background: `linear-gradient(135deg, ${C.card}, ${C.navySoft})`,
-        borderColor: task ? statusMeta(task).color : C.line,
-      }}
-    >
-      {task ? (
-        <>
-          <button
-            type="button"
-            onClick={() => onOpen(task.id)}
-            style={{
-              display: "block",
-              width: "100%",
-              padding: 0,
-              color: C.ink,
-              textAlign: "left",
-              background: "transparent",
-              border: 0,
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                flexWrap: "wrap",
-                gap: 7,
-                marginBottom: 10,
-              }}
-            >
-              <span
-                style={{
-                  padding: "4px 9px",
-                  borderRadius: 20,
-                  background: status.color,
-                  color: "#fff",
-                  fontSize: 11,
-                  fontWeight: 700,
-                }}
-              >
-                {status.label}
-              </span>
-              <span style={dailyTaskTagStyle}>
-                <Repeat size={11} /> Daily
-              </span>
-              <span style={dailyTaskTagStyle}>
-                <Flag size={11} /> {task.priority || "Normal"} priority
-              </span>
-              <span style={{ ...dailyTaskTagStyle, marginLeft: "auto" }}>
-                <CalendarDays size={11} />
-                {task.due
-                  ? new Date(`${task.due}T00:00:00`).toLocaleDateString(
-                      undefined,
-                      { month: "short", day: "numeric", year: "numeric" },
-                    )
-                  : "No due date"}
-              </span>
-            </div>
-            <div
-              className="mb-display"
-              style={{ fontSize: 20, fontWeight: 700, lineHeight: 1.3 }}
-            >
-              {task.title}
-            </div>
-            <div
-              style={{
-                marginTop: 7,
-                color: C.slate,
-                fontSize: 12.5,
-                lineHeight: 1.5,
-              }}
-            >
-              {task.description || "Recurring task requiring daily attention."}
-            </div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                flexWrap: "wrap",
-                gap: 8,
-                marginTop: 13,
-              }}
-            >
-              <span style={{ fontSize: 11.5, color: C.slate }}>
-                {deptById[task.dept]?.name || "No department"}
-              </span>
-              <span style={{ fontSize: 11.5, color: C.slate }}>
-                {team.length
-                  ? `Assigned to ${team.map((employee) => employee.name).join(", ")}`
-                  : "Unassigned"}
-              </span>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                marginTop: 15,
-              }}
-            >
-              <div
-                aria-label={`${progress}% complete`}
-                style={{
-                  flex: 1,
-                  height: 7,
-                  overflow: "hidden",
-                  borderRadius: 8,
-                  background: C.line,
-                }}
-              >
-                <div
-                  style={{
-                    width: `${progress}%`,
-                    height: "100%",
-                    borderRadius: 8,
-                    background: C.sage,
-                  }}
-                />
-              </div>
-              <span style={{ fontSize: 11.5, fontWeight: 700 }}>
-                {progress}%
-              </span>
-              <div style={{ display: "flex", alignItems: "center" }}>
-                {team.slice(0, 5).map((employee) => (
-                  <div
-                    key={employee.id}
-                    style={{
-                      marginLeft: -5,
-                      border: `2px solid ${C.card}`,
-                      borderRadius: "50%",
-                    }}
-                  >
-                    <Avatar name={employee.name} size={25} />
-                  </div>
-                ))}
-                {team.length > 5 && (
-                  <span style={{ marginLeft: 5, fontSize: 11, color: C.slate }}>
-                    +{team.length - 5}
-                  </span>
-                )}
-              </div>
-            </div>
-          </button>
+      title={
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+          }}
+        >
+          <span>Featured daily task</span>
           {taskCount > 1 && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "flex-end",
-                gap: 10,
-                marginTop: 12,
-              }}
-            >
-              <span style={{ color: C.slate, fontSize: 11 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 11, color: C.slate, fontWeight: 500 }}>
                 {taskIndex + 1} of {taskCount}
               </span>
               <button
@@ -3024,6 +2950,335 @@ function DailyTaskFeature({
               </button>
             </div>
           )}
+        </div>
+      }
+      style={{
+        minHeight: 260,
+        background: `linear-gradient(135deg, ${C.card}, ${C.navySoft})`,
+        borderColor: task ? statusMeta(task).color : C.line,
+      }}
+    >
+      {task ? (
+        <>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 7,
+              marginBottom: 10,
+            }}
+          >
+            <span
+              style={{
+                ...dailyTaskTagStyle,
+                color: "#fff",
+                background: status.color,
+                borderColor: status.color,
+                fontSize: 11,
+              }}
+            >
+              <CircleAlert size={12} />
+              {daysOverdue
+                ? `Overdue · ${daysOverdue} day${daysOverdue === 1 ? "" : "s"}`
+                : status.label}
+            </span>
+            <span style={dailyTaskTagStyle}>
+              <Repeat size={12} /> Daily
+            </span>
+            <span style={dailyTaskTagStyle}>
+              <Flag size={12} /> {task.priority || "Normal"} priority
+            </span>
+            <span style={dailyTaskTagStyle}>
+              <Network size={12} /> {deptById[task.dept]?.name || "No department"}
+            </span>
+            <span
+              style={{
+                ...dailyTaskTagStyle,
+                marginLeft: "auto",
+                color: daysOverdue ? C.coral : C.slate,
+                borderColor: daysOverdue ? C.coral : "var(--mb-glass-border)",
+              }}
+            >
+              <CalendarDays size={12} />
+              {daysOverdue ? `Due ${dueDate}` : dueDate}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => onOpen(task.id)}
+            style={{
+              display: "block",
+              width: "100%",
+              padding: 0,
+              color: C.ink,
+              textAlign: "left",
+              background: "transparent",
+              border: 0,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            <div
+              className="mb-display"
+              style={{ fontSize: 20, fontWeight: 700, lineHeight: 1.3 }}
+            >
+              {task.title}
+            </div>
+          </button>
+          <div
+            style={{
+              marginTop: 7,
+              color: C.slate,
+              fontSize: 12.5,
+              lineHeight: 1.5,
+            }}
+          >
+            {task.description || "Recurring task requiring daily attention."}
+          </div>
+          {supportsAcknowledgement ? (
+            <div
+              style={{
+                marginTop: 20,
+                padding: "12px 14px",
+                background: "rgba(8, 7, 18, 0.38)",
+                border: "1px solid var(--mb-glass-border)",
+                borderRadius: 12,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
+              <div
+                className="mb-display"
+                style={{ fontSize: 28, fontWeight: 800, lineHeight: 1 }}
+              >
+                {progress}%
+              </div>
+              <span style={{ minWidth: 74, color: C.slate, fontSize: 11 }}>
+                {acknowledgedCount} of {team.length} done
+              </span>
+              <div
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  gap: 5,
+                }}
+                aria-label={`${acknowledgedCount} of ${team.length} assigned employees done`}
+              >
+                {team.map((employee) => (
+                  <span
+                    key={employee.id}
+                    title={`${employee.name}${acknowledgedIds.has(employee.id) ? " · Done" : " · Not done"}`}
+                    style={{
+                      flex: 1,
+                      height: 7,
+                      borderRadius: 8,
+                      background: acknowledgedIds.has(employee.id)
+                        ? C.sage
+                        : C.line,
+                    }}
+                  />
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setTeamExpanded((expanded) => !expanded)}
+                aria-expanded={teamExpanded}
+                aria-label={teamExpanded ? "Collapse assignees" : "Expand assignees"}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: 0,
+                  color: C.slate,
+                  background: "none",
+                  border: 0,
+                  cursor: "pointer",
+                }}
+              >
+                <span style={{ display: "flex", alignItems: "center" }}>
+                  {team.slice(0, 6).map((employee) => (
+                    <span
+                      key={employee.id}
+                      title={employee.name}
+                      style={{ position: "relative", marginLeft: -5 }}
+                    >
+                      <Avatar name={employee.name} size={28} />
+                      {acknowledgedIds.has(employee.id) && (
+                        <CheckCircle2
+                          size={12}
+                          color={C.sage}
+                          fill={C.card}
+                          style={{ position: "absolute", right: -2, bottom: -1 }}
+                        />
+                      )}
+                    </span>
+                  ))}
+                </span>
+                {team.length > 6 && (
+                  <span style={{ fontSize: 11 }}>+{team.length - 6}</span>
+                )}
+                <ChevronDown
+                  size={14}
+                  style={{ transform: teamExpanded ? "rotate(180deg)" : "none" }}
+                />
+              </button>
+              </div>
+              {teamExpanded && (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(155px, 1fr))",
+                    gap: "8px 14px",
+                    marginTop: 13,
+                    paddingTop: 12,
+                    borderTop: "1px solid var(--mb-glass-border)",
+                  }}
+                >
+                  {team.map((employee) => {
+                    const isDone = acknowledgedIds.has(employee.id);
+                    const isSelf = employee.id === viewerEmp.id;
+                    return (
+                      <div
+                        key={employee.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 7,
+                          minWidth: 0,
+                          color: isDone ? C.ink : C.slate,
+                          fontSize: 12,
+                        }}
+                      >
+                        {isDone ? (
+                          <CheckCircle2 size={16} color={C.sage} fill={C.sage} />
+                        ) : (
+                          <span
+                            style={{
+                              width: 16,
+                              height: 16,
+                              border: `1px solid ${C.slate}`,
+                              borderRadius: "50%",
+                              flexShrink: 0,
+                            }}
+                          />
+                        )}
+                        <span
+                          style={{
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {employee.name}
+                          {isSelf && (
+                            <span style={{ color: C.amber }}> (you)</span>
+                          )}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div
+              style={{
+                marginTop: 18,
+                padding: "12px 14px",
+                background: "rgba(8, 7, 18, 0.38)",
+                border: "1px solid var(--mb-glass-border)",
+                borderRadius: 12,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <strong className="mb-display" style={{ fontSize: 25 }}>
+                  {progress}%
+                </strong>
+                <div
+                  style={{
+                    flex: 1,
+                    height: 7,
+                    overflow: "hidden",
+                    borderRadius: 8,
+                    background: C.line,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${progress}%`,
+                      height: "100%",
+                      borderRadius: 8,
+                      background: C.sage,
+                    }}
+                  />
+                </div>
+                <span style={{ color: C.slate, fontSize: 11 }}>
+                  {task.subtasks?.length
+                    ? `${task.subtasks.filter((subtask) => subtask.done).length} of ${task.subtasks.length} subtasks done`
+                    : "Progress"}
+                </span>
+              </div>
+            </div>
+          )}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              marginTop: 14,
+            }}
+          >
+            {canMarkMyPart && (
+              <button
+                type="button"
+                onClick={acknowledge}
+                disabled={savingAcknowledgement}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "8px 13px",
+                  color: myAcknowledgement ? C.sage : C.navy,
+                  background: myAcknowledgement ? C.sageSoft : C.amber,
+                  border: `1px solid ${myAcknowledgement ? C.sage : C.amber}`,
+                  borderRadius: 10,
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: savingAcknowledgement ? "wait" : "pointer",
+                }}
+              >
+                <Check size={15} />
+                {savingAcknowledgement
+                  ? "Saving..."
+                  : myAcknowledgement
+                    ? "You're done — undo"
+                    : "Mark my part done"}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => onOpen(task.id)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                padding: "7px 4px",
+                color: C.slate,
+                background: "none",
+                border: 0,
+                fontSize: 12.5,
+                cursor: "pointer",
+              }}
+            >
+              View task <ChevronRight size={14} />
+            </button>
+          </div>
         </>
       ) : (
         <div
@@ -7708,6 +7963,7 @@ function TaskDetailModal({
   const [uploading, setUploading] = useState(false);
   const [newSub, setNewSub] = useState("");
   const [newSubWho, setNewSubWho] = useState("");
+  const [acknowledging, setAcknowledging] = useState(false);
   if (!task) return null;
   const emp = byId[task.assignee] || { name: "Unassigned" };
   const team = taskTeam(task);
@@ -7734,6 +7990,11 @@ function TaskDetailModal({
     );
   const sup = byId[task.supervisor] || { name: "—" };
   const comments = task.comments || [];
+  const acknowledgementText = "Acknowledged this task.";
+  const hasAcknowledged = comments.some(
+    (comment) =>
+      comment.author === viewerEmp.id && comment.text === acknowledgementText,
+  );
   const topLevel = comments.filter((c) => !c.parent);
   const repliesOf = (id) => comments.filter((c) => c.parent === id);
   const submitComment = async () => {
@@ -7767,8 +8028,26 @@ function TaskDetailModal({
   const canEditTask = canManageTask && !isTaskLocked;
   // Same rule as the board: managers/execs can move anything, an employee only their own open tasks.
   const canMove = !isTaskLocked && canMoveTask(task, viewerEmp);
+  const canAcknowledge =
+    !isTaskLocked &&
+    team.length > 1 &&
+    !(task.subtasks || []).length &&
+    isOnTask(task, viewerEmp.id);
   const canTickSub = (st) =>
     !isTaskLocked && (canManageTask || st.assignee === viewerEmp.id);
+  const acknowledgeTask = async () => {
+    if (!canAcknowledge || hasAcknowledged || acknowledging) return;
+    setAcknowledging(true);
+    const saved = await addComment(
+      task.id,
+      acknowledgementText,
+      null,
+      [],
+      [],
+      `${viewerEmp.name} acknowledged "${task.title}"`,
+    );
+    if (!saved) setAcknowledging(false);
+  };
   const progressPercent = taskProgress(task);
   const addSub = async () => {
     if (!newSub.trim()) return;
@@ -7958,6 +8237,35 @@ function TaskDetailModal({
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {canAcknowledge && (
+            <button
+              type="button"
+              onClick={acknowledgeTask}
+              disabled={acknowledging || hasAcknowledged}
+              title="Acknowledge this task without completing it for the whole team"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "7px 10px",
+                color: hasAcknowledged ? C.sage : C.ink,
+                background: hasAcknowledged ? C.sageSoft : C.card,
+                border: `1px solid ${hasAcknowledged ? C.sage : C.line}`,
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: acknowledging || hasAcknowledged ? "default" : "pointer",
+                opacity: acknowledging ? 0.7 : 1,
+              }}
+            >
+              <Check size={14} />
+              {hasAcknowledged
+                ? "Acknowledged"
+                : acknowledging
+                  ? "Saving..."
+                  : "Acknowledge task"}
+            </button>
+          )}
           {canMove && (
             <StageMenu
               variant="icon"
