@@ -2531,19 +2531,24 @@ function Dashboard({
   const teamEmployees = isExec
     ? employees
     : employees.filter((employee) => teamEmployeeIds.includes(employee.id));
-  const personalTasks = tasks.filter((task) => isOnTask(task, viewerEmp.id));
+  const personalTasks = tasks.filter(
+    (task) => isOnTask(task, viewerEmp.id) && task.status !== "Completed",
+  );
   const dailyTasks = scoped
-    .filter((task) => task.recurring === "Daily")
+    .filter(
+      (task) => task.recurring === "Daily" && task.status !== "Completed",
+    )
     .sort((a, b) => {
       const priority = (task) =>
-        task.status === "Completed"
-          ? 3
-          : statusMeta(task).label === "Overdue"
-            ? 0
-            : statusMeta(task).label === "Due today"
-              ? 1
-              : 2;
-      return priority(a) - priority(b) || (a.due || "").localeCompare(b.due || "");
+        statusMeta(task).label === "Overdue"
+          ? 0
+          : statusMeta(task).label === "Due today"
+            ? 1
+            : 2;
+      return (
+        priority(a) - priority(b) ||
+        (a.due || "").localeCompare(b.due || "")
+      );
     });
   const dailyTask = dailyTasks.length
     ? dailyTasks[dailyTaskIndex % dailyTasks.length]
@@ -2689,10 +2694,12 @@ function Dashboard({
         className="mb-grid-2"
         style={{
           display: "grid",
-          gridTemplateColumns: isManager ? "1.3fr 1fr" : "1fr",
+          gridTemplateColumns: isManager
+            ? "minmax(0, 1.15fr) minmax(0, 1.15fr) minmax(220px, 0.9fr)"
+            : "minmax(0, 1.15fr) minmax(0, 0.9fr)",
           gap: 18,
           marginTop: 18,
-          alignItems: "start",
+          alignItems: "stretch",
         }}
       >
         <Panel title="My tasks">
@@ -2729,35 +2736,37 @@ function Dashboard({
             onOpen={goToTask}
           />
         </Panel>
-      </div>
 
-      {isExec && (
-        <Panel title="Tasks by department" style={{ marginTop: 18 }}>
-          {byDept.length === 0 && <Empty text="No open tasks right now." />}
-          {byDept.map((dep) => (
-            <div
-              key={dep.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "7px 0",
-              }}
-            >
+        {isManager && (
+          <Panel title="Tasks by department">
+            {byDept.length === 0 && <Empty text="No open tasks right now." />}
+            {byDept.map((dep) => (
               <div
+                key={dep.id}
                 style={{
-                  width: 9,
-                  height: 9,
-                  borderRadius: 9,
-                  background: dep.color,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "7px 0",
                 }}
-              />
-              <div style={{ fontSize: 13, flex: 1 }}>{dep.name}</div>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>{dep.count}</div>
-            </div>
-          ))}
-        </Panel>
-      )}
+              >
+                <div
+                  style={{
+                    width: 9,
+                    height: 9,
+                    borderRadius: 9,
+                    background: dep.color,
+                  }}
+                />
+                <div style={{ fontSize: 13, flex: 1 }}>{dep.name}</div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>
+                  {dep.count}
+                </div>
+              </div>
+            ))}
+          </Panel>
+        )}
+      </div>
 
       {isManager && (
         <Panel
@@ -2837,10 +2846,11 @@ function DailyTaskFeature({
 
   return (
     <Panel
-      title="Daily task"
+      title="Featured daily task"
       style={{
-        minHeight: 230,
+        minHeight: 250,
         background: `linear-gradient(135deg, ${C.card}, ${C.navySoft})`,
+        borderColor: task ? statusMeta(task).color : C.line,
       }}
     >
       {task ? (
@@ -2864,8 +2874,8 @@ function DailyTaskFeature({
               style={{
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
+                flexWrap: "wrap",
+                gap: 7,
                 marginBottom: 10,
               }}
             >
@@ -2881,7 +2891,14 @@ function DailyTaskFeature({
               >
                 {status.label}
               </span>
-              <span style={{ color: C.slate, fontSize: 11.5 }}>
+              <span style={dailyTaskTagStyle}>
+                <Repeat size={11} /> Daily
+              </span>
+              <span style={dailyTaskTagStyle}>
+                <Flag size={11} /> {task.priority || "Normal"} priority
+              </span>
+              <span style={{ ...dailyTaskTagStyle, marginLeft: "auto" }}>
+                <CalendarDays size={11} />
                 {task.due
                   ? new Date(`${task.due}T00:00:00`).toLocaleDateString(
                       undefined,
@@ -2896,18 +2913,35 @@ function DailyTaskFeature({
             >
               {task.title}
             </div>
-            {task.description && (
-              <div
-                style={{
-                  marginTop: 7,
-                  color: C.slate,
-                  fontSize: 12.5,
-                  lineHeight: 1.5,
-                }}
-              >
-                {task.description}
-              </div>
-            )}
+            <div
+              style={{
+                marginTop: 7,
+                color: C.slate,
+                fontSize: 12.5,
+                lineHeight: 1.5,
+              }}
+            >
+              {task.description || "Recurring task requiring daily attention."}
+            </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 8,
+                marginTop: 13,
+              }}
+            >
+              <span style={{ fontSize: 11.5, color: C.slate }}>
+                {deptById[task.dept]?.name || "No department"}
+              </span>
+              <span style={{ fontSize: 11.5, color: C.slate }}>
+                {team.length
+                  ? `Assigned to ${team.map((employee) => employee.name).join(", ")}`
+                  : "Unassigned"}
+              </span>
+            </div>
             <div
               style={{
                 display: "flex",
@@ -3019,6 +3053,18 @@ const dailyTaskNavStyle = {
   border: "1px solid var(--mb-glass-border)",
   borderRadius: 8,
   cursor: "pointer",
+};
+
+const dailyTaskTagStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 4,
+  padding: "4px 7px",
+  border: "1px solid var(--mb-glass-border)",
+  borderRadius: 8,
+  color: C.slate,
+  fontSize: 10.5,
+  fontWeight: 600,
 };
 
 function AlertRow({ icon: Icon, color, label, items, onOpen }) {
