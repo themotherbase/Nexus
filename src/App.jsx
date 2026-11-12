@@ -1380,16 +1380,26 @@ export default function App() {
   const isManager = viewerEmp.role === "manager" || isExec;
   const canEditOrg = !!viewerEmp.canEditOrg;
 
-  const resetEmployeePassword = async (employee) => {
+  const setEmployeePassword = async (employee, password) => {
     if (!isAdmin) {
-      return { error: { message: "Only super admins can send reset links." } };
+      return { error: { message: "Only super admins can change passwords." } };
     }
     if (!employee?.email) {
       return { error: { message: "This employee has no login email." } };
     }
-    return supabase.auth.resetPasswordForEmail(employee.email, {
-      redirectTo: window.location.origin,
-    });
+    const { error } = await supabase.functions.invoke(
+      "admin-set-employee-password",
+      { body: { employeeId: employee.id, password } },
+    );
+    if (error) {
+      let message = error.message;
+      try {
+        const response = await error.context?.json();
+        if (response?.error) message = response.error;
+      } catch {}
+      return { error: { message } };
+    }
+    return { error: null };
   };
 
   const visibleTasks = isExec
@@ -2012,7 +2022,7 @@ export default function App() {
         deleteEmployee,
         canEditOrg,
         isSuperAdmin: isAdmin,
-        resetEmployeePassword,
+        setEmployeePassword,
         onlineIds,
       }}
     >
@@ -3617,27 +3627,48 @@ function EmployeeModal({
     directReports,
     canEditOrg,
     isSuperAdmin,
-    resetEmployeePassword,
+    setEmployeePassword,
   } = useEmp();
   const [taskPane, setTaskPane] = useState("active");
   const [historyFilter, setHistoryFilter] = useState("all");
   const [historyDay, setHistoryDay] = useState(today());
   const [historyStart, setHistoryStart] = useState("");
   const [historyEnd, setHistoryEnd] = useState("");
-  const [resetPending, setResetPending] = useState(false);
-  const [resetMessage, setResetMessage] = useState("");
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordPending, setPasswordPending] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState("");
+  useEffect(() => {
+    setShowPasswordForm(false);
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordMessage("");
+  }, [empId]);
   const emp = byId[empId];
   if (!emp) return null;
-  const sendPasswordReset = async () => {
-    setResetPending(true);
-    setResetMessage("");
-    const { error } = await resetEmployeePassword(emp);
-    setResetPending(false);
-    setResetMessage(
-      error
-        ? `Couldn't send reset link: ${error.message}`
-        : `Password reset link sent to ${emp.email}.`,
-    );
+  const submitPasswordChange = async (event) => {
+    event.preventDefault();
+    setPasswordMessage("");
+    if (newPassword.length < 8) {
+      setPasswordMessage("Password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage("Passwords don't match.");
+      return;
+    }
+    setPasswordPending(true);
+    const { error } = await setEmployeePassword(emp, newPassword);
+    setPasswordPending(false);
+    if (error) {
+      setPasswordMessage(`Couldn't change password: ${error.message}`);
+      return;
+    }
+    setNewPassword("");
+    setConfirmPassword("");
+    setShowPasswordForm(false);
+    setPasswordMessage(`Password changed for ${emp.name}.`);
   };
   const myTasks = tasks.filter((t) => isOnTask(t, emp.id));
   const completionDateFor = (task) => {
@@ -3754,9 +3785,12 @@ function EmployeeModal({
             {isSuperAdmin && (
               <button
                 type="button"
-                onClick={sendPasswordReset}
-                disabled={!emp.email || resetPending}
-                title={emp.email ? "Send a password reset email" : "Add a login email first"}
+                onClick={() => {
+                  setShowPasswordForm((visible) => !visible);
+                  setPasswordMessage("");
+                }}
+                disabled={!emp.email}
+                title={emp.email ? "Set a new password" : "Add a login email first"}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -3768,26 +3802,83 @@ function EmployeeModal({
                   border: "none",
                   borderRadius: 20,
                   padding: "3px 10px",
-                  cursor: !emp.email || resetPending ? "not-allowed" : "pointer",
-                  opacity: !emp.email || resetPending ? 0.6 : 1,
+                  cursor: emp.email ? "pointer" : "not-allowed",
+                  opacity: emp.email ? 1 : 0.6,
                 }}
               >
-                <KeyRound size={12} />
-                {resetPending ? "Sending…" : "Send reset link"}
+                <KeyRound size={12} /> Change password
               </button>
             )}
           </div>
-          {resetMessage && (
+          {isSuperAdmin && showPasswordForm && (
+            <form
+              onSubmit={submitPasswordChange}
+              style={{
+                display: "grid",
+                gap: 8,
+                padding: 12,
+                marginBottom: 14,
+                background: C.paper,
+                border: `1px solid ${C.line}`,
+                borderRadius: 8,
+              }}
+            >
+              <FormRow label={`New password for ${emp.name}`}>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  minLength={8}
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  style={inputStyle}
+                  required
+                />
+              </FormRow>
+              <FormRow label="Confirm new password">
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  minLength={8}
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  style={inputStyle}
+                  required
+                />
+              </FormRow>
+              <button
+                type="submit"
+                disabled={passwordPending}
+                style={{
+                  justifySelf: "start",
+                  background: C.amber,
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 6,
+                  padding: "8px 12px",
+                  fontWeight: 700,
+                  cursor: passwordPending ? "wait" : "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {passwordPending ? "Changing…" : "Set password"}
+              </button>
+            </form>
+          )}
+          {passwordMessage && (
             <div
               role="status"
               style={{
-                color: resetMessage.startsWith("Couldn't") ? C.coral : C.sage,
+                color: passwordMessage.startsWith("Couldn't") ||
+                  passwordMessage.startsWith("Password must") ||
+                  passwordMessage.startsWith("Passwords")
+                  ? C.coral
+                  : C.sage,
                 fontSize: 12,
                 marginTop: -10,
                 marginBottom: 14,
               }}
             >
-              {resetMessage}
+              {passwordMessage}
             </div>
           )}
           <SectionLabel>Primary responsibilities</SectionLabel>
