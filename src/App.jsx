@@ -1388,7 +1388,7 @@ export default function App() {
       return { error: { message: "This employee has no login email." } };
     }
     const { error } = await supabase.functions.invoke(
-      "admin-set-employee-password",
+      "smart-processor",
       { body: { employeeId: employee.id, password } },
     );
     if (error) {
