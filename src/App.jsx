@@ -142,6 +142,8 @@ const RESPONSIVE_CSS = `
     .mb-employee-task-column { border-left: none !important; padding-left: 0 !important; border-top: 1px solid var(--mb-control-border) !important; padding-top: 12px !important; }
     .mb-task-detail-columns { grid-template-columns: minmax(0, 1fr) !important; }
     .mb-task-detail-secondary { border-left: none !important; padding-left: 0 !important; border-top: 1px solid var(--mb-control-border) !important; padding-top: 16px !important; }
+    .mb-task-create-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px; align-items: start; }
+    .mb-task-create-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     .mb-modal-overlay { padding: 16px 8px !important; }
     .mb-modal-card { padding: 18px !important; width: 100% !important; }
     .mb-hide-mobile { display: none !important; }
@@ -149,6 +151,7 @@ const RESPONSIVE_CSS = `
     .mb-brand-sub { display: none !important; }
   }
   @media (max-width: 640px) {
+    .mb-task-create-grid, .mb-task-create-pair { grid-template-columns: minmax(0, 1fr) !important; }
     .mb-header-inner { justify-content: space-between; padding-right: 12px !important; padding-left: 12px !important; }
     .mb-topnav { display: none !important; }
     .mb-mobile-nav { display: flex !important; }
@@ -1794,6 +1797,7 @@ export default function App() {
       .from("tasks")
       .insert({
         title: t.title,
+        description: t.description || null,
         dept_id: t.dept,
         assignee_id: t.assignee,
         supervisor_id: t.supervisor,
@@ -8484,9 +8488,11 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
     (employee) => !employee.isDeveloper,
   );
   const [title, setTitle] = useState("");
-  const [assignee, setAssignee] = useState(assignableEmployees[0]?.id || "");
+  const [description, setDescription] = useState("");
+  const [assignee, setAssignee] = useState("");
   const [extra, setExtra] = useState([]); // additional people besides the lead
-  const [movePolicy, setMovePolicy] = useState("selected");
+  const [showAdditionalPicker, setShowAdditionalPicker] = useState(false);
+  const [movePolicy, setMovePolicy] = useState("lead");
   const [moveMemberIds, setMoveMemberIds] = useState([]);
   const [subs, setSubs] = useState([]); // [{ title, assignee }]
   const [subDraft, setSubDraft] = useState("");
@@ -8500,11 +8506,17 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
   const [saving, setSaving] = useState(false);
 
   const team = [assignee, ...extra].filter(Boolean);
-  const subWhoValid = team.includes(subWho) ? subWho : "";
+  const subWhoValid = extra.includes(subWho) ? subWho : "";
   const changeLead = (id) => {
     const nextExtra = extra.filter((memberId) => memberId !== id);
     setAssignee(id);
     setExtra(nextExtra);
+    setShowAdditionalPicker(false);
+    setMovePolicy(nextExtra.length ? "selected" : "lead");
+    if (!nextExtra.length) {
+      setSubs([]);
+      setSubWho("");
+    }
     setMoveMemberIds((members) =>
       members.filter((memberId) => nextExtra.includes(memberId)),
     );
@@ -8514,11 +8526,19 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
       ? extra.filter((memberId) => memberId !== id)
       : [...extra, id];
     setExtra(nextExtra);
-    setMoveMemberIds((members) =>
-      nextExtra.includes(id)
-        ? [...new Set([...members, id])]
-        : members.filter((memberId) => memberId !== id),
-    );
+    if (nextExtra.length) {
+      setMovePolicy((policy) => (policy === "lead" ? "selected" : policy));
+      setMoveMemberIds((members) =>
+        nextExtra.includes(id)
+          ? [...new Set([...members, id])]
+          : members.filter((memberId) => memberId !== id),
+      );
+    } else {
+      setMovePolicy("lead");
+      setMoveMemberIds([]);
+      setSubs([]);
+      setSubWho("");
+    }
   };
   const addSub = () => {
     if (!subDraft.trim()) return;
@@ -8532,6 +8552,7 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
     const assigneeEmp = byId[assignee];
     const taskId = await onCreate({
       title,
+      description: description.trim(),
       assignee,
       extraAssignees: extra,
       movePolicy,
@@ -8562,7 +8583,7 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
   };
 
   return (
-    <ModalShell onClose={onClose} width={500}>
+    <ModalShell onClose={onClose} width={920}>
       <div
         className="mb-display"
         style={{ fontSize: 19, fontWeight: 600, marginBottom: 16 }}
@@ -8573,207 +8594,265 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          placeholder="Give this task a clear title"
           style={inputStyle}
         />
       </FormRow>
-      <FormRow label="Lead assignee (owns the task and its sign-off)">
-        <select
-          value={assignee}
-          onChange={(e) => changeLead(e.target.value)}
-          style={inputStyle}
-        >
-          <option value="">Select an employee</option>
-          {assignableEmployees.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name} — {e.position}
-            </option>
-          ))}
-        </select>
-      </FormRow>
-      <FormRow
-        label={`Also assign (optional)${extra.length ? ` — ${extra.length} selected` : ""}`}
-      >
-        <PeoplePicker
-          options={assignableEmployees.filter((e) => e.id !== assignee)}
-          selected={extra}
-          onToggle={toggleExtra}
+      <FormRow label="Description">
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Add task details, expectations, or context"
+          rows={3}
+          style={{ ...inputStyle, resize: "vertical" }}
         />
       </FormRow>
-      <FormRow label="Who can move this task?">
-        <select
-          value={movePolicy}
-          onChange={(e) => setMovePolicy(e.target.value)}
-          style={inputStyle}
-        >
-          <option value="lead">Lead only</option>
-          <option value="selected">Lead and Members</option>
-          <option value="all">Everyone</option>
-        </select>
-      </FormRow>
-      {movePolicy === "selected" && (
-        <FormRow label="Members who can move">
-          <PeoplePicker
-            options={assignableEmployees.filter((employee) =>
-              extra.includes(employee.id),
-            )}
-            selected={moveMemberIds.filter((id) => extra.includes(id))}
-            onToggle={(id) =>
-              setMoveMemberIds((members) =>
-                members.includes(id)
-                  ? members.filter((memberId) => memberId !== id)
-                  : [...members, id],
-              )
-            }
-          />
-        </FormRow>
-      )}
-      <div
-        className="mb-grid-2"
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
-      >
-        <FormRow label="Priority">
-          <select
-            value={priority}
-            onChange={(e) => setPriority(e.target.value)}
-            style={inputStyle}
-          >
-            <option>High</option>
-            <option>Medium</option>
-            <option>Low</option>
-          </select>
-        </FormRow>
-        <FormRow label="Due date">
-          <input
-            type="date"
-            value={due}
-            onChange={(e) => setDue(e.target.value)}
-            style={inputStyle}
-          />
-        </FormRow>
-      </div>
-      <div
-        className="mb-grid-2"
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
-      >
-        <FormRow label="Category">
-          <input
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            style={inputStyle}
-          />
-        </FormRow>
-        <FormRow label="Recurring?">
-          <select
-            value={recurring}
-            onChange={(e) => setRecurring(e.target.value)}
-            style={inputStyle}
-          >
-            <option value="">One-time</option>
-            <option>Daily</option>
-            <option>Weekly</option>
-            <option>Biweekly</option>
-            <option>Monthly</option>
-            <option>Quarterly</option>
-            <option>Custom</option>
-          </select>
-        </FormRow>
-      </div>
-      {recurring === "Custom" && (
-        <FormRow label="Repeat every N days">
-          <input
-            type="number"
-            min={1}
-            value={customDays}
-            onChange={(e) => setCustomDays(e.target.value)}
-            style={inputStyle}
-          />
-        </FormRow>
-      )}
 
-      <FormRow label="Subtasks (optional) — each can be given to one person on the task">
-        {subs.map((x, i) => (
-          <div
-            key={i}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "4px 0",
-              fontSize: 12.5,
-            }}
-          >
-            <span style={{ flex: 1, minWidth: 0, ...ellipsis }}>
-              • {x.title}
-            </span>
-            <span
-              style={{ fontSize: 11, color: C.slate, whiteSpace: "nowrap" }}
+      <div className="mb-task-create-grid">
+        <div>
+          <FormRow label="Lead assignee (owns the task and its sign-off)">
+            <select
+              value={assignee}
+              onChange={(e) => changeLead(e.target.value)}
+              style={inputStyle}
             >
-              {team.includes(x.assignee)
-                ? byId[x.assignee]?.name
-                : "Unassigned"}
-            </span>
-            <button
-              type="button"
-              onClick={() => setSubs((list) => list.filter((_, j) => j !== i))}
-              aria-label="Remove subtask"
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: C.slate,
-                padding: 2,
-              }}
-            >
-              <X size={13} />
-            </button>
-          </div>
-        ))}
-        <div
-          style={{ display: "flex", gap: 6, marginTop: subs.length ? 4 : 0 }}
-        >
-          <input
-            value={subDraft}
-            onChange={(e) => setSubDraft(e.target.value)}
-            placeholder="Add a subtask…"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                addSub();
-              }
-            }}
-            style={{ ...inputStyle, flex: 1, minWidth: 0 }}
-          />
-          <select
-            value={subWhoValid}
-            onChange={(e) => setSubWho(e.target.value)}
-            style={{ ...inputStyle, width: 130, flexShrink: 0 }}
-            aria-label="Subtask assignee"
-          >
-            <option value="">Unassigned</option>
-            {team.map((id) => (
-              <option key={id} value={id}>
-                {byId[id]?.name}
-              </option>
-            ))}
-          </select>
-          <IconBtn onClick={addSub} title="Add subtask">
-            <Plus size={15} />
-          </IconBtn>
+              <option value="">Select a lead assignee</option>
+              {assignableEmployees.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name} — {e.position}
+                </option>
+              ))}
+            </select>
+          </FormRow>
+
+          {assignee && (
+            <div style={{ marginBottom: 12 }}>
+              <button
+                type="button"
+                aria-expanded={showAdditionalPicker}
+                aria-controls="task-additional-assignees"
+                onClick={() => setShowAdditionalPicker((visible) => !visible)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 7,
+                  background: C.card,
+                  border: `1px solid ${C.line}`,
+                  borderRadius: 8,
+                  padding: "8px 11px",
+                  color: C.ink,
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                <Users size={14} />
+                {extra.length
+                  ? `Additional assignees (${extra.length})`
+                  : "Add assignees"}
+                <ChevronDown
+                  size={14}
+                  style={{
+                    transform: showAdditionalPicker ? "rotate(180deg)" : "none",
+                  }}
+                />
+              </button>
+              {showAdditionalPicker && (
+                <div id="task-additional-assignees" style={{ marginTop: 8 }}>
+                  <PeoplePicker
+                    options={assignableEmployees.filter((e) => e.id !== assignee)}
+                    selected={extra}
+                    onToggle={toggleExtra}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {extra.length > 0 && (
+            <FormRow label="Subtasks (assigned to additional assignees)">
+              {subs.map((subtask, index) => (
+                <div
+                  key={`${subtask.title}-${index}`}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "4px 0",
+                    fontSize: 12.5,
+                  }}
+                >
+                  <span style={{ flex: 1, minWidth: 0, ...ellipsis }}>
+                    • {subtask.title}
+                  </span>
+                  <span
+                    style={{ fontSize: 11, color: C.slate, whiteSpace: "nowrap" }}
+                  >
+                    {extra.includes(subtask.assignee)
+                      ? byId[subtask.assignee]?.name
+                      : "Unassigned"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSubs((list) => list.filter((_, itemIndex) => itemIndex !== index))
+                    }
+                    aria-label="Remove subtask"
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: C.slate,
+                      padding: 2,
+                    }}
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
+              <div
+                style={{ display: "flex", gap: 6, marginTop: subs.length ? 4 : 0 }}
+              >
+                <input
+                  value={subDraft}
+                  onChange={(e) => setSubDraft(e.target.value)}
+                  placeholder="Add a subtask…"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addSub();
+                    }
+                  }}
+                  style={{ ...inputStyle, flex: 1, minWidth: 0 }}
+                />
+                <select
+                  value={subWhoValid}
+                  onChange={(e) => setSubWho(e.target.value)}
+                  style={{ ...inputStyle, width: 150, flexShrink: 0 }}
+                  aria-label="Subtask assignee"
+                >
+                  <option value="">Unassigned</option>
+                  {extra.map((id) => (
+                    <option key={id} value={id}>
+                      {byId[id]?.name}
+                    </option>
+                  ))}
+                </select>
+                <IconBtn onClick={addSub} title="Add subtask">
+                  <Plus size={15} />
+                </IconBtn>
+              </div>
+            </FormRow>
+          )}
         </div>
-      </FormRow>
 
-      <FormRow label="Attach a file (optional)">
-        <input
-          type="file"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
-          style={{ fontSize: 12.5 }}
-        />
-      </FormRow>
+        <div>
+          <FormRow label="Who can move this task?">
+            {!assignee ? (
+              <div style={{ ...inputStyle, color: C.slate }}>
+                Choose a lead assignee first
+              </div>
+            ) : extra.length ? (
+              <select
+                value={movePolicy}
+                onChange={(e) => setMovePolicy(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="lead">Lead only</option>
+                <option value="selected">Lead and Members</option>
+                <option value="all">Everyone</option>
+              </select>
+            ) : (
+              <div style={{ ...inputStyle, color: C.slate }}>Lead only</div>
+            )}
+          </FormRow>
+          {assignee && extra.length > 0 && movePolicy === "selected" && (
+            <FormRow label="Members who can move">
+              <PeoplePicker
+                options={assignableEmployees.filter((employee) =>
+                  extra.includes(employee.id),
+                )}
+                selected={moveMemberIds.filter((id) => extra.includes(id))}
+                onToggle={(id) =>
+                  setMoveMemberIds((members) =>
+                    members.includes(id)
+                      ? members.filter((memberId) => memberId !== id)
+                      : [...members, id],
+                  )
+                }
+              />
+            </FormRow>
+          )}
+
+          <div className="mb-task-create-pair">
+            <FormRow label="Priority">
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value)}
+                style={inputStyle}
+              >
+                <option>High</option>
+                <option>Medium</option>
+                <option>Low</option>
+              </select>
+            </FormRow>
+            <FormRow label="Due date">
+              <input
+                type="date"
+                value={due}
+                onChange={(e) => setDue(e.target.value)}
+                style={inputStyle}
+              />
+            </FormRow>
+            <FormRow label="Category">
+              <input
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                style={inputStyle}
+              />
+            </FormRow>
+            <FormRow label="Recurring?">
+              <select
+                value={recurring}
+                onChange={(e) => setRecurring(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="">One-time</option>
+                <option>Daily</option>
+                <option>Weekly</option>
+                <option>Biweekly</option>
+                <option>Monthly</option>
+                <option>Quarterly</option>
+                <option>Custom</option>
+              </select>
+            </FormRow>
+          </div>
+          {recurring === "Custom" && (
+            <FormRow label="Repeat every N days">
+              <input
+                type="number"
+                min={1}
+                value={customDays}
+                onChange={(e) => setCustomDays(e.target.value)}
+                style={inputStyle}
+              />
+            </FormRow>
+          )}
+          <FormRow label="Attach a file (optional)">
+            <input
+              type="file"
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              style={{ fontSize: 12.5 }}
+            />
+          </FormRow>
+        </div>
+      </div>
+
       <button
         onClick={submit}
-        disabled={saving}
+        disabled={saving || !title.trim() || !assignee}
         style={{
-          marginTop: 14,
+          marginTop: 6,
           width: "100%",
           background: C.amber,
           color: "#fff",
@@ -8782,7 +8861,8 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
           padding: "10px 0",
           fontWeight: 600,
           fontSize: 14,
-          cursor: "pointer",
+          cursor: saving || !title.trim() || !assignee ? "not-allowed" : "pointer",
+          opacity: saving || !title.trim() || !assignee ? 0.6 : 1,
         }}
       >
         {saving ? "Creating…" : "Create Task"}
