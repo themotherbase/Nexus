@@ -144,6 +144,9 @@ const RESPONSIVE_CSS = `
     .mb-task-detail-secondary { border-left: none !important; padding-left: 0 !important; border-top: 1px solid var(--mb-control-border) !important; padding-top: 16px !important; }
     .mb-task-create-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px; align-items: start; }
     .mb-task-create-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .mb-modal-card { box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain; }
+    .mb-modal-centered-card { max-height: calc(100dvh - 40px); }
+    .mb-modal-top-card { max-height: calc(100dvh - 120px); }
     .mb-modal-overlay { padding: 16px 8px !important; }
     .mb-modal-card { padding: 18px !important; width: 100% !important; }
     .mb-hide-mobile { display: none !important; }
@@ -157,7 +160,7 @@ const RESPONSIVE_CSS = `
     .mb-mobile-nav { display: flex !important; }
     .mb-main { padding-bottom: calc(92px + env(safe-area-inset-bottom)) !important; }
     .mb-modal-overlay { padding-bottom: calc(88px + env(safe-area-inset-bottom)) !important; }
-    .mb-modal-card { max-height: calc(100dvh - 120px - env(safe-area-inset-bottom)); overflow-y: auto; }
+    .mb-modal-centered-card, .mb-modal-top-card { max-height: calc(100dvh - 120px - env(safe-area-inset-bottom)); }
     .mb-group-task-grid { max-height: calc(100dvh - 240px - env(safe-area-inset-bottom)) !important; }
   }
 `;
@@ -9691,7 +9694,7 @@ function ModalShell({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="mb-body mb-modal-card"
+        className={`mb-body mb-modal-card ${centered ? "mb-modal-centered-card" : "mb-modal-top-card"}`}
         style={{
           background: C.card,
           color: C.ink,
