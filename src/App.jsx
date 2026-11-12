@@ -5782,6 +5782,21 @@ function TaskCard({
   const flagLabel = t.status === "Completed" ? "Completed" : t.priority;
   const department = deptById[t.dept];
   const departmentColor = department?.color;
+  const recurrenceColors = {
+    Daily: "#3478E5",
+    Weekly: "#2B8A68",
+    Biweekly: "#168C8C",
+    Monthly: "#B7791F",
+    Quarterly: "#D44A55",
+    Custom: "#7357B8",
+  };
+  const recurrenceColor = t.recurring
+    ? recurrenceColors[t.recurring] || C.blue
+    : null;
+  const recurrenceLabel =
+    t.recurring === "Custom"
+      ? `Every ${t.recurringCustomDays || 7} days`
+      : t.recurring;
   return (
     <div
       className={`mb-task-card${selected ? " is-checked" : ""}${selectionMode ? " is-selection-mode" : ""}`}
@@ -5930,6 +5945,26 @@ function TaskCard({
             }}
           >
             {department.name}
+          </span>
+        )}
+        {t.recurring && (
+          <span
+            title={`Repeats ${recurrenceLabel.toLowerCase()}`}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              padding: "5px 9px",
+              borderRadius: 999,
+              background: dark ? `${recurrenceColor}35` : `${recurrenceColor}1A`,
+              color: dark
+                ? mixHex(recurrenceColor, "#FFFFFF", 0.18)
+                : recurrenceColor,
+              fontSize: 10.5,
+              fontWeight: 700,
+            }}
+          >
+            <Repeat size={11} /> {recurrenceLabel}
           </span>
         )}
         <span
