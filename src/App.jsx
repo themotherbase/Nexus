@@ -44,6 +44,7 @@ import {
   Smile,
   Paperclip,
   Film,
+  KeyRound,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import motherbaseBackground from "../images/The Motherbase (Transparent).png";
@@ -1379,6 +1380,18 @@ export default function App() {
   const isManager = viewerEmp.role === "manager" || isExec;
   const canEditOrg = !!viewerEmp.canEditOrg;
 
+  const resetEmployeePassword = async (employee) => {
+    if (!isAdmin) {
+      return { error: { message: "Only super admins can send reset links." } };
+    }
+    if (!employee?.email) {
+      return { error: { message: "This employee has no login email." } };
+    }
+    return supabase.auth.resetPasswordForEmail(employee.email, {
+      redirectTo: window.location.origin,
+    });
+  };
+
   const visibleTasks = isExec
     ? tasks
     : viewerEmp.role === "manager"
@@ -1998,6 +2011,8 @@ export default function App() {
         updateEmployee,
         deleteEmployee,
         canEditOrg,
+        isSuperAdmin: isAdmin,
+        resetEmployeePassword,
         onlineIds,
       }}
     >
@@ -3597,14 +3612,33 @@ function EmployeeModal({
   setSelectedEmp,
   onEdit,
 }) {
-  const { byId, directReports, canEditOrg } = useEmp();
+  const {
+    byId,
+    directReports,
+    canEditOrg,
+    isSuperAdmin,
+    resetEmployeePassword,
+  } = useEmp();
   const [taskPane, setTaskPane] = useState("active");
   const [historyFilter, setHistoryFilter] = useState("all");
   const [historyDay, setHistoryDay] = useState(today());
   const [historyStart, setHistoryStart] = useState("");
   const [historyEnd, setHistoryEnd] = useState("");
+  const [resetPending, setResetPending] = useState(false);
+  const [resetMessage, setResetMessage] = useState("");
   const emp = byId[empId];
   if (!emp) return null;
+  const sendPasswordReset = async () => {
+    setResetPending(true);
+    setResetMessage("");
+    const { error } = await resetEmployeePassword(emp);
+    setResetPending(false);
+    setResetMessage(
+      error
+        ? `Couldn't send reset link: ${error.message}`
+        : `Password reset link sent to ${emp.email}.`,
+    );
+  };
   const myTasks = tasks.filter((t) => isOnTask(t, emp.id));
   const completionDateFor = (task) => {
     const raw = completionTimes[task.id] || task.completedAt || task.updatedAt;
@@ -3717,7 +3751,45 @@ function EmployeeModal({
                 <Pencil size={12} /> Edit
               </button>
             )}
+            {isSuperAdmin && (
+              <button
+                type="button"
+                onClick={sendPasswordReset}
+                disabled={!emp.email || resetPending}
+                title={emp.email ? "Send a password reset email" : "Add a login email first"}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  color: C.white,
+                  background: C.navySoft,
+                  border: "none",
+                  borderRadius: 20,
+                  padding: "3px 10px",
+                  cursor: !emp.email || resetPending ? "not-allowed" : "pointer",
+                  opacity: !emp.email || resetPending ? 0.6 : 1,
+                }}
+              >
+                <KeyRound size={12} />
+                {resetPending ? "Sending…" : "Send reset link"}
+              </button>
+            )}
           </div>
+          {resetMessage && (
+            <div
+              role="status"
+              style={{
+                color: resetMessage.startsWith("Couldn't") ? C.coral : C.sage,
+                fontSize: 12,
+                marginTop: -10,
+                marginBottom: 14,
+              }}
+            >
+              {resetMessage}
+            </div>
+          )}
           <SectionLabel>Primary responsibilities</SectionLabel>
           <ul
             style={{
