@@ -263,6 +263,7 @@ const mapEmployee = (row) => ({
   resp: row.responsibilities || [],
   canEditOrg: row.can_edit_org,
   email: row.email,
+  isDeveloper: !!row.is_developer,
 });
 const mapTask = (row) => ({
   id: row.id,
@@ -1954,6 +1955,7 @@ export default function App() {
       supervisor_id: data.sup,
       role: data.role,
       status: data.status,
+      is_developer: !!data.isDeveloper,
       secondary_role: data.secondary || null,
       responsibilities: data.resp,
       email: data.email || null,
@@ -1971,6 +1973,7 @@ export default function App() {
         supervisor_id: patch.sup,
         role: patch.role,
         status: patch.status,
+        is_developer: !!patch.isDeveloper,
         secondary_role: patch.secondary || null,
         responsibilities: patch.resp,
         email: patch.email || null,
@@ -2989,15 +2992,19 @@ function RowWithEdit({ e, onSelect, onEdit, canEditOrg }) {
 
 function OrgChartPyramid({ onSelect, onEdit }) {
   const { employees, canEditOrg, deleteEmployee } = useEmp();
+  const chartEmployees = useMemo(
+    () => employees.filter((employee) => !employee.isDeveloper),
+    [employees],
+  );
   const NODE_W = 172,
     NODE_H = 96,
     GAP_X = 22,
     GAP_Y = 46;
 
   const layout = useMemo(() => {
-    const empIds = new Set(employees.map((e) => e.id));
-    const roots = employees.filter((e) => !e.sup || !empIds.has(e.sup));
-    const childrenOf = (id) => employees.filter((e) => e.sup === id);
+    const empIds = new Set(chartEmployees.map((e) => e.id));
+    const roots = chartEmployees.filter((e) => !e.sup || !empIds.has(e.sup));
+    const childrenOf = (id) => chartEmployees.filter((e) => e.sup === id);
     const positions = {},
       depths = {};
     let slot = 0;
@@ -3021,7 +3028,7 @@ function OrgChartPyramid({ onSelect, onEdit }) {
       }
     };
     roots.forEach((r) => walk(r, 0));
-    employees.forEach((e) => {
+    chartEmployees.forEach((e) => {
       if (!visited.has(e.id)) walk(e, 0);
     });
     const maxDepth = Math.max(0, ...Object.values(depths));
@@ -3032,7 +3039,7 @@ function OrgChartPyramid({ onSelect, onEdit }) {
       width: (maxSlot + 1) * (NODE_W + GAP_X),
       height: (maxDepth + 1) * (NODE_H + GAP_Y),
     };
-  }, [employees]);
+  }, [chartEmployees]);
 
   const px = (id) => layout.positions[id] * (NODE_W + GAP_X);
   const py = (id) => layout.depths[id] * (NODE_H + GAP_Y);
@@ -3087,7 +3094,7 @@ function OrgChartPyramid({ onSelect, onEdit }) {
               />
             </marker>
           </defs>
-          {employees
+          {chartEmployees
             .filter((e) => e.sup && layout.positions[e.sup] !== undefined)
             .map((e) => {
               const x1 = px(e.sup) + NODE_W / 2,
@@ -3110,7 +3117,7 @@ function OrgChartPyramid({ onSelect, onEdit }) {
             })}
         </svg>
 
-        {employees.map((e) => {
+        {chartEmployees.map((e) => {
           const dep = deptById[e.dept] || { color: C.slate, name: e.dept };
           return (
             <div
@@ -3276,7 +3283,13 @@ function OrgChartPyramid({ onSelect, onEdit }) {
 }
 
 function EmployeeFormModal({ employee, onClose }) {
-  const { employees, addEmployee, updateEmployee, deleteEmployee } = useEmp();
+  const {
+    employees,
+    addEmployee,
+    updateEmployee,
+    deleteEmployee,
+    isSuperAdmin,
+  } = useEmp();
   const isEdit = !!employee;
   const [name, setName] = useState(employee?.name || "");
   const [position, setPosition] = useState(employee?.position || "");
@@ -3284,6 +3297,7 @@ function EmployeeFormModal({ employee, onClose }) {
   const [dept, setDept] = useState(employee?.dept || DEPARTMENTS[0].id);
   const [sup, setSup] = useState(employee?.sup || "");
   const [role, setRole] = useState(employee?.role || "employee");
+  const [isDeveloper, setIsDeveloper] = useState(!!employee?.isDeveloper);
   const [status, setStatus] = useState(employee?.status || "Active");
   const [secondary, setSecondary] = useState(employee?.secondary || "");
   const [resp, setResp] = useState((employee?.resp || []).join("\n"));
@@ -3293,7 +3307,7 @@ function EmployeeFormModal({ employee, onClose }) {
     ? new Set([employee.id, ...collectDescendants(employee.id, employees)])
     : new Set();
   const supervisorOptions = employees.filter(
-    (e) => !blockedSupervisors.has(e.id),
+    (e) => !e.isDeveloper && !blockedSupervisors.has(e.id),
   );
 
   const submit = async () => {
@@ -3306,8 +3320,9 @@ function EmployeeFormModal({ employee, onClose }) {
       position: position.trim(),
       dept,
       sup: sup || null,
-      role,
+      role: isDeveloper ? "superadmin" : role,
       status,
+      isDeveloper: isSuperAdmin ? isDeveloper : !!employee?.isDeveloper,
       secondary: secondary.trim() || undefined,
       email: email.trim() || undefined,
       resp: resp
@@ -3389,7 +3404,10 @@ function EmployeeFormModal({ employee, onClose }) {
         <FormRow label="Permission role">
           <select
             value={role}
-            onChange={(e) => setRole(e.target.value)}
+            onChange={(e) => {
+              setRole(e.target.value);
+              if (e.target.value !== "superadmin") setIsDeveloper(false);
+            }}
             style={inputStyle}
           >
             <option value="superadmin">Super Admin</option>
@@ -3410,6 +3428,31 @@ function EmployeeFormModal({ employee, onClose }) {
           </select>
         </FormRow>
       </div>
+      {isSuperAdmin && (
+        <label
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 8,
+            margin: "2px 0 12px",
+            fontSize: 12.5,
+            lineHeight: 1.45,
+            cursor: "pointer",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={isDeveloper}
+            onChange={(event) => {
+              const checked = event.target.checked;
+              setIsDeveloper(checked);
+              if (checked) setRole("superadmin");
+            }}
+            style={{ marginTop: 2 }}
+          />
+          <span>Developer account with Super Admin access (hidden from org chart and task assignment)</span>
+        </label>
+      )}
       <FormRow label="Secondary role (optional)">
         <input
           value={secondary}
@@ -8179,8 +8222,15 @@ function RepeatTaskModal({ task, onClose, onConfirm }) {
 
 function EditTaskModal({ task, onClose, onSave }) {
   const { employees, byId } = useEmp();
+  const assignableEmployees = employees.filter(
+    (employee) => !employee.isDeveloper,
+  );
   const [title, setTitle] = useState(task.title);
-  const [assignee, setAssignee] = useState(task.assignee);
+  const [assignee, setAssignee] = useState(
+    assignableEmployees.some((employee) => employee.id === task.assignee)
+      ? task.assignee
+      : "",
+  );
   const [movePolicy, setMovePolicy] = useState(
     task.movePolicy === "team" ? "selected" : task.movePolicy || "selected",
   );
@@ -8196,7 +8246,9 @@ function EditTaskModal({ task, onClose, onSave }) {
   const [customDays, setCustomDays] = useState(task.recurringCustomDays || 7);
   const moveMemberOptions = employees.filter(
     (employee) =>
-      employee.id !== assignee && (task.assignees || []).includes(employee.id),
+      !employee.isDeveloper &&
+      employee.id !== assignee &&
+      (task.assignees || []).includes(employee.id),
   );
 
   const submit = () => {
@@ -8244,7 +8296,8 @@ function EditTaskModal({ task, onClose, onSave }) {
           onChange={(e) => setAssignee(e.target.value)}
           style={inputStyle}
         >
-          {employees.map((e) => (
+          {!assignee && <option value="">Select an employee</option>}
+          {assignableEmployees.map((e) => (
             <option key={e.id} value={e.id}>
               {e.name} — {e.position}
             </option>
@@ -8417,8 +8470,11 @@ function PeoplePicker({ options, selected, onToggle }) {
 
 function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
   const { employees, byId } = useEmp();
+  const assignableEmployees = employees.filter(
+    (employee) => !employee.isDeveloper,
+  );
   const [title, setTitle] = useState("");
-  const [assignee, setAssignee] = useState(employees[0]?.id || "");
+  const [assignee, setAssignee] = useState(assignableEmployees[0]?.id || "");
   const [extra, setExtra] = useState([]); // additional people besides the lead
   const [movePolicy, setMovePolicy] = useState("selected");
   const [moveMemberIds, setMoveMemberIds] = useState([]);
@@ -8516,7 +8572,8 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
           onChange={(e) => changeLead(e.target.value)}
           style={inputStyle}
         >
-          {employees.map((e) => (
+          <option value="">Select an employee</option>
+          {assignableEmployees.map((e) => (
             <option key={e.id} value={e.id}>
               {e.name} — {e.position}
             </option>
@@ -8527,7 +8584,7 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
         label={`Also assign (optional)${extra.length ? ` — ${extra.length} selected` : ""}`}
       >
         <PeoplePicker
-          options={employees.filter((e) => e.id !== assignee)}
+          options={assignableEmployees.filter((e) => e.id !== assignee)}
           selected={extra}
           onToggle={toggleExtra}
         />
@@ -8546,7 +8603,9 @@ function AddTaskModal({ onClose, onCreate, onAttach, createdBy }) {
       {movePolicy === "selected" && (
         <FormRow label="Members who can move">
           <PeoplePicker
-            options={employees.filter((employee) => extra.includes(employee.id))}
+            options={assignableEmployees.filter((employee) =>
+              extra.includes(employee.id),
+            )}
             selected={moveMemberIds.filter((id) => extra.includes(id))}
             onToggle={(id) =>
               setMoveMemberIds((members) =>
@@ -9556,7 +9615,3 @@ function ModalShell({
   );
   return portal ? createPortal(overlay, document.body) : overlay;
 }
-
-/*
-chatgpt tulungan moko mag code 
-*/
