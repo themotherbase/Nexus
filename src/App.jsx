@@ -2493,6 +2493,7 @@ function Dashboard({
   setTaskDetail,
 }) {
   const { employees, directReports, onlineIds } = useEmp();
+  const [dailyTaskIndex, setDailyTaskIndex] = useState(0);
   const goToTask = (id) => {
     setTaskDetail(id);
     setPage("tasks");
@@ -2523,6 +2524,40 @@ function Dashboard({
       return (b.due || "").localeCompare(a.due || "");
     })
     .slice(0, 3);
+
+  const teamEmployeeIds = isManager
+    ? [viewerEmp.id, ...collectDescendants(viewerEmp.id, employees)]
+    : [];
+  const teamEmployees = isExec
+    ? employees
+    : employees.filter((employee) => teamEmployeeIds.includes(employee.id));
+  const personalTasks = tasks.filter((task) => isOnTask(task, viewerEmp.id));
+  const dailyTasks = scoped
+    .filter((task) => task.recurring === "Daily")
+    .sort((a, b) => {
+      const priority = (task) =>
+        task.status === "Completed"
+          ? 3
+          : statusMeta(task).label === "Overdue"
+            ? 0
+            : statusMeta(task).label === "Due today"
+              ? 1
+              : 2;
+      return priority(a) - priority(b) || (a.due || "").localeCompare(b.due || "");
+    });
+  const dailyTask = dailyTasks.length
+    ? dailyTasks[dailyTaskIndex % dailyTasks.length]
+    : null;
+
+  useEffect(() => {
+    setDailyTaskIndex(0);
+    if (dailyTasks.length < 2) return undefined;
+    const timer = window.setInterval(
+      () => setDailyTaskIndex((index) => (index + 1) % dailyTasks.length),
+      8000,
+    );
+    return () => window.clearInterval(timer);
+  }, [dailyTasks.length]);
 
   const byDept = DEPARTMENTS.map((dep) => ({
     ...dep,
@@ -2555,16 +2590,10 @@ function Dashboard({
               ? "Team overview"
               : "My dashboard"
         }
-        title={
-          isExec
-            ? "Dashboard"
-            : isManager
-              ? `${viewerEmp.name.split(" ")[0]}'s Team`
-              : "My Tasks"
-        }
+        title={`Hello, ${viewerEmp.name.split(" ")[0]}`}
       />
 
-      {isExec && (
+      {isManager && (
         <div
           className="mb-grid-4"
           style={{
@@ -2576,17 +2605,25 @@ function Dashboard({
         >
           <StatCard
             label="Employees"
-            value={employees.length}
-            sub={`${employees.filter((e) => e.status === "Active").length} active`}
+            value={teamEmployees.length}
+            sub={`${teamEmployees.filter((e) => e.status === "Active").length} active`}
           />
           <StatCard
             label="Departments"
-            value={DEPARTMENTS.length}
-            sub="editable in Settings"
+            value={
+              isExec
+                ? DEPARTMENTS.length
+                : new Set(scoped.map((task) => task.dept).filter(Boolean)).size
+            }
+            sub={isExec ? "editable in Settings" : "in your team"}
           />
           <StatCard
             label="Open tasks"
-            value={tasks.filter((t) => t.status !== "Completed").length}
+            value={
+              (isExec ? tasks : scoped).filter(
+                (task) => task.status !== "Completed",
+              ).length
+            }
             sub={`${completed.length} completed`}
           />
           <StatCard
@@ -2602,10 +2639,73 @@ function Dashboard({
         className="mb-grid-2"
         style={{
           display: "grid",
-          gridTemplateColumns: isExec ? "1.3fr 1fr" : "1fr",
+          gridTemplateColumns: "minmax(220px, 0.72fr) minmax(0, 1.8fr)",
           gap: 18,
+          alignItems: "stretch",
         }}
       >
+        <Panel
+          title={`Online now (${employees.filter((e) => onlineIds.has(e.id)).length})`}
+          style={{ minHeight: 230 }}
+        >
+          {employees.filter((e) => onlineIds.has(e.id)).length === 0 && (
+            <Empty text="No one else is online right now." />
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {employees
+              .filter((e) => onlineIds.has(e.id))
+              .map((e) => (
+                <div
+                  key={e.id}
+                  style={{ display: "flex", alignItems: "center", gap: 8 }}
+                >
+                  <Avatar name={e.name} size={28} online />
+                  <span style={{ fontSize: 12.5 }}>{e.name}</span>
+                </div>
+              ))}
+          </div>
+        </Panel>
+
+        <DailyTaskFeature
+          task={dailyTask}
+          taskCount={dailyTasks.length}
+          taskIndex={dailyTaskIndex}
+          employees={employees}
+          onOpen={goToTask}
+          onPrevious={() =>
+            setDailyTaskIndex((index) =>
+              dailyTasks.length ? (index - 1 + dailyTasks.length) % dailyTasks.length : 0,
+            )
+          }
+          onNext={() =>
+            setDailyTaskIndex((index) =>
+              dailyTasks.length ? (index + 1) % dailyTasks.length : 0,
+            )
+          }
+        />
+      </div>
+
+      <div
+        className="mb-grid-2"
+        style={{
+          display: "grid",
+          gridTemplateColumns: isManager ? "1.3fr 1fr" : "1fr",
+          gap: 18,
+          marginTop: 18,
+          alignItems: "start",
+        }}
+      >
+        <Panel title="My tasks">
+          {personalTasks.length === 0 && <Empty text="Nothing assigned yet." />}
+          {personalTasks.map((task) => (
+            <MiniTaskRow
+              key={task.id}
+              t={task}
+              onClick={() => goToTask(task.id)}
+            />
+          ))}
+        </Panel>
+
         <Panel title="Management alerts">
           <AlertRow
             icon={CircleAlert}
@@ -2629,57 +2729,35 @@ function Dashboard({
             onOpen={goToTask}
           />
         </Panel>
-
-        {isExec && (
-          <Panel title="Tasks by department">
-            {byDept.length === 0 && <Empty text="No open tasks right now." />}
-            {byDept.map((dep) => (
-              <div
-                key={dep.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "7px 0",
-                }}
-              >
-                <div
-                  style={{
-                    width: 9,
-                    height: 9,
-                    borderRadius: 9,
-                    background: dep.color,
-                  }}
-                />
-                <div style={{ fontSize: 13, flex: 1 }}>{dep.name}</div>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{dep.count}</div>
-              </div>
-            ))}
-          </Panel>
-        )}
       </div>
 
-      <Panel
-        title={`Online now (${employees.filter((e) => onlineIds.has(e.id)).length})`}
-        style={{ marginTop: 18 }}
-      >
-        {employees.filter((e) => onlineIds.has(e.id)).length === 0 && (
-          <Empty text="No one else is online right now." />
-        )}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
-          {employees
-            .filter((e) => onlineIds.has(e.id))
-            .map((e) => (
+      {isExec && (
+        <Panel title="Tasks by department" style={{ marginTop: 18 }}>
+          {byDept.length === 0 && <Empty text="No open tasks right now." />}
+          {byDept.map((dep) => (
+            <div
+              key={dep.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "7px 0",
+              }}
+            >
               <div
-                key={e.id}
-                style={{ display: "flex", alignItems: "center", gap: 6 }}
-              >
-                <Avatar name={e.name} size={26} online />
-                <span style={{ fontSize: 12.5 }}>{e.name}</span>
-              </div>
-            ))}
-        </div>
-      </Panel>
+                style={{
+                  width: 9,
+                  height: 9,
+                  borderRadius: 9,
+                  background: dep.color,
+                }}
+              />
+              <div style={{ fontSize: 13, flex: 1 }}>{dep.name}</div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>{dep.count}</div>
+            </div>
+          ))}
+        </Panel>
+      )}
 
       {isManager && (
         <Panel
@@ -2690,10 +2768,7 @@ function Dashboard({
             .filter(
               (w) =>
                 isExec ||
-                [
-                  viewerEmp.id,
-                  ...collectDescendants(viewerEmp.id, employees),
-                ].includes(w.emp.id),
+                teamEmployeeIds.includes(w.emp.id),
             )
             .map((w) => (
               <div
@@ -2739,17 +2814,212 @@ function Dashboard({
         </Panel>
       )}
 
-      {!isManager && (
-        <Panel title="My tasks" style={{ marginTop: 18 }}>
-          {scoped.length === 0 && <Empty text="Nothing assigned yet." />}
-          {scoped.map((t) => (
-            <MiniTaskRow key={t.id} t={t} onClick={() => goToTask(t.id)} />
-          ))}
-        </Panel>
-      )}
     </div>
   );
 }
+
+function DailyTaskFeature({
+  task,
+  taskCount,
+  taskIndex,
+  employees,
+  onOpen,
+  onPrevious,
+  onNext,
+}) {
+  const status = task ? statusMeta(task) : null;
+  const progress = task ? taskProgress(task) : 0;
+  const team = task
+    ? taskTeam(task)
+        .map((id) => employees.find((employee) => employee.id === id))
+        .filter(Boolean)
+    : [];
+
+  return (
+    <Panel
+      title="Daily task"
+      style={{
+        minHeight: 230,
+        background: `linear-gradient(135deg, ${C.card}, ${C.navySoft})`,
+      }}
+    >
+      {task ? (
+        <>
+          <button
+            type="button"
+            onClick={() => onOpen(task.id)}
+            style={{
+              display: "block",
+              width: "100%",
+              padding: 0,
+              color: C.ink,
+              textAlign: "left",
+              background: "transparent",
+              border: 0,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                marginBottom: 10,
+              }}
+            >
+              <span
+                style={{
+                  padding: "4px 9px",
+                  borderRadius: 20,
+                  background: status.color,
+                  color: "#fff",
+                  fontSize: 11,
+                  fontWeight: 700,
+                }}
+              >
+                {status.label}
+              </span>
+              <span style={{ color: C.slate, fontSize: 11.5 }}>
+                {task.due
+                  ? new Date(`${task.due}T00:00:00`).toLocaleDateString(
+                      undefined,
+                      { month: "short", day: "numeric", year: "numeric" },
+                    )
+                  : "No due date"}
+              </span>
+            </div>
+            <div
+              className="mb-display"
+              style={{ fontSize: 20, fontWeight: 700, lineHeight: 1.3 }}
+            >
+              {task.title}
+            </div>
+            {task.description && (
+              <div
+                style={{
+                  marginTop: 7,
+                  color: C.slate,
+                  fontSize: 12.5,
+                  lineHeight: 1.5,
+                }}
+              >
+                {task.description}
+              </div>
+            )}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                marginTop: 15,
+              }}
+            >
+              <div
+                aria-label={`${progress}% complete`}
+                style={{
+                  flex: 1,
+                  height: 7,
+                  overflow: "hidden",
+                  borderRadius: 8,
+                  background: C.line,
+                }}
+              >
+                <div
+                  style={{
+                    width: `${progress}%`,
+                    height: "100%",
+                    borderRadius: 8,
+                    background: C.sage,
+                  }}
+                />
+              </div>
+              <span style={{ fontSize: 11.5, fontWeight: 700 }}>
+                {progress}%
+              </span>
+              <div style={{ display: "flex", alignItems: "center" }}>
+                {team.slice(0, 5).map((employee) => (
+                  <div
+                    key={employee.id}
+                    style={{
+                      marginLeft: -5,
+                      border: `2px solid ${C.card}`,
+                      borderRadius: "50%",
+                    }}
+                  >
+                    <Avatar name={employee.name} size={25} />
+                  </div>
+                ))}
+                {team.length > 5 && (
+                  <span style={{ marginLeft: 5, fontSize: 11, color: C.slate }}>
+                    +{team.length - 5}
+                  </span>
+                )}
+              </div>
+            </div>
+          </button>
+          {taskCount > 1 && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "flex-end",
+                gap: 10,
+                marginTop: 12,
+              }}
+            >
+              <span style={{ color: C.slate, fontSize: 11 }}>
+                {taskIndex + 1} of {taskCount}
+              </span>
+              <button
+                type="button"
+                aria-label="Previous daily task"
+                onClick={onPrevious}
+                style={dailyTaskNavStyle}
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <button
+                type="button"
+                aria-label="Next daily task"
+                onClick={onNext}
+                style={dailyTaskNavStyle}
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
+        <div
+          style={{
+            minHeight: 160,
+            display: "grid",
+            placeItems: "center",
+            color: C.slate,
+            fontSize: 13,
+            textAlign: "center",
+          }}
+        >
+          No daily tasks assigned.
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+const dailyTaskNavStyle = {
+  width: 30,
+  height: 30,
+  display: "grid",
+  placeItems: "center",
+  color: C.ink,
+  background: "var(--mb-glass-surface)",
+  border: "1px solid var(--mb-glass-border)",
+  borderRadius: 8,
+  cursor: "pointer",
+};
 
 function AlertRow({ icon: Icon, color, label, items, onOpen }) {
   const { byId } = useEmp();
